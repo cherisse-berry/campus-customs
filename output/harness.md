@@ -2,7 +2,7 @@
 
 This file explains how the Campus Customs database (`data/campus_customs.db`, a SQLite file) is organized. It lists each table and its fields, and says why each field matters for the website or the shopping chatbot.
 
-The database was only read, never changed.
+For Problem 2 the database was only read, never changed. From Problem 4 on, the website adds one new row to `users` each time a customer creates an account; nothing else is ever written. See [Authentication](#authentication) below.
 
 ## Overview
 
@@ -10,7 +10,7 @@ The database was only read, never changed.
 |---|---|---|
 | `catalogue` | 102 | One row per product: name, type, description, colors, tags, image and price |
 | `inventory` | 612 | Stock count for each product in each size (102 products × 6 sizes) |
-| `users` | 3 | Shopper accounts used for sign-in |
+| `users` | 3 (as delivered) | Shopper accounts used for sign-in; grows as customers register |
 | `chat_messages` | 22 | Saved chatbot conversation history, per user |
 | `sqlite_sequence` | 3 | SQLite's internal counter for auto-numbered IDs (not app data) |
 
@@ -62,7 +62,7 @@ This table holds the accounts people use to sign in. Signing in lets the chatbot
 | `id` | INTEGER, primary key, auto-numbered | The user's ID. It links to `chat_messages.user_id`, so each person's chat history stays separate. |
 | `name` | TEXT, required | The user's full name, for greetings like "Hi, Ada" and for answering "what's my name?" |
 | `email` | TEXT, required, unique | The sign-in username. Because it must be unique, no two accounts can share an email. |
-| `password_hash` | TEXT, required | A scrambled (hashed) version of the password, in `pbkdf2_sha256$<salt>$<hash>` format, so the real password is never stored. Sign-in checks a typed password against it. It must never be shown on the site, sent to the chatbot or written to logs. |
+| `password_hash` | TEXT, required | A scrambled (hashed) version of the password, in `pbkdf2_sha256$<salt>$<hash>` format, so the real password is never stored. Sign-in checks a typed password against it (see [Authentication](#authentication)). It must never be shown on the site, sent to the chatbot or written to logs. |
 | `created_at` | TEXT, defaults to the current time | When the account was created. Useful for account pages and for admins. |
 | `first_name` | TEXT, optional | The first name on its own, for a friendlier greeting. This column was added later, so it may be empty for some users. |
 | `last_name` | TEXT, optional | The last name on its own. Also added later, so it may be empty. |
@@ -83,6 +83,85 @@ This table saves each turn of every chatbot conversation, so a user's chat can b
 ## `sqlite_sequence`: internal table
 
 SQLite manages this table itself. It records the last ID used in each auto-numbered table (`inventory`, `users`, `chat_messages`). The website and chatbot don't use it, and nobody should edit it.
+
+---
+
+## Authentication
+
+Customers can create an account and log in. The code is in `backend/app/auth.py`, with the database queries in `backend/app/db.py`.
+
+### How passwords are stored
+
+Passwords are never saved as typed. Each one is stored in `users.password_hash` in the same format as the existing accounts:
+
+```
+pbkdf2_sha256$<salt>$<digest>
+```
+
+| Part | What it is |
+|---|---|
+| `pbkdf2_sha256` | The method: PBKDF2-HMAC-SHA256 |
+| `<salt>` | A random value unique to each account. New accounts get 16 random hex characters. The salt's text is used as the salt bytes (UTF-8), the same as in the existing rows. |
+| `<digest>` | The result of running the password and salt through SHA-256 120,000 times, written as 64 hex characters |
+
+To check a password at login, the server repeats the same calculation with the stored salt and compares the result with a constant-time comparison. I confirmed the format matches the existing data: the test account's stored hash is reproduced exactly from the password `password`.
+
+The salt means two people with the same password get different hashes. The 120,000 rounds make each guess slow, which makes stolen hashes much harder to crack.
+
+### Creating an account
+
+1. The Create Account page asks for first name, last name, email, password and a password confirmation. It checks them in the browser first.
+2. It sends `POST /api/auth/register` with `first_name`, `last_name`, `email` and `password`.
+3. The server checks the input again. Both names are required, the email must look valid, and the password must be at least 8 characters.
+4. The email is trimmed and lowercased. If an account with that email already exists (in any capitalization), the server replies with an error and saves nothing.
+5. Otherwise it inserts one row into `users`:
+
+| Column | Value saved |
+|---|---|
+| `name` | First and last name together, e.g. "Grace Hopper" |
+| `first_name`, `last_name` | As typed, trimmed |
+| `email` | Lowercased |
+| `password_hash` | The PBKDF2 hash described above |
+| `id`, `created_at` | Filled in automatically by the database |
+
+6. The new customer is logged in straight away.
+
+### Logging in and staying logged in
+
+1. The Log In page sends `POST /api/auth/login` with email and password. Email matching ignores capitalization.
+2. A wrong password and an unknown email give the same message, "Incorrect email or password.", so the page can't be used to find out who has an account. Unknown emails are still checked against a dummy hash so both cases take the same time.
+3. On success the server sets a **session cookie** named `cc_session`. It holds the user's ID and an expiry time (7 days), signed with a secret key (`SESSION_SECRET`) so it can't be edited or forged.
+4. The cookie is **HttpOnly**, so page scripts can't read it, and **SameSite=Lax**, which blocks most cross-site request tricks. Set `COOKIE_SECURE=true` when the site runs on HTTPS.
+5. When the site loads, it calls `GET /api/auth/me` to find out who is logged in. The header then shows "Hi, <first name>" and a Log Out button.
+6. **Log Out** calls `POST /api/auth/logout`, which deletes the cookie.
+
+No session table is needed. Everything the server needs is in the signed cookie.
+
+### Auth API
+
+| Endpoint | Body | Result |
+|---|---|---|
+| `POST /api/auth/register` | `first_name`, `last_name`, `email`, `password` | `201` with the user, and logs in. `409` if the email is taken, `422` if input is invalid. |
+| `POST /api/auth/login` | `email`, `password` | `200` with the user, and logs in. `401` if the details are wrong. |
+| `POST /api/auth/logout` | none | `204`, logged out |
+| `GET /api/auth/me` | none | `200` with the current user, or `401` if not logged in |
+
+Responses only ever include `id`, `name`, `first_name`, `last_name` and `email`, never the password hash.
+
+### Secrets
+
+`SESSION_SECRET` goes in `backend/.env`, which is git-ignored; `backend/.env.example` shows the format. If it isn't set, the server makes a random key at startup, so everyone is logged out whenever the server restarts.
+
+### Tests
+
+- **Backend** (`backend/tests/test_auth.py`): checks the hash format against the real test account, logs in as the existing account, registers and logs in as a new account, and covers wrong passwords, duplicate emails, bad input, logout and forged or expired cookies. These tests run on a temporary copy of the database, so they never add accounts to the real one.
+- **In a browser:** I logged in as `test@campuscustoms.yale.edu` / `password`, created a new account and logged back in with it. This also ran against a copy of the database.
+
+### Not built yet
+
+- Password reset and changing a password
+- Limiting repeated login attempts
+- Linking chat history (`chat_messages`) to the logged-in user. That comes when the chatbot is connected.
 
 ---
 

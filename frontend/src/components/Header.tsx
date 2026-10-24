@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
+import { useAuth } from '../authContext'
 
 const links = [
   { to: '/', label: 'Home', end: true },
@@ -8,6 +9,7 @@ const links = [
 ]
 
 export default function Header() {
+  const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
 
@@ -41,12 +43,29 @@ export default function Header() {
             </NavLink>
           ))}
           <span className="nav-divider" />
-          <NavLink to="/login" onClick={close}>
-            Log In
-          </NavLink>
-          <Link to="/create-account" className="btn btn-small" onClick={close}>
-            Create Account
-          </Link>
+          {user ? (
+            <>
+              <span className="nav-user">Hi, {user.first_name}</span>
+              <button
+                className="btn btn-small btn-secondary"
+                onClick={() => {
+                  close()
+                  logout()
+                }}
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login" onClick={close}>
+                Log In
+              </NavLink>
+              <Link to="/create-account" className="btn btn-small" onClick={close}>
+                Create Account
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </header>

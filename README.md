@@ -4,7 +4,8 @@ The Campus Customs website: a Yale apparel shop built with **React + Vite + Type
 
 - **Pages:** Home, Products (search, category filters, sorting), product detail (sizes and current stock), About Us, Log In and Create Account
 - **Chat:** a chat window in the bottom-right corner, ready to connect to the AI agent later
-- **Database:** opened **read-only**, so the website can never change it
+- **Accounts:** customers can register and log in; passwords are hashed with PBKDF2-HMAC-SHA256 (see `output/harness.md`)
+- **Database:** product and stock data is only ever read; the only writes are new rows in `users` when someone registers
 
 ## Project layout
 
@@ -33,7 +34,8 @@ To keep the data somewhere else, set `CAMPUS_DATA_DIR=/path/to/data`.
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+cp .env.example .env        # then set SESSION_SECRET to a long random string
+uvicorn app.main:app --reload --port 8000 --env-file .env
 ```
 
 ### 3. Start the website (port 5173)
@@ -54,6 +56,10 @@ Open http://localhost:5173. Vite forwards `/api` and `/media` requests to the AP
 | `GET /api/products/{product_id}` | One product, with stock for each size |
 | `GET /api/categories` | Product categories with counts |
 | `GET /media/products/{file}.jpg` | Product images |
+| `POST /api/auth/register` | Create an account and log in |
+| `POST /api/auth/login` | Log in (sets a session cookie) |
+| `POST /api/auth/logout` | Log out |
+| `GET /api/auth/me` | The logged-in customer |
 | `GET /api/health` | Health check |
 
 ## Tests
@@ -66,8 +72,8 @@ cd frontend && npm run lint && npm run build
 
 ## Static preview
 
-`npm run build:preview` (in `frontend/`) builds a version of the site that needs no server, in `frontend/dist-preview/`. It exports product and stock data (no user accounts or chats) to `data/catalog.json` and copies the product images. It's used for sharing a live preview and is git-ignored.
+`npm run build:preview` (in `frontend/`) builds a version of the site that needs no server, in `frontend/dist-preview/`. It exports product and stock data (no user accounts or chats) to `data/catalog.json` and copies the product images. Log In and Create Account are turned off in it, since they need the server. It's used for sharing a live preview and is git-ignored.
 
 ## Secrets
 
-API keys go in a local `.env` file, which is git-ignored. Never commit keys, the database or the images.
+API keys and `SESSION_SECRET` go in a local `backend/.env` file, which is git-ignored (`backend/.env.example` shows the format). Never commit keys, the database or the images.

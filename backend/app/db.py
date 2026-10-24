@@ -1,4 +1,8 @@
-"""Read-only access to the Campus Customs SQLite database."""
+"""Access to the Campus Customs SQLite database.
+
+Product and stock data is only ever read. The only writes are new rows in
+`users` when a customer creates an account.
+"""
 
 import json
 import os
@@ -33,9 +37,10 @@ def category_for(garment_type: str) -> str:
     return "other"
 
 
-def connect() -> sqlite3.Connection:
-    # mode=ro guarantees the app can never modify the database.
-    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+def connect(writable: bool = False) -> sqlite3.Connection:
+    # Read-only unless a write is explicitly needed; mode=rw never creates a new file.
+    mode = "rw" if writable else "ro"
+    conn = sqlite3.connect(f"file:{DB_PATH}?mode={mode}", uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -89,3 +94,43 @@ def get_product(product_id: str) -> dict | None:
         key=lambda s: rank.get(s["size"], len(SIZE_ORDER)),
     )
     return product
+
+
+_USER_COLUMNS = "id, name, email, password_hash, created_at, first_name, last_name"
+
+
+def get_user_by_email(email: str) -> sqlite3.Row | None:
+    with closing(connect()) as conn:
+        return conn.execute(
+            f"SELECT {_USER_COLUMNS} FROM users WHERE lower(email) = lower(?)", (email,)
+        ).fetchone()
+
+
+def get_user_by_id(user_id: int) -> sqlite3.Row | None:
+    with closing(connect()) as conn:
+        return conn.execute(f"SELECT {_USER_COLUMNS} FROM users WHERE id = ?", (user_id,)).fetchone()
+
+
+class EmailTaken(Exception):
+    pass
+
+
+def create_user(first_name: str, last_name: str, email: str, password_hash: str) -> sqlite3.Row:
+    """Insert a user. Raises EmailTaken if the email is already registered."""
+    with closing(connect(writable=True)) as conn:
+        try:
+            with conn:  # commits on success, rolls back on error
+                if conn.execute(
+                    "SELECT 1 FROM users WHERE lower(email) = lower(?)", (email,)
+                ).fetchone():
+                    raise EmailTaken(email)
+                cur = conn.execute(
+                    "INSERT INTO users (name, email, password_hash, first_name, last_name)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (f"{first_name} {last_name}", email, password_hash, first_name, last_name),
+                )
+        except sqlite3.IntegrityError as e:  # UNIQUE(email) race with another request
+            raise EmailTaken(email) from e
+        return conn.execute(
+            f"SELECT {_USER_COLUMNS} FROM users WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()

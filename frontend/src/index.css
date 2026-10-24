@@ -133,6 +133,16 @@ h2 {
   width: 100%;
 }
 
+.btn-secondary {
+  background: #fff;
+  color: var(--yale-blue);
+}
+
+.btn-secondary:hover {
+  background: #e8eef7;
+  color: var(--yale-blue);
+}
+
 .btn-light {
   background: #fff;
   color: var(--yale-blue);
@@ -244,6 +254,11 @@ h2 {
   border-bottom-color: var(--yale-blue);
 }
 
+.nav-user {
+  font-weight: 600;
+  color: var(--yale-blue);
+}
+
 .nav-divider {
   width: 1px;
   height: 22px;
@@ -305,6 +320,10 @@ h2 {
 
   .nav .btn {
     margin-top: 14px;
+  }
+
+  .nav-user {
+    padding: 12px 0 0;
   }
 }
 
@@ -861,6 +880,13 @@ select {
 .form-notice {
   color: var(--yale-blue);
   background: #e8eef7;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
 }
 
 .auth-footer {

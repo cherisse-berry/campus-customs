@@ -65,3 +65,15 @@ A record of the prompts used while building the Campus Customs website, organize
 *What was missing:* The first build only ran on servers inside the private cloud workspace, so the only way to see it was through screenshots. This prompt led to a static preview build that runs without a server, published as a private live page for review.
 
 ---
+
+## Problem 4: Customer Accounts
+
+### Original prompt
+
+> For Problem 4, make the Create Account and Log In pages functional. Customers should be able to register with their name, email, and password, and then log in.
+>
+> Save new accounts in the users table and securely hash passwords using PBKDF2-HMAC-SHA256 with 120,000 iterations, matching the existing database format.
+>
+> Test login with the existing account (test@campuscustoms.yale.edu / password) and a new account. Update output/harness.md to explain how authentication works, and record this prompt in AI_prompts.md.
+
+---

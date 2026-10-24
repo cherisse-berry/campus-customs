@@ -1,4 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../authContext'
 
 export interface Field {
   name: string
@@ -12,26 +14,51 @@ interface Props {
   subtitle: string
   fields: Field[]
   submitLabel: string
+  busyLabel: string
   validate: (values: Record<string, string>) => string | null
+  /** Sends the form; throws an Error whose message is shown to the user. */
+  onSubmit: (values: Record<string, string>) => Promise<void>
   footer: ReactNode
 }
 
-/**
- * Shared log-in / sign-up form. Accounts are not connected yet, so submitting
- * only validates the form; nothing is sent or saved.
- */
-export default function AuthForm({ title, subtitle, fields, submitLabel, validate, footer }: Props) {
+/** Shared log-in / sign-up form. */
+export default function AuthForm({ title, subtitle, fields, submitLabel, busyLabel, validate, onSubmit, footer }: Props) {
+  const { user, logout } = useAuth()
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(fields.map((f) => [f.name, ''])),
   )
   const [error, setError] = useState<string | null>(null)
-  const [submitted, setSubmitted] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  function onSubmit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     const problem = validate(values)
     setError(problem)
-    setSubmitted(problem === null)
+    if (problem) return
+    setBusy(true)
+    try {
+      await onSubmit(values)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setBusy(false)
+    }
+  }
+
+  if (user) {
+    return (
+      <div className="container section auth">
+        <div className="auth-card">
+          <h1>You're logged in</h1>
+          <p className="muted">
+            Signed in as <strong>{user.name}</strong> ({user.email}).
+          </p>
+          <div className="auth-actions">
+            <Link to="/products" className="btn">Continue shopping</Link>
+            <button className="btn btn-secondary" onClick={() => logout()}>Log out</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -39,11 +66,12 @@ export default function AuthForm({ title, subtitle, fields, submitLabel, validat
       <div className="auth-card">
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>
-        <form onSubmit={onSubmit} noValidate>
+        <form onSubmit={submit} noValidate>
           {fields.map((f) => (
             <label key={f.name} className="field">
               {f.label}
               <input
+                id={f.name}
                 name={f.name}
                 type={f.type}
                 autoComplete={f.autoComplete}
@@ -53,12 +81,9 @@ export default function AuthForm({ title, subtitle, fields, submitLabel, validat
             </label>
           ))}
           {error && <p className="form-error" role="alert">{error}</p>}
-          {submitted && (
-            <p className="form-notice" role="status">
-              Accounts aren't connected yet. Sign-in will be enabled in a later step.
-            </p>
-          )}
-          <button type="submit" className="btn btn-block">{submitLabel}</button>
+          <button type="submit" className="btn btn-block" disabled={busy}>
+            {busy ? busyLabel : submitLabel}
+          </button>
         </form>
         <p className="auth-footer">{footer}</p>
       </div>

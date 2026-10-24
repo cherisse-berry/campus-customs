@@ -3,6 +3,7 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
 import ChatWidget from './components/ChatWidget'
+import AuthProvider from './components/AuthProvider'
 import Home from './pages/Home'
 import Products from './pages/Products'
 import ProductPage from './pages/ProductPage'
@@ -21,7 +22,7 @@ function ScrollToTop() {
 
 export default function App() {
   return (
-    <>
+    <AuthProvider>
       <ScrollToTop />
       <Header />
       <main className="main">
@@ -37,6 +38,6 @@ export default function App() {
       </main>
       <Footer />
       <ChatWidget />
-    </>
+    </AuthProvider>
   )
 }
