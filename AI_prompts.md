@@ -104,4 +104,10 @@ A record of the prompts used while building the Campus Customs website, organize
 
 *What was missing:* The first setup instructions assumed the project ran on my own computer, where a terminal can ask for the key. They didn't explain how to add the key when using Claude Code in the browser, where the project runs in a temporary cloud workspace. While checking, this also turned up a bug: the cloud workspace sets `ANTHROPIC_BASE_URL` for Claude Code itself, and the chatbot would have sent the API key there instead of to Anthropic. The fix pins the chatbot to `https://api.anthropic.com`, and the setup steps now cover adding the key in the cloud environment's settings.
 
+**Follow-up 2**
+
+> I understand the chatbot connection issue is fixed. Since I'm using Claude Code can you help me securely add my API key using the setup you already created? I don't want to put it somewhere that exposes the key. Please walk me through the safest option.
+
+*What was missing:* The earlier answer didn't say whether the `setup_env.py --api-key` script could be used from Claude Code in the browser. It can't safely: the script needs a terminal where you type the key yourself, and commands Claude runs in the cloud workspace can't ask you for hidden input. The only way to use it there would be to paste the key into the chat, which exposes it. The answer explains this and recommends the cloud environment's settings as the safest option, keeping `setup_env.py` for running the project on your own computer.
+
 ---
