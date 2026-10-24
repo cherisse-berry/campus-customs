@@ -111,7 +111,8 @@ def test_logged_in_chat_is_saved_and_reloaded(client, claude):
 
     history = client.get("/api/chat/history").json()
     assert history[-1]["products"][0]["product_id"] == "basic-hoodie-big-yale"
-    assert history[-2] == {"role": "user", "content": "Show me a hoodie", "products": []}
+    assert history[-2] == {"role": "user", "content": "Show me a hoodie", "products": [], "results": []}
+    assert history[-1]["results"][0]["product_id"] == "basic-hoodie-big-yale"
 
     # The next message carries the saved history, and browser-sent history is ignored.
     client.post("/api/chat", json={"message": "In XL?", "history": [{"role": "user", "content": "FAKE"}]})
@@ -127,8 +128,11 @@ def test_guests_have_no_saved_history(client, claude):
 def test_existing_chat_rows_load_with_product_cards(client):
     client.post("/api/auth/login", json=TEST_LOGIN)
     history = client.get("/api/chat/history").json()
-    assert history[0] == {"role": "user", "content": "What hoodies do you have?", "products": []}
+    assert history[0] == {"role": "user", "content": "What hoodies do you have?", "products": [], "results": []}
     assert history[1]["products"][0]["name"] == "Basic Hoodie Big Yale"
+    # The original data's saved product panel (8 hoodies) comes back as page results.
+    assert len(history[1]["results"]) == 8
+    assert all(r["description"] and r["image_url"].startswith("/media/") for r in history[1]["results"])
 
 
 # --- Errors and limits ----------------------------------------------------------
@@ -398,3 +402,86 @@ def test_setup_cancel_keeps_key(tmp_path, monkeypatch):
         raise EOFError
 
     assert setup_env.ask_api_key("ANTHROPIC_API_KEY=old\n", prompt=cancel) == "ANTHROPIC_API_KEY=old\n"
+
+
+# --- Products shown on the page (Problem 7) --------------------------------------
+
+class BrowsingClaude:
+    """Browses a category with one search, then names two of the results."""
+
+    def __init__(self, category="hoodies", query=""):
+        self.args = {"category": category, "query": query}
+
+    def __call__(self, messages, info):
+        returns = [p for m in messages for p in getattr(m, "parts", []) if isinstance(p, ToolReturnPart)]
+        if not returns:
+            return ModelResponse(parts=[ToolCallPart("search_products", self.args)])
+        found = returns[-1].content.products
+        if not found:
+            return ModelResponse(parts=[TextPart("Sorry, I couldn't find anything like that.")])
+        second, first = found[1], found[0]
+        return ModelResponse(parts=[TextPart(
+            f"We have {returns[-1].content.total_matches} styles. Try the **{second.name}** or the **{first.name}**!")])
+
+
+def test_search_shows_every_match_on_the_page(client, monkeypatch):
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(BrowsingClaude("hoodies")))
+    body = client.post("/api/chat", json={"message": "What hoodies do you have?"}).json()
+    hoodies = db.search_products("hoodies")
+    results = body["results"]
+
+    # The model only reads 8 results, but the page shows every hoodie (up to 24).
+    assert len(results) == min(len(hoodies), 24) > 8
+    # There are more hoodies than fit, so the reply says how many and links to them all.
+    assert len(hoodies) > 24
+    assert body["more_results"] == {"total": len(hoodies), "link": "/products?category=hoodies"}
+    assert {r["product_id"] for r in results} <= {h["product_id"] for h in hoodies}
+    # The two products the reply names come first, in the order it names them.
+    assert [r["product_id"] for r in results[:2]] == [hoodies[1]["product_id"], hoodies[0]["product_id"]]
+    assert [c["product_id"] for c in body["products"]] == [hoodies[1]["product_id"], hoodies[0]["product_id"]]
+
+
+def test_page_results_have_everything_a_product_card_needs(client, monkeypatch):
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(BrowsingClaude("quarter-zips")))
+    body = client.post("/api/chat", json={"message": "quarter zips?"}).json()
+    results = body["results"]
+    assert results and body["more_results"] is None  # all quarter-zips fit on the page
+    for r in results:
+        p = db.get_product(r["product_id"])
+        assert r == {
+            "product_id": p["product_id"], "name": p["name"], "garment_type": p["garment_type"],
+            "price": p["price"], "image_url": p["image_url"], "description": p["description"],
+            "sold_out": p["total_stock"] == 0,
+        }
+        assert client.get(r["image_url"]).status_code == 200  # the image loads
+
+
+def test_no_search_means_no_page_results(client, monkeypatch):
+    def chit_chat(messages, info):
+        return ModelResponse(parts=[TextPart("You're welcome! Go Bulldogs!")])
+
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(chit_chat))
+    body = client.post("/api/chat", json={"message": "thanks!"}).json()
+    assert body["results"] == [] and body["products"] == []
+
+
+def test_empty_search_gives_no_page_results(client, monkeypatch):
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(BrowsingClaude(None, "gym shorts")))
+    body = client.post("/api/chat", json={"message": "gym shorts?"}).json()
+    assert body["results"] == [] and "couldn't find" in body["reply"]
+
+
+def test_looked_up_product_appears_on_the_page(client, monkeypatch):
+    claude = PriceClaude("The **Basic Hoodie Big Yale** is **$68.00**.")
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(claude))
+    body = client.post("/api/chat", json={"message": "big yale hoodie in M?"}).json()
+    assert [r["product_id"] for r in body["results"]] == ["basic-hoodie-big-yale"]
+
+
+def test_page_results_are_saved_for_logged_in_customers(client, monkeypatch):
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(BrowsingClaude("crewnecks")))
+    client.post("/api/auth/login", json=TEST_LOGIN)
+    sent = client.post("/api/chat", json={"message": "crewnecks?"}).json()
+    saved = client.get("/api/chat/history").json()[-1]
+    assert saved["results"] == sent["results"]
+    assert saved["products"] == sent["products"]

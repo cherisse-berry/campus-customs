@@ -39,21 +39,49 @@ class ChatRequest(BaseModel):
 
 
 class ProductCard(BaseModel):
+    """A small card in the chat window for a product the reply mentions by name."""
+
     product_id: str
     name: str
     price: float
     image_url: str
 
 
+class ProductResult(BaseModel):
+    """A product the assistant found, shown in the results panel on the page."""
+
+    product_id: str
+    name: str
+    garment_type: str
+    price: float
+    image_url: str
+    description: str
+    sold_out: bool = False
+
+
+class MoreResults(BaseModel):
+    """A search matched more products than the page shows."""
+
+    total: int
+    link: str  # the same search on the Products page
+
+
 class ChatReply(BaseModel):
     reply: str
+    # Products named in the reply, shown as small cards in the chat window.
     products: list[ProductCard] = []
+    # Every product the assistant's searches and lookups found, shown on the page.
+    results: list[ProductResult] = []
+    # When a search matched more products than the page shows: how many, and a link to
+    # the same search on the Products page.
+    more_results: MoreResults | None = None
 
 
 class HistoryEntry(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     products: list[ProductCard] = []
+    results: list[ProductResult] = []
 
 
 # --- Catalogue tool results (what the assistant reads from the database) ------
@@ -132,8 +160,13 @@ class ChatDeps:
     """What the agent's tools can see while answering one message."""
 
     customer_first_name: str | None = None
-    # Every product a tool returned during this reply, by id, for the product cards.
+    # Every product a tool showed the model during this reply, by id, for the chat cards.
     seen_products: dict[str, dict] = field(default_factory=dict)
+    # Every product the tools found this reply (including search matches beyond the ones
+    # the model saw), in the order found, for the results panel on the page.
+    matches: dict[str, dict] = field(default_factory=dict)
+    # Set when a search matched more products than the page can show.
+    more_results: dict | None = None
     # Every dollar amount the tools returned this reply. The reply may only quote these.
     known_prices: set[float] = field(default_factory=set)
     # Dollar amounts the customer typed (e.g. "under $70"); the reply may repeat them.

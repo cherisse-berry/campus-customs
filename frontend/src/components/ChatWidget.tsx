@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { formatPrice } from '../api'
 import { useAuth } from '../authContext'
 import { fetchChatHistory, sendChatMessage, type ChatMessage, type ChatProduct } from '../chatApi'
+import { useChatResults } from '../chatResults'
 
 const greeting: ChatMessage = {
   role: 'assistant',
@@ -26,8 +27,17 @@ function ProductCards({ products }: { products: ChatProduct[] }) {
   )
 }
 
+function lastIndexOf<T>(items: T[], test: (item: T) => boolean): number {
+  for (let i = items.length - 1; i >= 0; i--) if (test(items[i])) return i
+  return -1
+}
+
+/** Wide screens show the results beside the open chat; on phones the chat covers the page. */
+const isWideScreen = () => window.matchMedia?.('(min-width: 700px)').matches ?? true
+
 export default function ChatWidget() {
   const { user } = useAuth()
+  const { show, reveal, clear } = useChatResults()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([greeting])
   const [draft, setDraft] = useState('')
@@ -37,20 +47,36 @@ export default function ChatWidget() {
 
   // A logged-in customer sees their saved conversation; logging in or out starts fresh.
   useEffect(() => {
+    clear()
     if (userId === undefined) {
       setMessages([greeting])
       return
     }
     let cancelled = false
-    fetchChatHistory().then((saved) => !cancelled && setMessages([greeting, ...saved]))
+    fetchChatHistory().then((saved) => {
+      if (cancelled) return
+      setMessages([greeting, ...saved])
+      // Put the last set of products the assistant found back on the page.
+      const last = lastIndexOf(saved, (m) => m.role === 'assistant' && (m.results?.length ?? 0) > 0)
+      if (last >= 0) {
+        const asked = lastIndexOf(saved.slice(0, last), (m) => m.role === 'user')
+        show(asked >= 0 ? saved[asked].content : 'your chat', saved[last].results!, false)
+      }
+    })
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, show, clear])
 
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: 'end' })
   }, [messages, open, sending])
+
+  // Lets the page make room for the open chat (see .chat-open in index.css).
+  useEffect(() => {
+    document.body.classList.toggle('chat-open', open)
+    return () => document.body.classList.remove('chat-open')
+  }, [open])
 
   async function send(text: string) {
     text = text.trim()
@@ -60,8 +86,9 @@ export default function ChatWidget() {
     setDraft('')
     setSending(true)
     try {
-      const { reply, products } = await sendChatMessage(text, earlier)
-      setMessages((m) => [...m, { role: 'assistant', content: reply, products }])
+      const { reply, products = [], results = [], more_results } = await sendChatMessage(text, earlier)
+      setMessages((m) => [...m, { role: 'assistant', content: reply, products, results }])
+      if (results.length > 0) show(text, results, isWideScreen(), more_results)
     } catch (err) {
       const content = err instanceof Error ? err.message : 'Sorry, something went wrong. Please try again.'
       setMessages((m) => [...m, { role: 'assistant', content, error: true }])
@@ -69,6 +96,8 @@ export default function ChatWidget() {
       setSending(false)
     }
   }
+
+  const lastWithResults = lastIndexOf(messages, (m) => m.role === 'assistant' && (m.results?.length ?? 0) > 0)
 
   function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -95,6 +124,17 @@ export default function ChatWidget() {
                   {m.role === 'assistant' && !m.error ? <Markdown>{m.content}</Markdown> : m.content}
                 </div>
                 {m.products && m.products.length > 0 && <ProductCards products={m.products} />}
+                {i === lastWithResults && (
+                  <button
+                    className="chat-see-results"
+                    onClick={() => {
+                      if (!isWideScreen()) setOpen(false)
+                      reveal()
+                    }}
+                  >
+                    See {m.results!.length} {m.results!.length === 1 ? 'product' : 'products'} on the page
+                  </button>
+                )}
               </div>
             ))}
             {messages.length === 1 && !sending && (

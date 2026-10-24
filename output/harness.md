@@ -196,8 +196,10 @@ Chat window (React)  ──POST /api/chat──▶  FastAPI (main.py)
    - **Guest:** it uses the last 20 messages the browser sends along. Guest chats aren't saved, and they disappear when the page is reloaded.
 3. The PydanticAI agent sends Claude the instructions, the conversation so far and the new message.
 4. Claude calls the catalogue tools to look things up, then writes a reply. For example: search for "hoodie" under $70, then get the details for one product.
-5. The server finds which looked-up products the reply mentions by name and returns them as **product cards** (name, price, image and a link to the product page).
-6. For logged-in customers, the message and reply are saved to `chat_messages`, with the cards in `products_json`. They reload the next time the customer opens the chat.
+5. The server returns two sets of products along with the reply:
+   - **Page results:** every product the assistant's searches and lookups found (up to 24), with image, name, type, price and description. The website shows these in a results panel at the top of the page. See [Products shown on the page](#products-shown-on-the-page).
+   - **Chat cards:** the products the reply names, shown as small cards in the chat window.
+6. For logged-in customers, the message and reply are saved to `chat_messages`, with the page results in `products_json`. They reload the next time the customer opens the chat, and the last set of results goes back on the page.
 
 ### Files
 
@@ -206,9 +208,11 @@ Chat window (React)  ──POST /api/chat──▶  FastAPI (main.py)
 | `backend/main.py` | The FastAPI app, including the `/api/chat` endpoints, error handling, the rate limit and saving history |
 | `backend/agent.py` | Creates the agent, chooses the model and its settings, turns saved messages into conversation history, and picks the product cards |
 | `backend/tools.py` | The four tools Claude can call to read products, prices and stock |
-| `backend/models.py` | The shapes of chat requests and replies, the length limits, the typed tool results (`ProductSummary`, `ProductDetails`, `SizeStock`, `SizeAvailability` and others), and `ChatDeps` (what the tools can see) |
+| `backend/models.py` | The shapes of chat requests and replies (`ChatReply` with `ProductCard`, `ProductResult` and `MoreResults`), the length limits, the typed tool results (`ProductSummary`, `ProductDetails`, `SizeStock`, `SizeAvailability` and others), and `ChatDeps` (what the tools can see and found) |
 | `backend/prompts/prompt.md` | The assistant's instructions: persona, how to use the tools, store facts and safety rules. Edit this to change how it behaves. |
 | `frontend/src/chatApi.ts`, `frontend/src/components/ChatWidget.tsx` | The chat window |
+| `frontend/src/components/ChatResultsPanel.tsx`, `ChatResultsProvider.tsx`, `frontend/src/chatResults.ts` | The results panel on the page, and the shared state the chat window uses to fill it |
+| `frontend/src/components/ProductCard.tsx` | The product card used on the Products page, the home page and in the results panel |
 | `backend/check_chat.py` | Sends one real message to Claude to check your API key works |
 
 ### Tools
@@ -291,12 +295,52 @@ These are in the prompt file and backed up in code:
   - API errors become a friendly "try again" message, without exposing details.
 - **Labelled in the window:** the chat window says it's an AI assistant and that answers may contain mistakes.
 
+### Products shown on the page
+
+When the assistant searches or looks up products, the website shows what it found right on the page, not just in the small chat window.
+
+**How it works**
+
+1. **The tools collect the matches.**
+   - `search_products` shows the model only the first 8 matches, to keep its reading short, but it queues **every** match for the page, up to 24.
+   - `get_product_details` and `check_size` queue the one product they looked up.
+2. **The server orders them.** Products the reply names come first, in the order it names them, then the rest in the order they were found. It returns them as `results` in the chat reply.
+3. **When there are more than 24:** if a search matched more than 24 (for example, all 27 hoodies), the reply also includes `more_results` with the total and a link to the same search on the Products page (`/products?category=hoodies`).
+4. **The chat window fills the panel.** When a reply has results, the chat window passes them to the **results panel** (`ChatResultsPanel`) at the top of the page's main area. The panel shows on every page:
+   - **Heading:** "From your chat" and "27 products for 'What hoodies do you have?'"
+   - **"Showing 24 of 27. See all 27 in the shop →"** when there are more than fit.
+   - **A grid of product cards**, the same `ProductCard` the Products page uses: image, type, name, short description (two lines) and price, with a **Sold out** badge when every size is gone.
+   - **Hide/Show** and **close (×)** buttons.
+5. **Clicking a card** opens that product's detail page, just like the Products page. On a product page, the panel shrinks to a one-line bar ("Show products") so the details stay in view.
+6. **Getting to the panel:**
+   - **Wide screens:** the panel scrolls into view while the chat stays open, with room on the right so the chat window doesn't cover it.
+   - **Phones:** the chat covers the page, so the reply has a **"See N products on the page"** link that closes the chat and scrolls to the panel.
+7. **What happens next:**
+   - A reply that finds nothing new (like "thanks!") leaves the last results in place.
+   - A new search replaces them.
+   - Logging in or out clears them.
+   - For logged-in customers, the last set of results comes back after a page reload.
+
+**Instructions for the assistant** (`prompts/prompt.md`, "Products shown on the page"):
+- Search whenever someone wants to see or find products.
+- For broad questions ("what hoodies do you have?"), search the whole category so the page shows the full range.
+- Say how many it found, highlight two to four picks, and mention that the rest are on the page, instead of listing everything in the chat.
+
+**Example**
+
+| Customer asks | Assistant searches | Page shows |
+|---|---|---|
+| "What hoodies do you have?" | `search_products(category="hoodies")` | 24 of 27 hoodies, plus "See all 27 in the shop" |
+| "Anything with a bulldog?" | `search_products(query="bulldog")` | All 10 bulldog products |
+| "Is the Champion Reverse Weave Hoodie 1 in XS?" | `check_size(...)` | That one hoodie |
+| "Do you have gym shorts?" | `search_products(query="gym shorts")`, no matches | Nothing new; the assistant says it doesn't carry them |
+
 ### Chat API
 
 | Endpoint | Body | Result |
 |---|---|---|
-| `POST /api/chat` | `message` (1-1,000 characters), optional `history` (guests only) | `reply` (Markdown text) and `products` (cards). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
-| `GET /api/chat/history` | none | The logged-in customer's last 20 messages with their cards. Guests get an empty list. |
+| `POST /api/chat` | `message` (1-1,000 characters), optional `history` (guests only) | `reply` (Markdown text), `products` (chat cards), `results` (page results, up to 24) and `more_results` (`total` and `link`, or `null`). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
+| `GET /api/chat/history` | none | The logged-in customer's last 20 messages with their chat cards and page results. Guests get an empty list. |
 
 ### API key
 
@@ -314,7 +358,7 @@ If the key is missing, the site still works. The chat replies "The shopping assi
 
 ### Tests
 
-- **Backend** (`backend/tests/test_chat.py`, 37 tests):
+- **Backend** (`backend/tests/test_chat.py`, 43 tests):
   - These run the real agent, tools and endpoint with PydanticAI's `FunctionModel`, a scripted stand-in for Claude, so they cost nothing and need no key.
   - They check that messages reach the agent and the tools are called, and that the prompt file and the customer's name are included.
   - They check that guest history is sent along, and that logged-in history is saved and reloaded (on a copy of the database).
@@ -323,10 +367,27 @@ If the key is missing, the site still works. The chat replies "The shopping assi
   - **Sold out:** a real sold-out size from the database is reported as "sold out" with the right list of other sizes. A product with every size at 0 is flagged `sold_out`.
   - **Sizes:** words like "medium", "2XL" and "Extra Small" give the same results as XS-XXL codes. Unknown sizes and products get a clear message, not a guess.
   - **Price check:** a reply with an invented price ($59.99) is sent back and the corrected reply ($68.00) is shown. A reply that keeps inventing prices is never shown. Customer budgets ("under $70") and simple totals are allowed.
+  - **Page results:**
+    - Asking about hoodies returns every hoodie for the page (24 of 27, more than the 8 the model reads), with the named ones first, plus the total and a "see all" link.
+    - Every result's name, type, price, image and description match the database, and each image loads.
+    - Chit-chat and empty searches add nothing. A single looked-up product appears alone.
+    - Results are saved and reloaded for logged-in customers, and the original data's saved hoodie list loads as 8 results.
+- **Frontend** (`frontend/src/test/app.test.tsx`):
+  - The panel appears after a chat reply, with image, name, price, description and a Sold out badge.
+  - A card opens the product page, where the panel is collapsed and can be reopened.
+  - The results stay after a reply with no products, and the panel can be closed.
+  - "Showing 2 of 27" and the "See all" link work, along with the chat's "See N products on the page" link.
+  - A logged-in customer's last results are restored.
 - **In a browser:** the real website and FastAPI server with the scripted stand-in.
   - A guest asked for hoodies and got a formatted reply with product cards, and a card opened the product page.
   - Asked "Is the Champion Reverse Weave Hoodie 1 in XS?", the bot answered that it's sold out in XS and still in stock in S, M, L and XXL, matching the database. Asked about medium, it said 20 left.
   - A logged-in customer's saved chat loaded, and a new message was still there after a reload. The phone layout fit the screen.
+  - **Results panel:**
+    - Asking "What hoodies do you have?" filled the page with 24 hoodie cards (all images loaded), headed "27 products", with "See all 27 in the shop" opening the Products page filtered to all 27 hoodies.
+    - On a wide screen the panel scrolled into view beside the open chat without being covered.
+    - Clicking a card opened the matching product page with the panel collapsed.
+    - On a phone, "See 24 products on the page" closed the chat and showed the panel.
+    - A logged-in customer's results came back after a reload.
 - **Live Claude:** not tested yet, because this workspace has no API key. Run `python check_chat.py` after adding yours.
 
 ### Not built yet

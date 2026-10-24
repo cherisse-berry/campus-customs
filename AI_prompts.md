@@ -135,3 +135,15 @@ A record of the prompts used while building the Campus Customs website, organize
 > Check what we've already built, make any necessary improvements, and test that everything works. Update the chatbot instructions, models.py, output/harness.md, and AI_prompts.md.
 
 ---
+
+## Problem 7: Show Chatbot Results on the Page
+
+### Original prompt
+
+> For Problem 7, I want the Campus Customs website to automatically display matching products when a customer searches through the chatbot.
+>
+> For example, if someone asks about hoodies, the chatbot should search the database and show those products on the page with images, names, prices, and short descriptions. Clicking a product should open its full detail page, just like the Products page.
+>
+> Check what we've already built, make any necessary changes, and test that everything works. Update prompts/prompt.md, output/harness.md, and AI_prompts.md.
+
+---

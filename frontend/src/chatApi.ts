@@ -7,17 +7,38 @@ export interface ChatProduct {
   image_url: string
 }
 
+/** A product the assistant found, shown in the results panel on the page. */
+export interface ChatResult {
+  product_id: string
+  name: string
+  garment_type: string
+  price: number
+  image_url: string
+  description: string
+  sold_out: boolean
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   products?: ChatProduct[]
+  results?: ChatResult[]
   /** True for messages the site shows when something went wrong; never sent to the assistant. */
   error?: boolean
+}
+
+/** A search matched more products than the page shows. */
+export interface MoreResults {
+  total: number
+  /** The same search on the Products page. */
+  link: string
 }
 
 export interface ChatReply {
   reply: string
   products: ChatProduct[]
+  results: ChatResult[]
+  more_results?: MoreResults | null
 }
 
 const MAX_HISTORY = 20

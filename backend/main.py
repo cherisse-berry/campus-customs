@@ -22,7 +22,7 @@ import agent as chat_agent
 import auth
 import config  # noqa: F401  (loads .env)
 import db
-from models import MAX_HISTORY, ChatReply, ChatRequest, HistoryEntry, ProductCard
+from models import MAX_HISTORY, ChatReply, ChatRequest, HistoryEntry, MoreResults, ProductCard, ProductResult
 
 log = logging.getLogger(__name__)
 
@@ -110,13 +110,17 @@ def _check_rate_limit(key: str) -> None:
     hits.append(now)
 
 
-def _cards(products_json: str | None) -> list[ProductCard]:
+def _saved_results(products_json: str | None) -> list[ProductResult]:
+    """The page results saved with an assistant message (older rows hold full product objects)."""
     if not products_json:
         return []
     try:
         items = json.loads(products_json)
-        return [ProductCard.model_validate(p) for p in items][:8]
-    except (ValueError, TypeError):
+        return [
+            ProductResult.model_validate({**p, "sold_out": p.get("sold_out", p.get("total_stock", 1) == 0)})
+            for p in items
+        ]
+    except (ValueError, TypeError, AttributeError):
         return []
 
 
@@ -135,14 +139,14 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
 
     message = body.message.strip()
     try:
-        reply, cards = await chat_agent.run_chat(message, history, first_name)
+        reply, cards, results, more = await chat_agent.run_chat(message, history, first_name)
     except chat_agent.AssistantNotConfigured:
         log.error("Chat is unavailable: ANTHROPIC_API_KEY is not set. Run `python setup_env.py --api-key`.")
         raise HTTPException(503, "The shopping assistant isn't set up yet. Please try again later.")
     except ContentFilterError:
-        reply, cards = DECLINED_REPLY, []
+        reply, cards, results, more = DECLINED_REPLY, [], [], None
     except UsageLimitExceeded:
-        reply, cards = TRIED_TOO_HARD_REPLY, []
+        reply, cards, results, more = TRIED_TOO_HARD_REPLY, [], [], None
     except ModelHTTPError as e:
         hint = {
             401: "The API key was rejected; run `python setup_env.py --api-key` again.",
@@ -159,8 +163,13 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
     if not reply:
         reply = TRIED_TOO_HARD_REPLY
     if user:
-        db.save_chat_exchange(user["id"], message, reply, json.dumps(cards) if cards else None)
-    return ChatReply(reply=reply, products=[ProductCard(**c) for c in cards])
+        db.save_chat_exchange(user["id"], message, reply, json.dumps(results) if results else None)
+    return ChatReply(
+        reply=reply,
+        products=[ProductCard(**c) for c in cards],
+        results=[ProductResult(**r) for r in results],
+        more_results=MoreResults(**more) if more else None,
+    )
 
 
 @app.get("/api/chat/history", response_model=list[HistoryEntry])
@@ -169,8 +178,16 @@ def chat_history(request: Request) -> list[HistoryEntry]:
     user = auth.current_user(request)
     if user is None:
         return []
-    return [
-        HistoryEntry(role=r["role"], content=r["content"], products=_cards(r["products_json"]))
-        for r in db.get_chat_history(user["id"], MAX_HISTORY)
-        if r["role"] in ("user", "assistant")
-    ]
+    entries = []
+    for r in db.get_chat_history(user["id"], MAX_HISTORY):
+        if r["role"] not in ("user", "assistant"):
+            continue
+        results = _saved_results(r["products_json"])
+        found = {p.product_id: p.model_dump() for p in results}
+        entries.append(HistoryEntry(
+            role=r["role"],
+            content=r["content"],
+            products=[ProductCard(**c) for c in chat_agent.cards_for_reply(r["content"], found)],
+            results=results,
+        ))
+    return entries

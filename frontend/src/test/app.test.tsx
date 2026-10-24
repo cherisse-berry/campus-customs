@@ -30,9 +30,16 @@ const categories: Category[] = [{ slug: 'hoodies', name: 'Hoodies', count: 1 }]
 
 const testUser = { id: 1, name: 'Test User', first_name: 'Test', last_name: 'User', email: 'test@campuscustoms.yale.edu' }
 
+const chatResults = [
+  { product_id: hoodie.product_id, name: hoodie.name, garment_type: 'pullover hoodie', price: 68,
+    image_url: hoodie.image_url, description: hoodie.description, sold_out: false },
+  { product_id: 'yale-dad-hoodie', name: 'Yale Dad Hoodie', garment_type: 'pullover hoodie', price: 68,
+    image_url: '/media/products/yale-dad-hoodie.jpg', description: 'Navy hoodie with YALE DAD lettering.', sold_out: true },
+]
+
 const savedChat = [
   { role: 'user', content: 'Earlier question', products: [] },
-  { role: 'assistant', content: 'Earlier answer', products: [] },
+  { role: 'assistant', content: 'Earlier answer', products: [], results: [chatResults[1]] },
 ]
 let chatRequests: { message: string; history: { role: string; content: string }[] }[] = []
 
@@ -63,6 +70,7 @@ function mockApi() {
       return json({
         reply: `You asked: **${body.message}**. Try the Basic Hoodie Big Yale.`,
         products: [{ product_id: hoodie.product_id, name: hoodie.name, price: 68, image_url: hoodie.image_url }],
+        results: body.message.includes('thanks') ? [] : chatResults,
       })
     }
     if (url === '/api/auth/logout') {
@@ -248,5 +256,103 @@ describe('Campus Customs site', () => {
     const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
     expect(await within(chat).findByText('Earlier question')).toBeInTheDocument()
     expect(within(chat).getByText('Earlier answer')).toBeInTheDocument()
+  })
+
+  async function askInChat(text: string) {
+    const user = userEvent.setup()
+    if (!screen.queryByRole('dialog', { name: 'Campus Customs chat' }))
+      await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
+    await user.type(within(chat).getByLabelText('Message'), text)
+    await user.click(within(chat).getByRole('button', { name: 'Send' }))
+    return { user, chat }
+  }
+
+  it('shows the products the chatbot found on the page', async () => {
+    mockApi()
+    renderAt('/about')
+    expect(screen.queryByRole('region', { name: 'Products from your chat' })).not.toBeInTheDocument()
+    await askInChat('What hoodies do you have?')
+
+    const panel = await screen.findByRole('region', { name: 'Products from your chat' })
+    expect(within(panel).getByRole('heading', { name: '2 products for “What hoodies do you have?”' })).toBeInTheDocument()
+    const card = within(panel).getByRole('link', { name: /Basic Hoodie Big Yale/ })
+    expect(card).toHaveAttribute('href', '/products/basic-hoodie-big-yale')
+    expect(within(card).getByRole('img')).toHaveAttribute('src', hoodie.image_url)
+    expect(within(card).getByText('$68.00')).toBeInTheDocument()
+    expect(within(card).getByText(hoodie.description)).toBeInTheDocument()
+    // Sold-out products are marked.
+    const dad = within(panel).getByRole('link', { name: /Yale Dad Hoodie/ })
+    expect(within(dad).getByText('Sold out')).toBeInTheDocument()
+    // The page content is still there below the panel.
+    expect(screen.getByRole('heading', { name: 'Bulldog pride, made to wear.' })).toBeInTheDocument()
+  })
+
+  it('clicking a found product opens its detail page, with the results collapsed above', async () => {
+    mockApi()
+    renderAt('/')
+    const { user } = await askInChat('hoodies please')
+    const panel = await screen.findByRole('region', { name: 'Products from your chat' })
+    await user.click(within(panel).getByRole('link', { name: /Basic Hoodie Big Yale/ }))
+    expect(await screen.findByRole('table', { name: 'Current stock' })).toBeInTheDocument()
+
+    const collapsed = screen.getByRole('region', { name: 'Products from your chat' })
+    expect(within(collapsed).queryByRole('link')).not.toBeInTheDocument()
+    await user.click(within(collapsed).getByRole('button', { name: 'Show products' }))
+    expect(within(collapsed).getAllByRole('link')).toHaveLength(2)
+  })
+
+  it('keeps the last results when the chatbot finds nothing new, and can be closed', async () => {
+    mockApi()
+    renderAt('/')
+    const { user } = await askInChat('hoodies')
+    await screen.findByRole('region', { name: 'Products from your chat' })
+    await askInChat('thanks!')
+    await screen.findByText('thanks!', { selector: 'strong' })
+    const panel = screen.getByRole('region', { name: 'Products from your chat' })
+    expect(within(panel).getByRole('heading', { name: /for “hoodies”/ })).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Close chat results' }))
+    expect(screen.queryByRole('region', { name: 'Products from your chat' })).not.toBeInTheDocument()
+  })
+
+  it('says when the chatbot found more products than the page shows', async () => {
+    const fetchMock = mockApi()
+    const realImpl = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input) === '/api/chat')
+        return new Response(JSON.stringify({
+          reply: 'I found 27 hoodies.', products: [], results: chatResults,
+          more_results: { total: 27, link: '/products?category=hoodies' },
+        }))
+      return realImpl(input, init)
+    })
+    renderAt('/')
+    await askInChat('all hoodies')
+    const panel = await screen.findByRole('region', { name: 'Products from your chat' })
+    expect(within(panel).getByRole('heading', { name: '27 products for “all hoodies”' })).toBeInTheDocument()
+    expect(within(panel).getByText(/Showing 2 of 27/)).toBeInTheDocument()
+    expect(within(panel).getByRole('link', { name: 'See all 27 in the shop →' })).toHaveAttribute(
+      'href', '/products?category=hoodies')
+  })
+
+  it('the chat links to the products shown on the page', async () => {
+    mockApi()
+    renderAt('/')
+    const { chat } = await askInChat('hoodies')
+    expect(await within(chat).findByRole('button', { name: 'See 2 products on the page' })).toBeInTheDocument()
+  })
+
+  it("restores a logged-in customer's last results from their saved chat", async () => {
+    mockApi()
+    renderAt('/login')
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), testUser.email)
+    await user.type(screen.getByLabelText('Password'), 'password')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    const panel = await screen.findByRole('region', { name: 'Products from your chat' })
+    expect(within(panel).getByRole('heading', { name: '1 product for “Earlier question”' })).toBeInTheDocument()
+    await user.click(within(panel).getByRole('button', { name: 'Close chat results' }))
+    await user.click(screen.getByRole('button', { name: 'Log Out' }))
   })
 })

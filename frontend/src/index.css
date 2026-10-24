@@ -1264,3 +1264,98 @@ select {
     font-size: 0.8rem;
   }
 }
+
+/* Products from the chat, shown at the top of the page */
+.chat-results {
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+  padding-top: 24px;
+  padding-bottom: 24px;
+  scroll-margin-top: 120px;
+}
+
+.chat-results-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.chat-results-title {
+  min-width: 0;
+}
+
+.chat-results-title .eyebrow {
+  color: var(--yale-blue-light);
+  margin-bottom: 4px;
+}
+
+.chat-results-title h2 {
+  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-results-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.chat-results-close {
+  background: none;
+  border: 0;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.chat-results-close:hover {
+  color: var(--ink);
+}
+
+.chat-results-grid {
+  margin-top: 20px;
+}
+
+.chat-results-more {
+  margin: 12px 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.product-card-image {
+  position: relative;
+}
+
+.product-card-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--out);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.chat-see-results {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: 600 0.85rem var(--sans);
+  color: var(--yale-blue);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Leave room on the right so the open chat doesn't cover the results on wide screens */
+@media (min-width: 1100px) {
+  .chat-open .chat-results .container {
+    padding-right: 410px;
+  }
+}

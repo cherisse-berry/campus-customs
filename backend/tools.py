@@ -4,6 +4,8 @@ Every call reads the catalogue and inventory tables directly, so answers reflect
 database at that moment. The results are typed models from models.py.
 """
 
+from urllib.parse import urlencode
+
 from pydantic_ai import RunContext
 
 import db
@@ -19,7 +21,8 @@ from models import (
     StockStatus,
 )
 
-MAX_RESULTS = 8
+MAX_RESULTS = 8  # products the model sees per search
+MAX_PAGE_RESULTS = 24  # products shown on the page per reply
 LOW_STOCK = 5  # 1-5 units counts as "only a few left"
 
 SIZE_WORDS = {
@@ -82,6 +85,21 @@ def _remember(ctx: RunContext[ChatDeps], product: dict) -> None:
     )
 
 
+def _add_to_page(ctx: RunContext[ChatDeps], product: dict, sold_out: bool) -> None:
+    """Queue a found product for the results panel on the page."""
+    if len(ctx.deps.matches) >= MAX_PAGE_RESULTS:
+        return
+    ctx.deps.matches.setdefault(product["product_id"], {
+        "product_id": product["product_id"],
+        "name": product["name"],
+        "garment_type": product["garment_type"],
+        "price": product["price"],
+        "image_url": product["image_url"],
+        "description": product["description"],
+        "sold_out": sold_out,
+    })
+
+
 def list_categories(ctx: RunContext[ChatDeps]) -> list[CategoryInfo]:
     """List the shop's product categories with how many styles each has and their price range."""
     products = db.list_products()
@@ -138,6 +156,12 @@ def search_products(
     shown = items[:MAX_RESULTS]
     for p in shown:
         _remember(ctx, p)
+    for p in items:  # the page shows every match (up to MAX_PAGE_RESULTS), not just the first few
+        sizes = stock.get(p["product_id"], [])
+        _add_to_page(ctx, p, all(s["quantity"] <= 0 for s in sizes))
+    if len(items) > MAX_PAGE_RESULTS:
+        params = {k: v for k, v in (("category", category), ("q", query.strip())) if v}
+        ctx.deps.more_results = {"total": len(items), "link": "/products" + (f"?{urlencode(params)}" if params else "")}
     note = None
     if not items:
         note = "No products matched. Try fewer or simpler words, or a category."
@@ -164,6 +188,7 @@ def get_product_details(ctx: RunContext[ChatDeps], product: str) -> ProductDetai
         return LookupProblem(error=f"No product called '{product}'. Use search_products to find it.")
     _remember(ctx, data)
     sizes = data["inventory"]
+    _add_to_page(ctx, data, all(s["quantity"] <= 0 for s in sizes))
     return ProductDetails(
         **_summary_fields(data, sizes),
         stock_by_size=[
@@ -188,6 +213,7 @@ def check_size(ctx: RunContext[ChatDeps], product: str, size: str) -> SizeAvaila
         return LookupProblem(error=f"No product called '{product}'. Use search_products to find it.")
     _remember(ctx, data)
     sizes = data["inventory"]
+    _add_to_page(ctx, data, all(s["quantity"] <= 0 for s in sizes))
     quantity = next((s["quantity"] for s in sizes if s["size"] == wanted), 0)
     return SizeAvailability(
         product_id=data["product_id"],

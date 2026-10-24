@@ -130,7 +130,7 @@ def to_model_history(turns: list[tuple[str, str]]) -> list[ModelMessage]:
     return messages
 
 
-def cards_for_reply(reply: str, seen: dict[str, dict]) -> list[dict]:
+def cards_for_reply(reply: str, seen: dict[str, dict], limit: int | None = MAX_PRODUCT_CARDS) -> list[dict]:
     """The looked-up products the reply mentions by name, in the order they appear."""
     text = reply.lower()
     hits = []
@@ -139,13 +139,25 @@ def cards_for_reply(reply: str, seen: dict[str, dict]) -> list[dict]:
         match = re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text)
         if match:
             hits.append((match.start(), product))
-    return [p for _, p in sorted(hits, key=lambda h: h[0])][:MAX_PRODUCT_CARDS]
+    return [p for _, p in sorted(hits, key=lambda h: h[0])][:limit]
+
+
+def page_results(reply: str, matches: dict[str, dict]) -> list[dict]:
+    """Products for the page: the ones the reply names first, then the rest in the order found."""
+    named = cards_for_reply(reply, matches, limit=None)
+    named_ids = {p["product_id"] for p in named}
+    return named + [p for pid, p in matches.items() if pid not in named_ids]
 
 
 async def run_chat(
     message: str, history: list[tuple[str, str]], customer_first_name: str | None
-) -> tuple[str, list[dict]]:
-    """Answer one customer message. Returns the reply text and product cards to show."""
+) -> tuple[str, list[dict], list[dict], dict | None]:
+    """Answer one customer message.
+
+    Returns the reply text, the chat cards (products the reply names), the page results
+    (every product the assistant found, up to 24) and, if a search found more than that,
+    the total and a link to see them all.
+    """
     deps = ChatDeps(customer_first_name=customer_first_name)
     for text in [message, *(t for role, t in history if role == "user")]:
         deps.customer_amounts |= dollar_amounts(text)
@@ -157,4 +169,4 @@ async def run_chat(
         usage_limits=USAGE_LIMITS,
     )
     reply = result.output.strip()
-    return reply, cards_for_reply(reply, deps.seen_products)
+    return reply, cards_for_reply(reply, deps.seen_products), page_results(reply, deps.matches), deps.more_results
