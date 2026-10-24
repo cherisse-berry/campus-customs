@@ -9,6 +9,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 import agent as chat_agent
 import db
+import models
 import main as chat_router
 from main import app
 
@@ -30,8 +31,8 @@ class ScriptedClaude:
         returns = [p for m in messages for p in getattr(m, "parts", []) if isinstance(p, ToolReturnPart)]
         if not returns:
             return ModelResponse(parts=[ToolCallPart("search_products", {"query": "big yale", "category": "hoodies"})])
-        first = returns[-1].content["products"][0]
-        return ModelResponse(parts=[TextPart(f"Try the **{first['name']}** for ${first['price_usd']:.0f}!")])
+        first = returns[-1].content.products[0]
+        return ModelResponse(parts=[TextPart(f"Try the **{first.name}** for ${first.price_usd:.0f}!")])
 
     def prompt_text(self, call=0) -> str:
         return repr(self.calls[call])
@@ -183,25 +184,170 @@ def test_search_tool_filters_and_records_products():
 
     ctx = Ctx()
     result = tools.search_products(ctx, query="bulldog", max_price=60)
-    assert result["total_matches"] >= 1
-    assert all(p["price_usd"] <= 60 for p in result["products"])
-    assert set(ctx.deps.seen_products) == {p["product_id"] for p in result["products"]}
+    assert result.total_matches >= 1
+    assert all(p.price_usd <= 60 for p in result.products)
+    assert set(ctx.deps.seen_products) == {p.product_id for p in result.products}
+    assert ctx.deps.known_prices == {p.price_usd for p in result.products}
 
     xl = tools.search_products(Ctx(), category="hoodies", in_stock_size="xl")
-    for p in xl["products"]:
-        stock = {s["size"]: s["quantity"] for s in db.get_product(p["product_id"])["inventory"]}
-        assert stock["XL"] > 0
+    for p in xl.products:
+        stock = {s["size"]: s["quantity"] for s in db.get_product(p.product_id)["inventory"]}
+        assert stock["XL"] > 0 and "XL" in p.sizes_in_stock
 
-    assert tools.search_products(Ctx(), query="gym shorts")["total_matches"] == 0
+    none = tools.search_products(Ctx(), query="gym shorts")
+    assert none.total_matches == 0 and "fewer or simpler words" in none.note
 
 
-def test_details_tool_reports_stock_labels():
+def test_details_tool_reports_exact_stock():
     import tools
 
     d = tools.get_product_details(Ctx(), "basic-hoodie-big-yale")
-    assert d["stock_by_size"]["XS"] == "15 in stock"
-    assert d["stock_by_size"]["XL"] == "only 2 left"
-    assert "error" in tools.get_product_details(Ctx(), "made-up-id")
+    by_size = {s.size: (s.quantity, s.status) for s in d.stock_by_size}
+    assert by_size["XS"] == (15, "in stock")
+    assert by_size["XL"] == (2, "only a few left")
+    assert d.price == "$68.00" and d.total_in_stock == 60 and d.sold_out is False
+    assert isinstance(tools.get_product_details(Ctx(), "made-up-id"), models.LookupProblem)
+
+
+# --- Accuracy against the database (Problem 6) ---------------------------------
+
+def all_products():
+    import tools
+
+    for p in db.list_products():
+        yield p, tools.get_product_details(Ctx(), p["product_id"])
+
+
+def test_every_product_matches_the_database_exactly():
+    """Description, price and stock for every size of every product come straight from the database."""
+    with sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True) as conn:
+        catalogue = {r[0]: r[1:] for r in conn.execute("SELECT product_id, description, price FROM catalogue")}
+        inventory = {}
+        for pid, size, qty in conn.execute("SELECT product_id, size, quantity FROM inventory"):
+            inventory.setdefault(pid, {})[size] = qty
+    checked = 0
+    for _, d in all_products():
+        description, price = catalogue[d.product_id]
+        assert d.description == description
+        assert d.price_usd == price and d.price == f"${price:,.2f}"
+        assert {s.size: s.quantity for s in d.stock_by_size} == inventory[d.product_id]
+        for s in d.stock_by_size:
+            expected = "sold out" if s.quantity == 0 else "only a few left" if s.quantity <= 5 else "in stock"
+            assert s.status == expected
+        assert set(d.sold_out_sizes) == {k for k, v in inventory[d.product_id].items() if v == 0}
+        assert set(d.sizes_in_stock) == {k for k, v in inventory[d.product_id].items() if v > 0}
+        assert d.total_in_stock == sum(inventory[d.product_id].values())
+        checked += 1
+    assert checked == 102
+
+
+def test_search_results_carry_the_same_stock_as_details():
+    import tools
+
+    for p in tools.search_products(Ctx(), category="hoodies").products:
+        d = tools.get_product_details(Ctx(), p.product_id)
+        assert (p.sizes_in_stock, p.sold_out_sizes, p.price, p.description) == (
+            d.sizes_in_stock, d.sold_out_sizes, d.price, d.description)
+
+
+def test_check_size_reports_sold_out_clearly():
+    import tools
+
+    # Find a real sold-out size in the database.
+    with sqlite3.connect(f"file:{db.DB_PATH}?mode=ro", uri=True) as conn:
+        pid, size = conn.execute("SELECT product_id, size FROM inventory WHERE quantity = 0 LIMIT 1").fetchone()
+    result = tools.check_size(Ctx(), pid, size)
+    assert (result.quantity, result.status) == (0, "sold out")
+    assert size not in result.other_sizes_in_stock
+    stock = {s["size"]: s["quantity"] for s in db.get_product(pid)["inventory"]}
+    assert result.other_sizes_in_stock == [k for k in db.SIZE_ORDER if stock.get(k, 0) > 0 and k != size]
+
+    ok = tools.check_size(Ctx(), "Basic Hoodie Big Yale", "extra large")  # name and size words work
+    assert (ok.size, ok.quantity, ok.status, ok.price) == ("XL", 2, "only a few left", "$68.00")
+
+
+@pytest.mark.parametrize("word,size", [
+    ("medium", "M"), ("M", "M"), ("lg", "L"), ("Large", "L"), ("x-large", "XL"),
+    ("2XL", "XXL"), ("xxl", "XXL"), ("Extra Small", "XS"), ("small", "S"),
+])
+def test_size_words_are_understood(word, size):
+    import tools
+
+    assert tools.normalize_size(word) == size
+    by_word = tools.search_products(Ctx(), category="crewnecks", in_stock_size=word)
+    by_code = tools.search_products(Ctx(), category="crewnecks", in_stock_size=size)
+    assert [p.product_id for p in by_word.products] == [p.product_id for p in by_code.products]
+
+
+def test_unknown_size_and_product_are_reported_not_guessed():
+    import tools
+
+    assert "isn't a size we carry" in tools.check_size(Ctx(), "basic-hoodie-big-yale", "XXXL").error
+    assert "isn't a size we carry" in tools.search_products(Ctx(), in_stock_size="huge").error
+    assert "No product called" in tools.check_size(Ctx(), "Imaginary Sweater", "M").error
+
+
+def test_product_sold_out_in_every_size_is_flagged():
+    import tools
+
+    p = db.get_product("basic-hoodie-big-yale")
+    fields = tools._summary_fields(p, [{"size": s, "quantity": 0} for s in db.SIZE_ORDER])
+    assert fields["sold_out"] is True and fields["sizes_in_stock"] == [] and fields["total_in_stock"] == 0
+
+
+# --- The price check -------------------------------------------------------------
+
+class PriceClaude:
+    """Looks up a hoodie, then answers with the given replies in turn (to test the price check)."""
+
+    def __init__(self, *replies):
+        self.replies = list(replies)
+        self.retry_messages = []
+
+    def __call__(self, messages, info):
+        from pydantic_ai.messages import UserPromptPart
+
+        parts = [p for m in messages for p in getattr(m, "parts", [])]
+        # Corrections from the price check arrive as automated feedback messages.
+        self.retry_messages = [
+            str(p.content) for p in parts if isinstance(p, UserPromptPart) and "<retry_feedback>" in str(p.content)
+        ]
+        if not any(isinstance(p, ToolReturnPart) for p in parts):
+            return ModelResponse(parts=[ToolCallPart("check_size", {"product": "basic-hoodie-big-yale", "size": "M"})])
+        reply = self.replies[min(len(self.retry_messages), len(self.replies) - 1)]
+        return ModelResponse(parts=[TextPart(reply)])
+
+
+def test_made_up_price_is_sent_back_and_corrected(client, monkeypatch):
+    claude = PriceClaude(
+        "The **Basic Hoodie Big Yale** is $59.99 and in stock in M.",  # invented price
+        "The **Basic Hoodie Big Yale** is **$68.00**, and there are only 5 left in M.",
+    )
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(claude))
+    r = client.post("/api/chat", json={"message": "How much is the big Yale hoodie in medium?"})
+    assert r.status_code == 200
+    assert r.json()["reply"] == "The **Basic Hoodie Big Yale** is **$68.00**, and there are only 5 left in M."
+    assert len(claude.retry_messages) == 1 and "$59.99" in claude.retry_messages[0]
+
+
+def test_reply_that_keeps_inventing_prices_is_never_shown(client, monkeypatch):
+    claude = PriceClaude("It's on sale for $19.99!")
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(claude))
+    r = client.post("/api/chat", json={"message": "price?"})
+    assert r.status_code == 503
+    assert "19.99" not in r.text
+
+
+def test_customer_amounts_and_simple_totals_are_allowed(client, monkeypatch):
+    claude = PriceClaude("Yes, it's under your $70 budget at $68.00. Two would be $136.00.")
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(claude))
+    r = client.post("/api/chat", json={"message": "Anything under $70?"})
+    assert r.status_code == 200 and claude.retry_messages == []
+
+
+def test_dollar_amounts_are_parsed():
+    assert chat_agent.dollar_amounts("$68, $68.00, $ 32.5 and $1,250.50") == {68.0, 32.5, 1250.5}
+    assert chat_agent.dollar_amounts("no prices here, 68 dollars") == set()
 
 
 def test_cards_only_for_products_named_in_reply():

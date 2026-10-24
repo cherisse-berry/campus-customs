@@ -205,23 +205,64 @@ Chat window (React)  ──POST /api/chat──▶  FastAPI (main.py)
 |---|---|
 | `backend/main.py` | The FastAPI app, including the `/api/chat` endpoints, error handling, the rate limit and saving history |
 | `backend/agent.py` | Creates the agent, chooses the model and its settings, turns saved messages into conversation history, and picks the product cards |
-| `backend/tools.py` | The three tools Claude can call |
-| `backend/models.py` | The shapes of chat requests and replies, the length limits, and `ChatDeps` (what the tools can see) |
+| `backend/tools.py` | The four tools Claude can call to read products, prices and stock |
+| `backend/models.py` | The shapes of chat requests and replies, the length limits, the typed tool results (`ProductSummary`, `ProductDetails`, `SizeStock`, `SizeAvailability` and others), and `ChatDeps` (what the tools can see) |
 | `backend/prompts/prompt.md` | The assistant's instructions: persona, how to use the tools, store facts and safety rules. Edit this to change how it behaves. |
 | `frontend/src/chatApi.ts`, `frontend/src/components/ChatWidget.tsx` | The chat window |
 | `backend/check_chat.py` | Sends one real message to Claude to check your API key works |
 
 ### Tools
 
-The assistant can only see the shop through these tools. All of them only read the database.
+The assistant can only see the shop through these tools. They read the `catalogue` and `inventory` tables directly every time they're called, so answers always reflect the database at that moment. None of them change the database.
 
-| Tool | What it does |
-|---|---|
-| `list_categories` | Lists the categories with how many styles each has and their price range |
-| `search_products` | Searches by words, category, highest price and an in-stock size, and returns up to 8 matches |
-| `get_product_details` | Returns one product's description, colors, price and stock for each size ("sold out", "only 2 left", "15 in stock") |
+| Tool | Use it for | Returns (model in `models.py`) |
+|---|---|---|
+| `search_products` | Finding products by words, category, highest price and an in-stock size | `SearchResults`: up to 8 `ProductSummary` items, with a note when nothing matches |
+| `get_product_details` | Everything about one product, including the exact quantity in every size | `ProductDetails`: a summary plus `stock_by_size` (one `SizeStock` per size) |
+| `check_size` | "Do you have this in M?" | `SizeAvailability`: exact quantity, status and the other sizes in stock |
+| `list_categories` | The categories and their price ranges | A list of `CategoryInfo` |
+
+If a product or size can't be found, the tools return a `LookupProblem` with a plain message instead of guessing.
+
+**What each product result contains** (`ProductSummary`):
+
+| Field | From the database | Example |
+|---|---|---|
+| `name`, `type`, `category`, `colors` | `catalogue` | "Basic Hoodie Big Yale", "pullover hoodie", "hoodies", ["navy blue", "white"] |
+| `description` | `catalogue.description`, word for word | "Navy pullover hoodie with a front kangaroo pocket…" |
+| `price_usd` / `price` | `catalogue.price`, plus the same number formatted to quote | 68.0 / "$68.00" |
+| `total_in_stock` | Sum of `inventory.quantity` | 60 |
+| `sizes_in_stock`, `sizes_with_only_a_few_left`, `sold_out_sizes` | `inventory` per size | ["XS", "S", …], ["S", "M", "XL"], [] |
+| `sold_out` | True when every size is 0 | false |
+| `product_page` | Link to the product page | "/products/basic-hoodie-big-yale" |
+
+`ProductDetails` adds `stock_by_size`: each `SizeStock` has the `size`, the exact `quantity`, and a `status`:
+
+| Quantity | Status | How the assistant says it |
+|---|---|---|
+| 0 | `sold out` | "The **Champion Reverse Weave Hoodie 1** is **sold out in XS**", then the sizes still in stock or a similar product |
+| 1-5 | `only a few left` | "Only 2 left in XL" |
+| 6 or more | `in stock` | "It's in stock in M" |
+
+**Sizes:** XS, S, M, L, XL and XXL. The tools also understand words customers type, such as "medium", "large", "x-large" and "2XL". Before this was added, a search for "medium" silently found nothing.
+
+**Lookup by name:** `get_product_details` and `check_size` accept a product's id or its exact name.
 
 The tools never return customer data. The assistant knows only the current customer's first name.
+
+### How accuracy is enforced
+
+The assistant can't make up prices or stock because of four layers:
+
+1. **Instructions** (`prompts/prompt.md`, "Facts come from the database" and "Prices and stock"):
+   - Look every price, description, size and quantity up with a tool in the same reply, and look it up again rather than repeating an earlier message.
+   - Quote the `price` field exactly, and state a quantity only when a tool returned that number.
+   - Say "sold out" clearly and first, then offer sizes that are in stock or a similar product. Never imply a sold-out size can be ordered.
+2. **Tool results:** prices arrive already formatted and statuses already decided, so the model doesn't have to calculate or interpret anything.
+3. **Price check in code** (`check_prices` in `agent.py`): before a reply is shown, every dollar amount in it is compared with the prices the tools returned for that reply.
+   - **Allowed:** prices the tools returned, amounts the customer typed (such as "under $70"), and simple totals of looked-up prices (2-10 of one item, or two items together).
+   - **Anything else** is sent back to Claude with an explanation, up to two times. If it still isn't fixed, the customer gets the "having trouble" message instead. A made-up price is never shown.
+4. **Tests** compare the tools' output with the database for all 102 products (see below).
 
 ### Model and settings
 
@@ -231,7 +272,7 @@ The tools never return customer data. The assistant knows only the current custo
 | Effort | `low` | Chat replies are short. Low effort keeps them fast and inexpensive. |
 | Max tokens | 4,096 per reply | Plenty for a chat answer |
 | Refusal fallback | On (`fallbacks: "default"`) | If Claude's safety filter wrongly declines a harmless question, the API retries it on another model automatically |
-| Usage limit | At most 6 model calls and 10 tool calls per message | Stops a runaway tool loop from costing money |
+| Usage limit | At most 8 model calls and 12 tool calls per message | Stops a runaway tool loop from costing money, while leaving room for up to two price corrections |
 
 ### Safety guidelines
 
@@ -273,13 +314,18 @@ If the key is missing, the site still works. The chat replies "The shopping assi
 
 ### Tests
 
-- **Backend** (`backend/tests/test_chat.py`, 16 tests):
+- **Backend** (`backend/tests/test_chat.py`, 37 tests):
   - These run the real agent, tools and endpoint with PydanticAI's `FunctionModel`, a scripted stand-in for Claude, so they cost nothing and need no key.
   - They check that messages reach the agent and the tools are called, and that the prompt file and the customer's name are included.
   - They check that guest history is sent along, and that logged-in history is saved and reloaded (on a copy of the database).
   - They also cover a missing key, refusals, runaway tool loops, the message length limit, the rate limit and the model settings.
+  - **Accuracy:** for all 102 products, the description, price, quantity in every size, sold-out sizes, in-stock sizes and total match the database exactly. Search results also carry the same stock and price as the details.
+  - **Sold out:** a real sold-out size from the database is reported as "sold out" with the right list of other sizes. A product with every size at 0 is flagged `sold_out`.
+  - **Sizes:** words like "medium", "2XL" and "Extra Small" give the same results as XS-XXL codes. Unknown sizes and products get a clear message, not a guess.
+  - **Price check:** a reply with an invented price ($59.99) is sent back and the corrected reply ($68.00) is shown. A reply that keeps inventing prices is never shown. Customer budgets ("under $70") and simple totals are allowed.
 - **In a browser:** the real website and FastAPI server with the scripted stand-in.
   - A guest asked for hoodies and got a formatted reply with product cards, and a card opened the product page.
+  - Asked "Is the Champion Reverse Weave Hoodie 1 in XS?", the bot answered that it's sold out in XS and still in stock in S, M, L and XXL, matching the database. Asked about medium, it said 20 left.
   - A logged-in customer's saved chat loaded, and a new message was still there after a reload. The phone layout fit the screen.
 - **Live Claude:** not tested yet, because this workspace has no API key. Run `python check_chat.py` after adding yours.
 

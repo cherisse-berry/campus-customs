@@ -98,6 +98,30 @@ def get_product(product_id: str) -> dict | None:
     return product
 
 
+def stock_by_product() -> dict[str, list[dict]]:
+    """Every product's stock per size, in size order, from one query: {product_id: [{size, quantity}]}."""
+    with closing(connect()) as conn:
+        rows = conn.execute("SELECT product_id, size, quantity FROM inventory").fetchall()
+    rank = {s: i for i, s in enumerate(SIZE_ORDER)}
+    stock: dict[str, list[dict]] = {}
+    for r in rows:
+        stock.setdefault(r["product_id"], []).append({"size": r["size"], "quantity": r["quantity"]})
+    for sizes in stock.values():
+        sizes.sort(key=lambda s: rank.get(s["size"], len(SIZE_ORDER)))
+    return stock
+
+
+def find_product_id(name_or_id: str) -> str | None:
+    """Match a product by its id or its exact name (ignoring case and extra spaces)."""
+    wanted = " ".join(name_or_id.split()).lower()
+    with closing(connect()) as conn:
+        row = conn.execute(
+            "SELECT product_id FROM catalogue WHERE lower(product_id) = ? OR lower(name) = ?",
+            (wanted, wanted),
+        ).fetchone()
+    return row["product_id"] if row else None
+
+
 def search_products(
     category: str | None = None, q: str | None = None, sort: str = "name"
 ) -> list[dict]:

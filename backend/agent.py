@@ -6,7 +6,7 @@ from functools import cache
 from pathlib import Path
 
 import config  # noqa: F401  (loads .env)
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
@@ -24,8 +24,12 @@ MAX_PRODUCT_CARDS = 6
 # Models that accept the server-side refusal fallback ("fallbacks": "default").
 _FALLBACK_MODELS = {"claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"}
 
-# A tool loop that runs away costs money; a normal answer needs at most a few model calls.
-USAGE_LIMITS = UsageLimits(request_limit=6, tool_calls_limit=10)
+# A tool loop that runs away costs money; a normal answer needs at most a few model calls
+# (plus up to two corrections from the price check below).
+USAGE_LIMITS = UsageLimits(request_limit=8, tool_calls_limit=12)
+
+# "$68", "$68.00", "$1,250.50"
+DOLLAR_AMOUNT = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?")
 
 
 class AssistantNotConfigured(RuntimeError):
@@ -36,6 +40,7 @@ agent = Agent(
     deps_type=ChatDeps,
     instructions=PROMPT_FILE.read_text(encoding="utf-8"),
     tools=TOOLS,
+    retries={"output": 2},  # how many times the price check may send a reply back for correction
     defer_model_check=True,  # the model is created per run, once the API key is known
 )
 
@@ -45,6 +50,38 @@ def customer_context(ctx: RunContext[ChatDeps]) -> str:
     if ctx.deps.customer_first_name:
         return f"The customer is logged in. Their first name is {ctx.deps.customer_first_name}."
     return "The customer is browsing as a guest (not logged in)."
+
+
+def dollar_amounts(text: str) -> set[float]:
+    amounts = set()
+    for whole, cents in DOLLAR_AMOUNT.findall(text):
+        amounts.add(round(float(whole.replace(",", "") + "." + (cents or "0")), 2))
+    return amounts
+
+
+def _is_supported(amount: float, deps: ChatDeps) -> bool:
+    """A price from the tools, an amount the customer typed, or simple math on looked-up prices."""
+    if amount in deps.known_prices or amount in deps.customer_amounts:
+        return True
+    prices = list(deps.known_prices)
+    multiples = {round(p * n, 2) for p in prices for n in range(2, 11)}
+    pair_sums = {round(a + b, 2) for i, a in enumerate(prices) for b in prices[i:]}
+    return amount in multiples or amount in pair_sums
+
+
+@agent.output_validator
+def check_prices(ctx: RunContext[ChatDeps], reply: str) -> str:
+    """Send the reply back if it quotes a price the catalogue tools didn't return this turn."""
+    unsupported = sorted(a for a in dollar_amounts(reply) if not _is_supported(a, ctx.deps))
+    if unsupported:
+        listed = ", ".join(f"${a:,.2f}" for a in unsupported)
+        raise ModelRetry(
+            f"Your reply mentions {listed}, which doesn't match any price the tools returned for this "
+            "reply. Prices must come from the database: look the product up with a tool and quote its "
+            "exact price, or leave the amount out. Don't reuse prices from earlier messages without "
+            "looking them up again."
+        )
+    return reply
 
 
 def model_name() -> str:
@@ -110,6 +147,8 @@ async def run_chat(
 ) -> tuple[str, list[dict]]:
     """Answer one customer message. Returns the reply text and product cards to show."""
     deps = ChatDeps(customer_first_name=customer_first_name)
+    for text in [message, *(t for role, t in history if role == "user")]:
+        deps.customer_amounts |= dollar_amounts(text)
     result = await agent.run(
         message,
         model=get_model(),

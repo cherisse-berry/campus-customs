@@ -123,3 +123,15 @@ A record of the prompts used while building the Campus Customs website, organize
 *What was missing:* The first attempt put the chatbot code in nested folders (`backend/app/` and `backend/app/chat/`), with the prompt in `system_prompt.md`, the data models in `schemas.py` and the chat endpoints in a separate `router.py`. That worked, but it didn't match the file layout the assignment requires. This prompt moved the files to `backend/main.py`, `backend/agent.py`, `backend/tools.py`, `backend/models.py` and `backend/prompts/prompt.md`. The chat endpoints were folded into `main.py`, and all the Pydantic models went into `models.py`. The supporting files `auth.py`, `db.py` and `config.py` sit beside them. The server now starts with `uvicorn main:app`. Behavior is unchanged: the same 45 backend tests, 13 frontend tests and browser tests pass.
 
 ---
+
+## Problem 6: Accurate Prices and Inventory
+
+### Original prompt
+
+> For Problem 6, make sure the Campus Customs chatbot can look up accurate product descriptions, prices, and inventory directly from the database, including stock by size.
+>
+> The chatbot should never make up prices or quantities and should clearly tell customers when something is out of stock.
+>
+> Check what we've already built, make any necessary improvements, and test that everything works. Update the chatbot instructions, models.py, output/harness.md, and AI_prompts.md.
+
+---
