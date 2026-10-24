@@ -76,4 +76,12 @@ A record of the prompts used while building the Campus Customs website, organize
 >
 > Test login with the existing account (test@campuscustoms.yale.edu / password) and a new account. Update output/harness.md to explain how authentication works, and record this prompt in AI_prompts.md.
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> Please help me set up SESSION_SECRET for my website and make sure everything works properly.
+
+*What was missing:* After the first attempt, no `SESSION_SECRET` was set up, and the backend only read `.env` if the server was started with an extra flag. Without a fixed secret, everyone was logged out whenever the server restarted. This prompt added automatic loading of `backend/.env`, a `setup_env.py` script that generates a strong secret, and warnings for a missing or weak secret.
+
 ---

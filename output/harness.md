@@ -150,7 +150,12 @@ Responses only ever include `id`, `name`, `first_name`, `last_name` and `email`,
 
 ### Secrets
 
-`SESSION_SECRET` goes in `backend/.env`, which is git-ignored; `backend/.env.example` shows the format. If it isn't set, the server makes a random key at startup, so everyone is logged out whenever the server restarts.
+`SESSION_SECRET` is the key that signs login cookies. It lives in `backend/.env`, which is git-ignored and loaded automatically when the API starts.
+
+- **Create it:** run `python setup_env.py` in `backend/`. It writes a 64-character random secret (256 bits) to `.env`, makes the file readable only by you, and never prints the secret.
+- **Keep it:** the script won't replace an existing secret. `python setup_env.py --force` makes a new one, which logs everyone out. Do that if the secret may have leaked.
+- **Each computer has its own:** the secret is never committed, so run the script once wherever the site runs.
+- **Warnings:** if the secret is missing, the server warns you and makes a temporary one, so everyone is logged out whenever it restarts. If it's shorter than 32 characters, the server warns that it's weak.
 
 ### Tests
 

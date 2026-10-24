@@ -30,10 +30,19 @@ COOKIE_NAME = "cc_session"
 SESSION_SECONDS = 7 * 24 * 60 * 60
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "").lower() in ("1", "true", "yes")
 
-_secret_env = os.environ.get("SESSION_SECRET")
+MIN_SECRET_LENGTH = 32
+
+_secret_env = os.environ.get("SESSION_SECRET", "").strip()
 if not _secret_env:
     logging.getLogger(__name__).warning(
-        "SESSION_SECRET is not set; using a random key, so sessions end when the server restarts."
+        "SESSION_SECRET is not set; using a random key, so sessions end when the server restarts. "
+        "Run `python setup_env.py` in backend/ to create one."
+    )
+elif len(_secret_env) < MIN_SECRET_LENGTH:
+    logging.getLogger(__name__).warning(
+        "SESSION_SECRET is shorter than %d characters, so login cookies are easier to forge. "
+        "Run `python setup_env.py --force` in backend/ to replace it.",
+        MIN_SECRET_LENGTH,
     )
 SESSION_SECRET = (_secret_env or secrets.token_hex(32)).encode()
 

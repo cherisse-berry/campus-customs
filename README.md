@@ -34,9 +34,11 @@ To keep the data somewhere else, set `CAMPUS_DATA_DIR=/path/to/data`.
 ```bash
 cd backend
 pip install -r requirements.txt
-cp .env.example .env        # then set SESSION_SECRET to a long random string
-uvicorn app.main:app --reload --port 8000 --env-file .env
+python setup_env.py         # one time: creates .env with a random SESSION_SECRET
+uvicorn app.main:app --reload --port 8000
 ```
+
+`setup_env.py` writes a 64-character random `SESSION_SECRET` to `backend/.env`, which the API loads automatically. Run it once on each computer that runs the site. It never prints the secret and won't overwrite an existing one unless you pass `--force`, which also logs everyone out.
 
 ### 3. Start the website (port 5173)
 
