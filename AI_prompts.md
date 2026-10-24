@@ -21,3 +21,15 @@ A record of the prompts used while building the Campus Customs website, organize
 *What was missing:* The first version listed prompts in one running sequence. It had no section for each assignment problem and no place to record follow-up prompts or what they fixed.
 
 ---
+
+## Problem 2: Analyze the Database
+
+### Original prompt
+
+> For Problem 2, I want to understand how the Campus Customs database is organized. Please examine the database and explain the tables, including the product catalogue, inventory, and users.
+>
+> Create a file called output/harness.md that lists each table and its fields, with a brief explanation of why each field matters for the website or chatbot.
+>
+> Please also add this prompt to AI_prompts.md under Problem 2: Analyze the Database. Don't change the database or start building the website yet.
+
+---
