@@ -1,0 +1,27 @@
+# Database and product images (kept local, never committed)
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets and API keys
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Node / Vite
+node_modules/
+dist/
+*.local
+
+# Editors and OS
+.DS_Store
+.vscode/
+.idea/

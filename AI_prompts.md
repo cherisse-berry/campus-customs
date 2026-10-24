@@ -43,3 +43,17 @@ A record of the prompts used while building the Campus Customs website, organize
 *What was missing:* After the first prompt, there was no database in the project, so `output/harness.md` couldn't be written. Uploading `data.zip` provided the database, and the analysis was then completed.
 
 ---
+
+## Problem 3: Build the Website
+
+### Original prompt
+
+> For Problem 3, build a clean, professional Campus Customs website using React, Vite, and TypeScript, inspired by yalebulldogblue.com.
+>
+> Include Home, Products, About Us, Log In, and Create Account pages. Display products from the database with images, prices, and descriptions. Each product should open a detailed page showing sizes and current stock.
+>
+> Add a chat window in the bottom-right corner that we'll connect to the AI agent later. Use FastAPI to retrieve product data and images.
+>
+> Test the website, keep the database unchanged, and exclude the database, images, and API keys from GitHub. Update AI_prompts.md
+
+---
