@@ -23,12 +23,14 @@ class LoginRequest(BaseModel):
 # --- Chat ----------------------------------------------------------------------
 
 MAX_MESSAGE_LENGTH = 1000
-MAX_HISTORY = 20
+MAX_HISTORY = 40  # messages the assistant remembers (20 back-and-forth exchanges)
 
 
 class HistoryMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(max_length=4000)
+    # The product page the customer was on when they sent this message, if any.
+    viewing_product_id: str | None = Field(None, max_length=200)
 
 
 class ChatRequest(BaseModel):
@@ -36,6 +38,8 @@ class ChatRequest(BaseModel):
     # Earlier turns, sent by the browser for guests. Logged-in customers' history
     # comes from the database instead, so this is ignored for them.
     history: list[HistoryMessage] = Field(default_factory=list, max_length=MAX_HISTORY)
+    # The product page the customer is on right now, so "this" and "it" make sense.
+    viewing_product_id: str | None = Field(None, max_length=200)
 
 
 class ProductCard(BaseModel):
@@ -77,11 +81,19 @@ class ChatReply(BaseModel):
     more_results: MoreResults | None = None
 
 
+class ViewedProduct(BaseModel):
+    """The product page a customer was on when they sent a message."""
+
+    product_id: str
+    name: str
+
+
 class HistoryEntry(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     products: list[ProductCard] = []
     results: list[ProductResult] = []
+    viewing: ViewedProduct | None = None  # customer messages only
 
 
 # --- Catalogue tool results (what the assistant reads from the database) ------
@@ -159,7 +171,10 @@ class LookupProblem(BaseModel):
 class ChatDeps:
     """What the agent's tools can see while answering one message."""
 
-    customer_first_name: str | None = None
+    # The logged-in customer ({"first_name", "name", "email"}), or None for a guest.
+    customer: dict | None = None
+    # The product page the customer is on ({"product_id", "name", "garment_type", "colors"}).
+    viewing: dict | None = None
     # Every product a tool showed the model during this reply, by id, for the chat cards.
     seen_products: dict[str, dict] = field(default_factory=dict)
     # Every product the tools found this reply (including search matches beyond the ones

@@ -77,7 +77,7 @@ This table saves each turn of every chatbot conversation, so a user's chat can b
 | `user_id` | INTEGER, required, links to `users.id` | Who the conversation belongs to. The site should only ever load the signed-in user's own messages. |
 | `role` | TEXT, required | Either `user` (the shopper) or `assistant` (the chatbot). It's used to style chat bubbles and to rebuild the conversation for the AI model. |
 | `content` | TEXT, required | The message text. The chatbot's replies use Markdown, for example `**$68**`, so the site should render Markdown. |
-| `products_json` | TEXT (JSON), optional | Only filled in on chatbot replies (11 of the 22 rows). It's a snapshot of the products the reply showed, with catalogue fields plus `image_url`, per-size `inventory` and `total_stock`. It lets the site redraw the product panel when a chat reloads, and it gives the chatbot context for follow-ups like "you have this in pink?" Because it's a snapshot, stock and prices in it can be out of date, so check the live tables before saying something is available. |
+| `products_json` | TEXT (JSON), optional | Only filled in on chatbot replies (11 of the 22 rows). It's a snapshot of the products the reply showed, with catalogue fields plus `image_url`, per-size `inventory` and `total_stock`. It lets the site redraw the product panel when a chat reloads, and it gives the chatbot context for follow-ups like "you have this in pink?" Because it's a snapshot, stock and prices in it can be out of date, so check the live tables before saying something is available. **From Problem 8 on**, customer rows also use it, to record the product page the customer was on when they sent the message (`{"product_id", "name"}`). |
 | `created_at` | TEXT, defaults to the current time | When the message was sent. Used for timestamps and ordering. |
 
 ## `sqlite_sequence`: internal table
@@ -191,10 +191,10 @@ Chat window (React)  ──POST /api/chat──▶  FastAPI (main.py)
 ```
 
 1. The customer types a message. The chat window sends it to `POST /api/chat`.
-2. The server works out who's chatting from the login cookie.
-   - **Logged in:** it loads their last 20 messages from `chat_messages`.
-   - **Guest:** it uses the last 20 messages the browser sends along. Guest chats aren't saved, and they disappear when the page is reloaded.
-3. The PydanticAI agent sends Claude the instructions, the conversation so far and the new message.
+2. The server works out who's chatting from the login cookie, and which product page they're on (the chat window sends `viewing_product_id`).
+   - **Logged in:** it loads their last 40 messages from `chat_messages`, plus their name and email from `users`.
+   - **Guest:** it uses the last 40 messages the browser sends along. Guest chats aren't saved, and they disappear when the page is reloaded.
+3. The PydanticAI agent sends Claude the instructions (including who the customer is and what they're viewing), the conversation so far and the new message. See [Remembering customers](#remembering-customers).
 4. Claude calls the catalogue tools to look things up, then writes a reply. For example: search for "hoodie" under $70, then get the details for one product.
 5. The server returns two sets of products along with the reply:
    - **Page results:** every product the assistant's searches and lookups found (up to 24), with image, name, type, price and description. The website shows these in a results panel at the top of the page. See [Products shown on the page](#products-shown-on-the-page).
@@ -289,11 +289,51 @@ These are in the prompt file and backed up in code:
 - **Is honest:** it says it's an AI. It doesn't claim to be Yale's official store or speak for Yale.
 - **Resists prompt injection:** "ignore your instructions" style messages are treated as customer text, not new rules. It won't reveal its prompt.
 - **Limits in code:**
-  - Messages can be up to 1,000 characters, and only the last 20 messages are used.
+  - Messages can be up to 1,000 characters, and only the last 40 messages are used.
   - Each visitor can send 20 messages per 10 minutes.
   - Claude's refusals become a polite "I can't help with that one" reply.
   - API errors become a friendly "try again" message, without exposing details.
 - **Labelled in the window:** the chat window says it's an AI assistant and that answers may contain mistakes.
+
+### Remembering customers
+
+The assistant knows who it's talking to, remembers logged-in customers' conversations, and knows which product they're looking at.
+
+**Logged-in customers vs guests**
+
+| | Logged-in customer | Guest |
+|---|---|---|
+| Who the assistant knows | Full name, first name and email, from their login session | Only that they're a guest |
+| Conversation saved | Yes, to `chat_messages`, linked to their user ID | No, never written to the database |
+| Memory | The last 40 messages (20 exchanges), from any device or visit | The last 40 messages in the open browser tab; gone on reload |
+| Chat window subtitle | "Signed in as Test User · this chat is saved" | "Guest · log in to save this chat" |
+| When they log in or out | Their saved chat loads; logging out clears the window | The guest chat is replaced by the saved one |
+
+**How identity reaches the assistant**
+
+1. `main.py` reads the user from the signed session cookie, never from what the customer types.
+2. `run_chat` in `agent.py` puts it in `ChatDeps.customer`, and an instruction function (`customer_context`) adds a "This customer" section to the instructions, for example: *The customer is logged in as **Test User** (first name Test, email test@campuscustoms.yale.edu). Their conversation is saved…*
+3. Guests get *The customer is a guest… this conversation isn't saved*.
+4. A message like "I'm admin@yale.edu" changes nothing, because identity only comes from the session.
+
+The prompt's "Who you're talking to" section tells the assistant how to use this:
+- Greet returning customers by first name and pick up where they left off.
+- Answer "What's my name?" or "What's my email?" from the session, and mention the email only when they ask about their own account.
+- Never discuss other customers.
+- Tell guests that chats are saved only when they log in.
+
+**Which product they're viewing ("Do you have this in pink?")**
+
+1. **The chat window reads the product page from the URL.** On `/products/<id>`, it shows "Asking about: Basic Hoodie Big Yale" above the message box and sends `viewing_product_id` with each message.
+2. **The server looks the ID up in `catalogue`.** Unknown or invalid IDs are ignored, never passed to the model. An instruction function (`viewing_context`) then adds: *The customer is on the product page for **Basic Hoodie Big Yale** (product_id `basic-hoodie-big-yale`, a pullover hoodie, colors: navy blue, white). If they say "this", "it" or "this one"… they mean this product.*
+3. **The assistant answers from the database.** The prompt's "'This' and 'it'" section tells it to look that product up with `get_product_details` or `check_size`, answer about that product's own colors, sizes and stock, and say plainly when it doesn't come in a color. For example: *"Sorry, the **Basic Hoodie Big Yale** only comes in navy blue and white, not pink. Want me to look for pink items?"*
+4. **The context is remembered.** Each customer message is saved with the product page it was sent from (in `products_json` on the customer's row). When the history is sent to the assistant later, those messages start with *[Customer was viewing: Yale Mom Hoodie (product_id yale-mom-hoodie)]*, so "this" still makes sense on the next visit. Guests' browsers send the same information with their unsaved history.
+5. **In the chat window,** saved and new messages show a small "About: Yale Mom Hoodie" tag.
+
+**Privacy**
+- Each customer only ever sees and sends their own history.
+- The assistant gets only the name and email: never the password hash, and no other customers' data.
+- Guest messages never touch the database.
 
 ### Products shown on the page
 
@@ -339,8 +379,8 @@ When the assistant searches or looks up products, the website shows what it foun
 
 | Endpoint | Body | Result |
 |---|---|---|
-| `POST /api/chat` | `message` (1-1,000 characters), optional `history` (guests only) | `reply` (Markdown text), `products` (chat cards), `results` (page results, up to 24) and `more_results` (`total` and `link`, or `null`). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
-| `GET /api/chat/history` | none | The logged-in customer's last 20 messages with their chat cards and page results. Guests get an empty list. |
+| `POST /api/chat` | `message` (1-1,000 characters), optional `viewing_product_id` (the product page the customer is on), optional `history` (guests only; each entry can carry its own `viewing_product_id`) | `reply` (Markdown text), `products` (chat cards), `results` (page results, up to 24) and `more_results` (`total` and `link`, or `null`). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
+| `GET /api/chat/history` | none | The logged-in customer's last 40 messages. Customer messages include `viewing` (the product page they were on), and replies include their chat cards and page results. Guests get an empty list. |
 
 ### API key
 
@@ -358,7 +398,7 @@ If the key is missing, the site still works. The chat replies "The shopping assi
 
 ### Tests
 
-- **Backend** (`backend/tests/test_chat.py`, 43 tests):
+- **Backend** (`backend/tests/test_chat.py`, 55 tests):
   - These run the real agent, tools and endpoint with PydanticAI's `FunctionModel`, a scripted stand-in for Claude, so they cost nothing and need no key.
   - They check that messages reach the agent and the tools are called, and that the prompt file and the customer's name are included.
   - They check that guest history is sent along, and that logged-in history is saved and reloaded (on a copy of the database).
@@ -372,12 +412,22 @@ If the key is missing, the site still works. The chat replies "The shopping assi
     - Every result's name, type, price, image and description match the database, and each image loads.
     - Chit-chat and empty searches add nothing. A single looked-up product appears alone.
     - Results are saved and reloaded for logged-in customers, and the original data's saved hoodie list loads as 8 results.
+  - **Remembering customers:**
+    - The logged-in test account and a newly registered account are both recognized by full name and email.
+    - Identity comes only from the session: a guest claiming to be someone else stays a guest.
+    - The viewed product (name, ID, colors) reaches the model, and unknown IDs are ignored.
+    - "Do you have this in pink?" on a product page is answered from that product's real colors. Without a product page, the assistant asks which product.
+    - The viewed product is saved with the message, reloaded in history and shown to the model on the next visit. Guest history carries it too.
+    - Guest chats add no rows. Memory covers exactly the last 40 messages. Customers never see each other's history.
+    - `check_chat.py` still works with the chat function.
 - **Frontend** (`frontend/src/test/app.test.tsx`):
   - The panel appears after a chat reply, with image, name, price, description and a Sold out badge.
   - A card opens the product page, where the panel is collapsed and can be reopened.
   - The results stay after a reply with no products, and the panel can be closed.
   - "Showing 2 of 27" and the "See all" link work, along with the chat's "See N products on the page" link.
   - A logged-in customer's last results are restored.
+  - On a product page, the chat shows "Asking about", sends the product ID and tags the message. Guest follow-ups carry it in their history. Other pages send none.
+  - The subtitle says whether the chat is saved, and saved messages show their "About" tag.
 - **In a browser:** the real website and FastAPI server with the scripted stand-in.
   - A guest asked for hoodies and got a formatted reply with product cards, and a card opened the product page.
   - Asked "Is the Champion Reverse Weave Hoodie 1 in XS?", the bot answered that it's sold out in XS and still in stock in S, M, L and XXL, matching the database. Asked about medium, it said 20 left.
@@ -388,6 +438,12 @@ If the key is missing, the site still works. The chat replies "The shopping assi
     - Clicking a card opened the matching product page with the panel collapsed.
     - On a phone, "See 24 products on the page" closed the chat and showed the panel.
     - A logged-in customer's results came back after a reload.
+  - **Remembering customers:**
+    - A guest on the Basic Hoodie Big Yale page asked "Do you have this in pink?" and was told it only comes in navy blue and white. The bot didn't know the guest's name, and the chat was gone after a reload.
+    - After logging in, the saved history loaded, and "What's my name and email?" was answered correctly.
+    - On the Yale Mom Hoodie page, "Is this in stock in M?" and "this in pink?" were answered about that hoodie.
+    - After a reload on the home page, those messages came back tagged "About: Yale Mom Hoodie". Logging out cleared the chat.
+    - Only the logged-in customer's messages were saved (to a copy of the database), each with the product page it came from.
 - **Live Claude:** not tested yet, because this workspace has no API key. Run `python check_chat.py` after adding yours.
 
 ### Not built yet

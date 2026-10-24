@@ -185,7 +185,7 @@ def create_user(first_name: str, last_name: str, email: str, password_hash: str)
         ).fetchone()
 
 
-def get_chat_history(user_id: int, limit: int = 20) -> list[sqlite3.Row]:
+def get_chat_history(user_id: int, limit: int = 40) -> list[sqlite3.Row]:
     """The user's most recent chat messages, oldest first."""
     with closing(connect()) as conn:
         rows = conn.execute(
@@ -196,10 +196,16 @@ def get_chat_history(user_id: int, limit: int = 20) -> list[sqlite3.Row]:
     return rows[::-1]
 
 
-def save_chat_exchange(user_id: int, question: str, answer: str, products_json: str | None) -> None:
-    """Store one customer message and the assistant's reply."""
+def save_chat_exchange(
+    user_id: int, question: str, answer: str, products_json: str | None, viewing_json: str | None = None
+) -> None:
+    """Store one customer message and the assistant's reply.
+
+    products_json on the assistant's row holds the products it found. On the customer's row
+    it holds the product page they were viewing, so "this" still makes sense later.
+    """
     with closing(connect(writable=True)) as conn, conn:
         conn.executemany(
             "INSERT INTO chat_messages (user_id, role, content, products_json) VALUES (?, ?, ?, ?)",
-            [(user_id, "user", question, None), (user_id, "assistant", answer, products_json)],
+            [(user_id, "user", question, viewing_json), (user_id, "assistant", answer, products_json)],
         )

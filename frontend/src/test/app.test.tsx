@@ -38,10 +38,14 @@ const chatResults = [
 ]
 
 const savedChat = [
-  { role: 'user', content: 'Earlier question', products: [] },
+  { role: 'user', content: 'Earlier question', products: [], viewing: { product_id: 'yale-dad-hoodie', name: 'Yale Dad Hoodie' } },
   { role: 'assistant', content: 'Earlier answer', products: [], results: [chatResults[1]] },
 ]
-let chatRequests: { message: string; history: { role: string; content: string }[] }[] = []
+let chatRequests: {
+  message: string
+  history: { role: string; content: string; viewing_product_id: string | null }[]
+  viewing_product_id: string | null
+}[] = []
 
 function mockApi() {
   let loggedIn = false
@@ -214,7 +218,7 @@ describe('Campus Customs site', () => {
     expect(await within(chat).findByText('Do you have hoodies?', { selector: 'strong' })).toBeInTheDocument()
     const card = within(chat).getByRole('link', { name: /Basic Hoodie Big Yale/ })
     expect(card).toHaveAttribute('href', '/products/basic-hoodie-big-yale')
-    expect(chatRequests[0]).toEqual({ message: 'Do you have hoodies?', history: [] })
+    expect(chatRequests[0]).toEqual({ message: 'Do you have hoodies?', history: [], viewing_product_id: null })
 
     // The guest's earlier turns go with the next message (without the greeting).
     await user.type(within(chat).getByLabelText('Message'), 'In XL?')
@@ -354,5 +358,52 @@ describe('Campus Customs site', () => {
     expect(within(panel).getByRole('heading', { name: '1 product for “Earlier question”' })).toBeInTheDocument()
     await user.click(within(panel).getByRole('button', { name: 'Close chat results' }))
     await user.click(screen.getByRole('button', { name: 'Log Out' }))
+  })
+
+  it('tells the assistant which product the customer is viewing', async () => {
+    mockApi()
+    renderAt(`/products/${hoodie.product_id}`)
+    await screen.findByRole('table', { name: 'Current stock' })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
+    expect(await within(chat).findByText('Basic Hoodie Big Yale', { selector: '.chat-context strong' })).toBeInTheDocument()
+    expect(within(chat).getByLabelText('Message')).toHaveAttribute('placeholder', 'Ask about this product…')
+
+    await user.type(within(chat).getByLabelText('Message'), 'Do you have this in pink?')
+    await user.click(within(chat).getByRole('button', { name: 'Send' }))
+    await within(chat).findByText('Do you have this in pink?', { selector: 'strong' })
+    expect(chatRequests[0].viewing_product_id).toBe('basic-hoodie-big-yale')
+    expect(within(chat).getByText('About: Basic Hoodie Big Yale')).toBeInTheDocument()
+
+    // A guest's next message carries the earlier one's product, since nothing is saved on the server.
+    await user.type(within(chat).getByLabelText('Message'), 'and in grey?')
+    await user.click(within(chat).getByRole('button', { name: 'Send' }))
+    await within(chat).findByText('and in grey?', { selector: 'strong' })
+    expect(chatRequests[1].history[0]).toEqual({
+      role: 'user', content: 'Do you have this in pink?', viewing_product_id: 'basic-hoodie-big-yale' })
+  })
+
+  it('sends no product when the customer is not on a product page', async () => {
+    mockApi()
+    renderAt('/products')
+    const { chat } = await askInChat('hi')
+    await within(chat).findByText('hi', { selector: 'strong' })
+    expect(chatRequests[0].viewing_product_id).toBeNull()
+    expect(chat.querySelector('.chat-context')).toBeNull()
+  })
+
+  it('tells guests their chat is not saved, and logged-in customers that it is', async () => {
+    mockApi()
+    renderAt('/login')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    expect(screen.getByText('Guest · log in to save this chat')).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Email'), testUser.email)
+    await user.type(screen.getByLabelText('Password'), 'password')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    expect(await screen.findByText('Signed in as Test User · this chat is saved')).toBeInTheDocument()
+    // Saved messages show which product they were about.
+    expect(await screen.findByText('About: Yale Dad Hoodie')).toBeInTheDocument()
   })
 })

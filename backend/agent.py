@@ -13,6 +13,7 @@ from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.usage import UsageLimits
 
+import db
 from models import ChatDeps
 from tools import TOOLS
 
@@ -47,9 +48,34 @@ agent = Agent(
 
 @agent.instructions
 def customer_context(ctx: RunContext[ChatDeps]) -> str:
-    if ctx.deps.customer_first_name:
-        return f"The customer is logged in. Their first name is {ctx.deps.customer_first_name}."
-    return "The customer is browsing as a guest (not logged in)."
+    """Who the assistant is talking to, from their login session (never from what they type)."""
+    c = ctx.deps.customer
+    if c:
+        return (
+            "## This customer\n\n"
+            f"The customer is logged in as **{c['name']}** (first name {c['first_name']}, "
+            f"email {c['email']}). Their conversation is saved, and earlier messages above are "
+            "from their past visits."
+        )
+    return (
+        "## This customer\n\n"
+        "The customer is a guest (not logged in). You don't know their name or email, and this "
+        "conversation isn't saved after they leave the page."
+    )
+
+
+@agent.instructions
+def viewing_context(ctx: RunContext[ChatDeps]) -> str:
+    """The product page the customer has open, so "this" and "it" can be understood."""
+    v = ctx.deps.viewing
+    if not v:
+        return "The customer isn't on a product page right now."
+    return (
+        "## What they're looking at\n\n"
+        f"The customer is on the product page for **{v['name']}** (product_id "
+        f"`{v['product_id']}`, a {v['garment_type']}, colors: {', '.join(v['colors'])}). "
+        "If they say \"this\", \"it\" or \"this one\" without naming a product, they mean this product."
+    )
 
 
 def dollar_amounts(text: str) -> set[float]:
@@ -149,8 +175,26 @@ def page_results(reply: str, matches: dict[str, dict]) -> list[dict]:
     return named + [p for pid, p in matches.items() if pid not in named_ids]
 
 
+def viewing_info(product_id: str | None) -> dict | None:
+    """Look up the product a customer is viewing. Unknown ids are ignored."""
+    product = db.get_product(product_id.strip()) if product_id and product_id.strip() else None
+    if product is None:
+        return None
+    return {k: product[k] for k in ("product_id", "name", "garment_type", "colors")}
+
+
+def with_viewing_note(text: str, viewing: dict | None) -> str:
+    """Prefix an earlier customer message with the product page they were on when they sent it."""
+    if not viewing:
+        return text
+    return f"[Customer was viewing: {viewing['name']} (product_id {viewing['product_id']})]\n{text}"
+
+
 async def run_chat(
-    message: str, history: list[tuple[str, str]], customer_first_name: str | None
+    message: str,
+    history: list[tuple[str, str]],
+    customer: dict | None = None,
+    viewing: dict | None = None,
 ) -> tuple[str, list[dict], list[dict], dict | None]:
     """Answer one customer message.
 
@@ -158,7 +202,7 @@ async def run_chat(
     (every product the assistant found, up to 24) and, if a search found more than that,
     the total and a link to see them all.
     """
-    deps = ChatDeps(customer_first_name=customer_first_name)
+    deps = ChatDeps(customer=customer, viewing=viewing)
     for text in [message, *(t for role, t in history if role == "user")]:
         deps.customer_amounts |= dollar_amounts(text)
     result = await agent.run(

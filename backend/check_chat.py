@@ -19,7 +19,7 @@ async def main(question: str) -> int:
     print(f"Model: {chat_agent.model_name()}")
     print(f"You: {question}\n")
     try:
-        reply, cards = await chat_agent.run_chat(question, history=[], customer_first_name=None)
+        reply, cards, _results, _more = await chat_agent.run_chat(question, history=[])
     except chat_agent.AssistantNotConfigured:
         print("ANTHROPIC_API_KEY is not set. Run `python setup_env.py --api-key` first.")
         return 1

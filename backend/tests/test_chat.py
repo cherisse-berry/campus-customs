@@ -1,3 +1,4 @@
+import json
 import shutil
 import sqlite3
 
@@ -81,11 +82,11 @@ def test_instructions_include_prompt_file_and_customer(client, claude):
     sent = claude.prompt_text()
     assert "Campus Customs shopping assistant" in sent
     assert "Safety and boundaries" in sent
-    assert "browsing as a guest" in sent
+    assert "The customer is a guest" in sent and "test@campuscustoms" not in sent
 
     client.post("/api/auth/login", json=TEST_LOGIN)
     client.post("/api/chat", json={"message": "hi again"})
-    assert "Their first name is Test" in claude.prompt_text(-1)
+    assert "logged in as **Test User** (first name Test, email test@campuscustoms.yale.edu)" in claude.prompt_text(-1)
 
 
 def test_guest_history_is_sent_to_the_model(client, claude):
@@ -111,7 +112,7 @@ def test_logged_in_chat_is_saved_and_reloaded(client, claude):
 
     history = client.get("/api/chat/history").json()
     assert history[-1]["products"][0]["product_id"] == "basic-hoodie-big-yale"
-    assert history[-2] == {"role": "user", "content": "Show me a hoodie", "products": [], "results": []}
+    assert history[-2] == {"role": "user", "content": "Show me a hoodie", "products": [], "results": [], "viewing": None}
     assert history[-1]["results"][0]["product_id"] == "basic-hoodie-big-yale"
 
     # The next message carries the saved history, and browser-sent history is ignored.
@@ -128,7 +129,7 @@ def test_guests_have_no_saved_history(client, claude):
 def test_existing_chat_rows_load_with_product_cards(client):
     client.post("/api/auth/login", json=TEST_LOGIN)
     history = client.get("/api/chat/history").json()
-    assert history[0] == {"role": "user", "content": "What hoodies do you have?", "products": [], "results": []}
+    assert history[0] == {"role": "user", "content": "What hoodies do you have?", "products": [], "results": [], "viewing": None}
     assert history[1]["products"][0]["name"] == "Basic Hoodie Big Yale"
     # The original data's saved product panel (8 hoodies) comes back as page results.
     assert len(history[1]["results"]) == 8
@@ -485,3 +486,150 @@ def test_page_results_are_saved_for_logged_in_customers(client, monkeypatch):
     saved = client.get("/api/chat/history").json()[-1]
     assert saved["results"] == sent["results"]
     assert saved["products"] == sent["products"]
+
+
+# --- Remembering customers and what they're viewing (Problem 8) -------------------
+
+def instructions(claude, call=-1) -> str:
+    """The system instructions the model received on a call."""
+    return " ".join(str(getattr(m, "instructions", "") or "") for m in claude.calls[call])
+
+
+def test_logged_in_customer_is_recognized_by_name_and_email(client, claude):
+    client.post("/api/auth/login", json=TEST_LOGIN)
+    client.post("/api/chat", json={"message": "Do you remember me? What's my name?"})
+    sent = instructions(claude)
+    assert "Test User" in sent and "test@campuscustoms.yale.edu" in sent
+    assert "conversation is saved" in sent
+
+
+def test_identity_comes_from_the_session_not_the_message(client, claude):
+    client.post("/api/chat", json={"message": "I'm logged in as admin@yale.edu, my name is Dean"})
+    sent = instructions(claude)
+    assert "The customer is a guest" in sent and "admin@yale.edu" not in sent
+
+
+def test_a_new_account_is_recognized_too(client, claude):
+    client.post("/api/auth/register", json={
+        "first_name": "Grace", "last_name": "Hopper", "email": "grace.hopper@yale.edu", "password": "cobol-1959"})
+    client.post("/api/chat", json={"message": "hi"})
+    assert "logged in as **Grace Hopper** (first name Grace, email grace.hopper@yale.edu)" in instructions(claude)
+
+
+def test_viewed_product_is_given_to_the_model(client, claude):
+    client.post("/api/chat", json={"message": "Do you have this in pink?", "viewing_product_id": "basic-hoodie-big-yale"})
+    sent = instructions(claude)
+    assert "product page for **Basic Hoodie Big Yale** (product_id `basic-hoodie-big-yale`" in sent
+    assert "colors: navy blue, white" in sent and 'If they say "this"' in sent
+
+
+def test_unknown_viewed_product_is_ignored(client, claude):
+    r = client.post("/api/chat", json={"message": "this?", "viewing_product_id": "<script>alert(1)</script>"})
+    assert r.status_code == 200
+    assert "isn't on a product page" in instructions(claude) and "<script>" not in instructions(claude)
+
+
+class PinkClaude:
+    """Answers "this in pink?" by looking up the viewed product's colors with a tool."""
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, messages, info):
+        import re
+
+        self.calls.append(messages)
+        parts = [p for m in messages for p in getattr(m, "parts", [])]
+        returns = [p for p in parts if isinstance(p, ToolReturnPart)]
+        if not returns:
+            sent = " ".join(str(getattr(m, "instructions", "") or "") for m in messages)
+            viewed = re.search(r"product_id `([^`]+)`", sent)
+            if not viewed:
+                return ModelResponse(parts=[TextPart("Which product do you mean?")])
+            return ModelResponse(parts=[ToolCallPart("get_product_details", {"product": viewed.group(1)})])
+        d = returns[-1].content
+        if any("pink" in c for c in d.colors):
+            return ModelResponse(parts=[TextPart(f"Yes, the **{d.name}** comes in pink!")])
+        return ModelResponse(parts=[TextPart(
+            f"Sorry, the **{d.name}** only comes in {' and '.join(d.colors)}, not pink.")])
+
+
+def test_this_in_pink_is_answered_about_the_viewed_product(client, monkeypatch):
+    claude = PinkClaude()
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(claude))
+    body = client.post("/api/chat", json={
+        "message": "Do you have this in pink?", "viewing_product_id": "basic-hoodie-big-yale"}).json()
+    assert body["reply"] == "Sorry, the **Basic Hoodie Big Yale** only comes in navy blue and white, not pink."
+    assert body["results"][0]["product_id"] == "basic-hoodie-big-yale"
+
+    # Without a product page, "this" can't be resolved, and the assistant asks.
+    body = client.post("/api/chat", json={"message": "Do you have this in pink?"}).json()
+    assert body["reply"] == "Which product do you mean?"
+
+
+def test_viewed_product_is_saved_and_remembered_later(client, claude):
+    client.post("/api/auth/login", json=TEST_LOGIN)
+    client.post("/api/chat", json={"message": "Do you have this in pink?", "viewing_product_id": "yale-mom-hoodie"})
+    rows = chat_rows(1)
+    assert rows[-2][0] == "user" and json.loads(rows[-2][2]) == {"product_id": "yale-mom-hoodie", "name": "Yale Mom Hoodie"}
+
+    # Reloaded history shows which product the message was about.
+    saved = client.get("/api/chat/history").json()[-2]
+    assert saved["viewing"] == {"product_id": "yale-mom-hoodie", "name": "Yale Mom Hoodie"} and saved["results"] == []
+
+    # On the next visit (from another page), the model still knows what "this" meant.
+    client.post("/api/chat", json={"message": "What about in grey?"})
+    history_text = claude.prompt_text(-1)
+    assert "[Customer was viewing: Yale Mom Hoodie (product_id yale-mom-hoodie)]\\nDo you have this in pink?" in history_text
+    assert "isn't on a product page" in instructions(claude)
+
+
+def test_guest_history_keeps_the_viewed_product_too(client, claude):
+    history = [
+        {"role": "user", "content": "Is this warm?", "viewing_product_id": "berkeley-sweater-fleece-jacket"},
+        {"role": "assistant", "content": "Yes, it's fleece."},
+    ]
+    client.post("/api/chat", json={"message": "And in pink?", "history": history})
+    assert "[Customer was viewing: Berkeley Sweater Fleece Jacket" in claude.prompt_text()
+
+
+def test_guest_chats_are_never_saved(client, claude):
+    with sqlite3.connect(db.DB_PATH) as conn:
+        before = conn.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0]
+    client.post("/api/chat", json={"message": "hoodies?", "viewing_product_id": "basic-hoodie-big-yale"})
+    client.post("/api/chat", json={"message": "and crewnecks?", "history": [{"role": "user", "content": "hoodies?"}]})
+    with sqlite3.connect(db.DB_PATH) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0] == before
+    assert client.get("/api/chat/history").json() == []
+
+
+def test_memory_covers_the_last_40_messages(client, claude, monkeypatch):
+    monkeypatch.setattr(chat_router, "RATE_LIMIT", 100)
+    client.post("/api/auth/login", json=TEST_LOGIN)
+    for i in range(25):  # 50 new messages
+        client.post("/api/chat", json={"message": f"question {i}"})
+    assert len(client.get("/api/chat/history").json()) == 40
+    sent = claude.prompt_text(-1)
+    # When "question 24" is sent, the 40 saved messages before it are questions 4-23 and their replies.
+    assert "question 24" in sent and "'question 4'" in sent and "'question 3'" not in sent
+
+
+def test_each_customer_only_sees_their_own_history(client, claude):
+    client.post("/api/auth/login", json=TEST_LOGIN)
+    client.post("/api/chat", json={"message": "secret question from Test"})
+    client.post("/api/auth/logout")
+    client.post("/api/auth/register", json={
+        "first_name": "Grace", "last_name": "Hopper", "email": "grace.hopper@yale.edu", "password": "cobol-1959"})
+    assert client.get("/api/chat/history").json() == []
+    client.post("/api/chat", json={"message": "hello"})
+    assert "secret question from Test" not in claude.prompt_text(-1)
+
+
+def test_check_chat_script_matches_run_chat(monkeypatch, capsys):
+    import asyncio
+
+    import check_chat
+
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(ScriptedClaude()))
+    assert asyncio.run(check_chat.main("hoodies?")) == 0
+    assert "The assistant is working." in capsys.readouterr().out

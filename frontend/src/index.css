@@ -1359,3 +1359,25 @@ select {
     padding-right: 410px;
   }
 }
+
+/* What the customer is asking about (the product page they're on) */
+.chat-context {
+  margin: 0;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-context strong {
+  color: var(--yale-blue);
+}
+
+.chat-about {
+  font-size: 0.72rem;
+  color: var(--muted);
+}

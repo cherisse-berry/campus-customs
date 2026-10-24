@@ -147,3 +147,17 @@ A record of the prompts used while building the Campus Customs website, organize
 > Check what we've already built, make any necessary changes, and test that everything works. Update prompts/prompt.md, output/harness.md, and AI_prompts.md.
 
 ---
+
+## Problem 8: Remember Customers and Their Context
+
+### Original prompt
+
+> For Problem 8, I want the Campus Customs chatbot to remember conversations with logged-in customers and recognize who they're chatting with.
+>
+> It should save and reload their chat history, know their name and email, and understand which product they're viewing so it can answer questions like “Do you have this in pink?”
+>
+> Guests should still be able to chat without their conversations being saved.
+>
+> Check what we've already built, make any necessary improvements, test everything, and update output/harness.md and AI_prompts.md.
+
+---

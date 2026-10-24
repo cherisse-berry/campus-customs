@@ -18,9 +18,17 @@ export interface ChatResult {
   sold_out: boolean
 }
 
+/** The product page a customer was on when they sent a message. */
+export interface ViewedProduct {
+  product_id: string
+  name: string
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  /** Customer messages: the product page they sent it from. */
+  viewing?: ViewedProduct | null
   products?: ChatProduct[]
   results?: ChatResult[]
   /** True for messages the site shows when something went wrong; never sent to the assistant. */
@@ -47,17 +55,25 @@ export const PREVIEW_MESSAGE =
   "The shopping assistant needs the Campus Customs server, so it isn't available in this preview."
 
 /** Sends a message (plus recent conversation, for guests) and returns the assistant's reply. */
-export async function sendChatMessage(message: string, earlier: ChatMessage[]): Promise<ChatReply> {
+/**
+ * Sends a message and returns the assistant's reply. `viewingProductId` is the product page the
+ * customer is on, so the assistant knows what "this" means.
+ */
+export async function sendChatMessage(
+  message: string,
+  earlier: ChatMessage[],
+  viewingProductId: string | null = null,
+): Promise<ChatReply> {
   if (IS_STATIC) throw new Error(PREVIEW_MESSAGE)
   const history = earlier
     .filter((m) => !m.error)
     .slice(-MAX_HISTORY)
-    .map(({ role, content }) => ({ role, content }))
+    .map(({ role, content, viewing }) => ({ role, content, viewing_product_id: viewing?.product_id ?? null }))
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin',
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, viewing_product_id: viewingProductId }),
   })
   if (!res.ok) {
     const detail = (await res.json().catch(() => null))?.detail

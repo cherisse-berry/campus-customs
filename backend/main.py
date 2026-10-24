@@ -22,7 +22,16 @@ import agent as chat_agent
 import auth
 import config  # noqa: F401  (loads .env)
 import db
-from models import MAX_HISTORY, ChatReply, ChatRequest, HistoryEntry, MoreResults, ProductCard, ProductResult
+from models import (
+    MAX_HISTORY,
+    ChatReply,
+    ChatRequest,
+    HistoryEntry,
+    MoreResults,
+    ProductCard,
+    ProductResult,
+    ViewedProduct,
+)
 
 log = logging.getLogger(__name__)
 
@@ -110,6 +119,15 @@ def _check_rate_limit(key: str) -> None:
     hits.append(now)
 
 
+def _saved_viewing(products_json: str | None) -> dict | None:
+    """The product page saved with a customer message, if any."""
+    try:
+        data = json.loads(products_json) if products_json else None
+        return ViewedProduct.model_validate(data).model_dump() if isinstance(data, dict) else None
+    except ValueError:
+        return None
+
+
 def _saved_results(products_json: str | None) -> list[ProductResult]:
     """The page results saved with an assistant message (older rows hold full product objects)."""
     if not products_json:
@@ -131,15 +149,30 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
     _check_rate_limit(f"user:{user['id']}" if user else f"ip:{client}")
 
     if user:
-        history = [(r["role"], r["content"]) for r in db.get_chat_history(user["id"], MAX_HISTORY)]
-        first_name = user["first_name"] or user["name"].split(" ")[0]
+        # A logged-in customer: who they are comes from their session, and the conversation
+        # (including which product page each message was sent from) from the database.
+        customer = {
+            "first_name": user["first_name"] or user["name"].split(" ")[0],
+            "name": user["name"],
+            "email": user["email"],
+        }
+        history = []
+        for r in db.get_chat_history(user["id"], MAX_HISTORY):
+            viewed = _saved_viewing(r["products_json"]) if r["role"] == "user" else None
+            history.append((r["role"], chat_agent.with_viewing_note(r["content"], viewed)))
     else:
-        history = [(m.role, m.content) for m in body.history]
-        first_name = None
+        # A guest: nothing is saved, so the browser sends the conversation so far.
+        customer = None
+        history = [
+            (m.role, chat_agent.with_viewing_note(
+                m.content, chat_agent.viewing_info(m.viewing_product_id) if m.role == "user" else None))
+            for m in body.history
+        ]
 
+    viewing = chat_agent.viewing_info(body.viewing_product_id)
     message = body.message.strip()
     try:
-        reply, cards, results, more = await chat_agent.run_chat(message, history, first_name)
+        reply, cards, results, more = await chat_agent.run_chat(message, history, customer, viewing)
     except chat_agent.AssistantNotConfigured:
         log.error("Chat is unavailable: ANTHROPIC_API_KEY is not set. Run `python setup_env.py --api-key`.")
         raise HTTPException(503, "The shopping assistant isn't set up yet. Please try again later.")
@@ -163,7 +196,11 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
     if not reply:
         reply = TRIED_TOO_HARD_REPLY
     if user:
-        db.save_chat_exchange(user["id"], message, reply, json.dumps(results) if results else None)
+        db.save_chat_exchange(
+            user["id"], message, reply,
+            products_json=json.dumps(results) if results else None,
+            viewing_json=json.dumps({"product_id": viewing["product_id"], "name": viewing["name"]}) if viewing else None,
+        )
     return ChatReply(
         reply=reply,
         products=[ProductCard(**c) for c in cards],
@@ -181,6 +218,11 @@ def chat_history(request: Request) -> list[HistoryEntry]:
     entries = []
     for r in db.get_chat_history(user["id"], MAX_HISTORY):
         if r["role"] not in ("user", "assistant"):
+            continue
+        if r["role"] == "user":
+            viewed = _saved_viewing(r["products_json"])
+            entries.append(HistoryEntry(
+                role="user", content=r["content"], viewing=ViewedProduct(**viewed) if viewed else None))
             continue
         results = _saved_results(r["products_json"])
         found = {p.product_id: p.model_dump() for p in results}

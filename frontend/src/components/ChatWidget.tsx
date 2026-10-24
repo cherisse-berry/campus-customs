@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Markdown from 'react-markdown'
-import { Link } from 'react-router-dom'
-import { formatPrice } from '../api'
+import { Link, useLocation } from 'react-router-dom'
+import { fetchProduct, formatPrice, useAsync } from '../api'
 import { useAuth } from '../authContext'
 import { fetchChatHistory, sendChatMessage, type ChatMessage, type ChatProduct } from '../chatApi'
 import { useChatResults } from '../chatResults'
@@ -35,8 +35,23 @@ function lastIndexOf<T>(items: T[], test: (item: T) => boolean): number {
 /** Wide screens show the results beside the open chat; on phones the chat covers the page. */
 const isWideScreen = () => window.matchMedia?.('(min-width: 700px)').matches ?? true
 
+/** The product page the customer is on, from the URL (/products/:id). */
+function useViewedProductId(): string | null {
+  const match = useLocation().pathname.match(/^\/products\/([^/]+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 export default function ChatWidget() {
   const { user } = useAuth()
+  const viewingId = useViewedProductId()
+  const viewedProduct = useAsync(
+    () => (viewingId ? fetchProduct(viewingId) : Promise.resolve(null)),
+    `viewing:${viewingId ?? ''}`,
+  )
+  const viewing =
+    viewedProduct.status === 'ready' && viewedProduct.data
+      ? { product_id: viewedProduct.data.product_id, name: viewedProduct.data.name }
+      : null
   const { show, reveal, clear } = useChatResults()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([greeting])
@@ -82,11 +97,11 @@ export default function ChatWidget() {
     text = text.trim()
     if (!text || sending) return
     const earlier = messages.slice(1) // the greeting isn't part of the conversation
-    setMessages((m) => [...m, { role: 'user', content: text }])
+    setMessages((m) => [...m, { role: 'user', content: text, viewing }])
     setDraft('')
     setSending(true)
     try {
-      const { reply, products = [], results = [], more_results } = await sendChatMessage(text, earlier)
+      const { reply, products = [], results = [], more_results } = await sendChatMessage(text, earlier, viewing?.product_id ?? null)
       setMessages((m) => [...m, { role: 'assistant', content: reply, products, results }])
       if (results.length > 0) show(text, results, isWideScreen(), more_results)
     } catch (err) {
@@ -111,7 +126,11 @@ export default function ChatWidget() {
           <header className="chat-header">
             <div>
               <p className="chat-title">Campus Customs Assistant</p>
-              <p className="chat-subtitle">AI assistant · answers may contain mistakes</p>
+              <p className="chat-subtitle">
+                {user
+                  ? `Signed in as ${user.name} · this chat is saved`
+                  : 'Guest · log in to save this chat'}
+              </p>
             </div>
             <button className="chat-close" aria-label="Close chat" onClick={() => setOpen(false)}>
               ×
@@ -120,6 +139,7 @@ export default function ChatWidget() {
           <div className="chat-messages" aria-live="polite">
             {messages.map((m, i) => (
               <div key={i} className={`chat-turn chat-turn-${m.role}`}>
+                {m.viewing && <span className="chat-about">About: {m.viewing.name}</span>}
                 <div className={`chat-bubble chat-${m.role} ${m.error ? 'chat-error' : ''}`}>
                   {m.role === 'assistant' && !m.error ? <Markdown>{m.content}</Markdown> : m.content}
                 </div>
@@ -155,12 +175,17 @@ export default function ChatWidget() {
             )}
             <div ref={endRef} />
           </div>
+          {viewing && (
+            <p className="chat-context" aria-live="polite">
+              Asking about: <strong>{viewing.name}</strong>
+            </p>
+          )}
           <form className="chat-form" onSubmit={onSubmit}>
             <input
               id="chat-message"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Ask about products, sizes or stock…"
+              placeholder={viewing ? 'Ask about this product…' : 'Ask about products, sizes or stock…'}
               aria-label="Message"
               maxLength={1000}
               autoComplete="off"
