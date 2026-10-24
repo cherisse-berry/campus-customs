@@ -212,6 +212,7 @@ export default function ChatWidget() {
             <input
               ref={inputRef}
               id="chat-message"
+              aria-describedby="chat-disclaimer"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={viewing ? 'Ask about this product…' : 'Ask about products, sizes or stock…'}
@@ -225,6 +226,9 @@ export default function ChatWidget() {
               </svg>
             </button>
           </form>
+          <p className="chat-disclaimer" id="chat-disclaimer">
+            AI assistant · answers can contain mistakes. Please don't share card numbers or passwords.
+          </p>
         </section>
       )}
       <button

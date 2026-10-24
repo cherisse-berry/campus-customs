@@ -18,6 +18,9 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# Chat audit trail (kept on the machine running the API)
+backend/logs/
+
 # Node / Vite
 node_modules/
 dist/

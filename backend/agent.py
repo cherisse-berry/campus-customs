@@ -7,13 +7,14 @@ from typing import NamedTuple
 from pathlib import Path
 
 import config  # noqa: F401  (loads .env)
-from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext, capture_run_messages
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.usage import UsageLimits
 
+import audit
 import db
 from models import ChatDeps
 from tools import TOOLS
@@ -36,6 +37,8 @@ DOLLAR_AMOUNT = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?")
 
 class AssistantNotConfigured(RuntimeError):
     """ANTHROPIC_API_KEY is missing."""
+
+    audit_reason = "not_configured"
 
 
 agent = Agent(
@@ -206,23 +209,40 @@ async def run_chat(
     history: list[tuple[str, str]],
     customer: dict | None = None,
     viewing: dict | None = None,
+    sensitive_removed: list[str] | None = None,
 ) -> ChatTurn:
-    """Answer one customer message."""
+    """Answer one customer message, and record the run in the audit trail."""
+    trail = audit.ChatRun(
+        logged_in=customer is not None, viewing=viewing, message=message, history=len(history),
+        model=model_name(), sensitive_removed=sensitive_removed,
+    )
     deps = ChatDeps(customer=customer, viewing=viewing)
     for text in [message, *(t for role, t in history if role == "user")]:
         deps.customer_amounts |= dollar_amounts(text)
-    result = await agent.run(
-        message,
-        model=get_model(),
-        deps=deps,
-        message_history=to_model_history(history),
-        usage_limits=USAGE_LIMITS,
-    )
+    with capture_run_messages() as messages:
+        try:
+            result = await agent.run(
+                message,
+                model=get_model(),
+                deps=deps,
+                message_history=to_model_history(history),
+                usage_limits=USAGE_LIMITS,
+            )
+        except Exception as e:
+            trail.finish(_this_run(messages, history), error=e)
+            raise
     reply = result.output.strip()
-    return ChatTurn(
+    turn = ChatTurn(
         reply=reply,
         cards=cards_for_reply(reply, deps.seen_products),
         results=page_results(reply, deps.matches),
         more=deps.more_results,
         suggestions=deps.suggestions,
     )
+    trail.finish(result.new_messages(), turn=turn)
+    return turn
+
+
+def _this_run(messages: list[ModelMessage], history: list[tuple[str, str]]) -> list[ModelMessage]:
+    """The messages from this run only, without the earlier conversation passed in as history."""
+    return messages[len(to_model_history(history)):]

@@ -2324,6 +2324,16 @@ select {
   background: #fff;
 }
 
+.chat-disclaimer {
+  margin: 0;
+  padding: 0 16px 10px;
+  background: #fff;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: center;
+}
+
 .chat-form input {
   flex: 1;
   min-width: 0;

@@ -195,3 +195,17 @@ A record of the prompts used while building the Campus Customs website, organize
 > please test the Campus Customs website and create output/app_check.html with screenshots showing that everything works. Include the chatbot checking a product's actual price and stock, matching products appearing on the page after a chat search, and one of the usability improvements from Problem 9. Give each test a heading, screenshot, and brief explanation of what it demonstrates. Save the screenshots in output/app_check_images and make sure the HTML opens properly. Please use actual screenshots from the running website, not simulated chatbot responses. If you can't test the real chatbot, let me know what I need to do.
 
 ---
+
+## Problem 12: Audit Trail, Safety and Harness Documentation
+
+### Original prompt
+
+> For Problem 12, I want to finish documenting how the Campus Customs chatbot works and make sure its activity is tracked safely.
+>
+> Create an audit trail that records when the chatbot runs, which tools it uses, brief details of the results, and why it stops. Keep previous records rather than replacing them, and avoid saving sensitive customer information.
+>
+> Review and strengthen the chatbot's safety instructions. Finish output/harness.md so it clearly explains the models, tools, safety rules, limits, and how to run the website and chatbot.
+>
+> Check what we've already built, test everything, and update AI_prompts.md.
+
+---

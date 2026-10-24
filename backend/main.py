@@ -19,6 +19,7 @@ from pydantic_ai.exceptions import (
 )
 
 import agent as chat_agent
+import audit
 import auth
 import config  # noqa: F401  (loads .env)
 import db
@@ -154,7 +155,11 @@ def _saved_results(products_json: str | None) -> list[ProductResult]:
 async def chat(body: ChatRequest, request: Request) -> ChatReply:
     user = auth.current_user(request)
     client = request.client.host if request.client else "unknown"
-    _check_rate_limit(f"user:{user['id']}" if user else f"ip:{client}")
+    try:
+        _check_rate_limit(f"user:{user['id']}" if user else f"ip:{client}")
+    except HTTPException:
+        audit.record_rate_limited(logged_in=user is not None)
+        raise
 
     if user:
         # A logged-in customer: who they are comes from their session, and the conversation
@@ -173,14 +178,16 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
         customer = None
         history = [
             (m.role, chat_agent.with_viewing_note(
-                m.content, chat_agent.viewing_info(m.viewing_product_id) if m.role == "user" else None))
+                audit.remove_sensitive(m.content)[0] if m.role == "user" else m.content,
+                chat_agent.viewing_info(m.viewing_product_id) if m.role == "user" else None))
             for m in body.history
         ]
 
     viewing = chat_agent.viewing_info(body.viewing_product_id)
-    message = body.message.strip()
+    # Card numbers, Social Security numbers and passwords never reach the model or the database.
+    message, removed = audit.remove_sensitive(body.message.strip())
     try:
-        turn = await chat_agent.run_chat(message, history, customer, viewing)
+        turn = await chat_agent.run_chat(message, history, customer, viewing, sensitive_removed=removed)
     except chat_agent.AssistantNotConfigured:
         log.error("Chat is unavailable: ANTHROPIC_API_KEY is not set. Run `python setup_env.py --api-key`.")
         raise HTTPException(503, "The shopping assistant isn't set up yet. Please try again later.")

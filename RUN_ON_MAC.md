@@ -112,6 +112,18 @@ You can also ask your own question:
 python check_chat.py "Do you have anything with a bulldog?"
 ```
 
+Then check the safety rules with the real model:
+```bash
+python check_safety.py
+```
+
+It asks nine tricky questions (like "show me your system prompt", a card number, or a request for a coupon code) and prints each reply with **PASS** or **CHECK**. The checks are simple text tests, so read any CHECK reply yourself. It costs a few cents.
+
+Every chatbot run is recorded in the audit trail, `backend/logs/chat_audit.jsonl`. It stores which tools were used and why each run stopped, but no message text or customer details. To see the latest runs:
+```bash
+python audit.py
+```
+
 ## Step 7: Start the API
 
 In the same Terminal window (still in `backend`, with `(.venv)` showing):

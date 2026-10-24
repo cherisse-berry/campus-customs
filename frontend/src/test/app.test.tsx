@@ -399,6 +399,16 @@ describe('Campus Customs site', () => {
     expect(chat.querySelector('.chat-context')).toBeNull()
   })
 
+  it('says the chat is an AI and warns against sharing card numbers', async () => {
+    mockApi()
+    renderAt('/')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    const message = screen.getByLabelText('Message')
+    expect(message).toHaveAccessibleDescription(/AI assistant · answers can contain mistakes/)
+    expect(message).toHaveAccessibleDescription(/don't share card numbers or passwords/)
+  })
+
   it('tells guests their chat is not saved, and logged-in customers that it is', async () => {
     mockApi()
     renderAt('/login')
