@@ -96,4 +96,12 @@ A record of the prompts used while building the Campus Customs website, organize
 >
 > Make sure messages from the website reach the agent and return responses. Help me set up the API key securely, test that everything works, and update AI_prompts.md and output/harness.md.
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> I have my Claude API key, but I'm not sure how to add it securely to my Campus Customs project using Claude Code in my browser. Can you walk me through the setup step by step so I can test the chatbot?
+
+*What was missing:* The first setup instructions assumed the project ran on my own computer, where a terminal can ask for the key. They didn't explain how to add the key when using Claude Code in the browser, where the project runs in a temporary cloud workspace. While checking, this also turned up a bug: the cloud workspace sets `ANTHROPIC_BASE_URL` for Claude Code itself, and the chatbot would have sent the API key there instead of to Anthropic. The fix pins the chatbot to `https://api.anthropic.com`, and the setup steps now cover adding the key in the cloud environment's settings.
+
 ---

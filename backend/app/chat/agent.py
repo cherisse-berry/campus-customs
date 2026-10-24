@@ -16,6 +16,7 @@ from .tools import TOOLS, ChatDeps
 
 PROMPT_FILE = Path(__file__).parent / "prompts" / "system_prompt.md"
 DEFAULT_MODEL = "claude-opus-5-5"
+ANTHROPIC_API_URL = "https://api.anthropic.com"
 MAX_PRODUCT_CARDS = 6
 
 # Models that accept the server-side refusal fallback ("fallbacks": "default").
@@ -48,8 +49,14 @@ def model_name() -> str:
     return os.environ.get("CHAT_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
 
 
+def api_url() -> str:
+    # Deliberately not ANTHROPIC_BASE_URL: tools such as Claude Code set that for their own
+    # connection, and the SDK would otherwise send this app's API key there.
+    return os.environ.get("CHAT_ANTHROPIC_BASE_URL", "").strip() or ANTHROPIC_API_URL
+
+
 @cache
-def _anthropic_model(name: str, api_key: str) -> AnthropicModel:
+def _anthropic_model(name: str, api_key: str, base_url: str = ANTHROPIC_API_URL) -> AnthropicModel:
     settings = AnthropicModelSettings(
         max_tokens=4096,
         # Chat replies are short; low effort keeps them fast and inexpensive.
@@ -60,14 +67,15 @@ def _anthropic_model(name: str, api_key: str) -> AnthropicModel:
         # model automatically instead of returning a refusal.
         settings["anthropic_betas"] = ["server-side-fallback-2026-07-01"]
         settings["extra_body"] = {"fallbacks": "default"}
-    return AnthropicModel(name, provider=AnthropicProvider(api_key=api_key), settings=settings)
+    provider = AnthropicProvider(api_key=api_key, base_url=base_url)
+    return AnthropicModel(name, provider=provider, settings=settings)
 
 
 def get_model() -> Model:
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         raise AssistantNotConfigured("ANTHROPIC_API_KEY is not set")
-    return _anthropic_model(model_name(), api_key)
+    return _anthropic_model(model_name(), api_key, api_url())
 
 
 def to_model_history(turns: list[tuple[str, str]]) -> list[ModelMessage]:

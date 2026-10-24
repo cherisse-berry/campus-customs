@@ -221,3 +221,12 @@ def test_model_settings_use_low_effort_and_fallback():
     assert model.settings["extra_body"] == {"fallbacks": "default"}
     assert model.settings["anthropic_betas"] == ["server-side-fallback-2026-07-01"]
     assert "extra_body" not in chat_agent._anthropic_model("claude-haiku-5-5", "sk-test-not-real").settings
+
+
+def test_api_key_only_goes_to_anthropic(monkeypatch):
+    # Claude Code and similar tools set ANTHROPIC_BASE_URL for their own use; it must be ignored.
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://some-other-proxy.example")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-not-real")
+    monkeypatch.delenv("CHAT_ANTHROPIC_BASE_URL", raising=False)
+    model = chat_agent.get_model()
+    assert model.base_url.rstrip("/") == "https://api.anthropic.com"

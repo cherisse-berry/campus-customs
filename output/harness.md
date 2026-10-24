@@ -265,6 +265,10 @@ The assistant needs an Anthropic API key, kept in `backend/.env`, which is git-i
 2. In `backend/`, run `python setup_env.py --api-key` and paste the key. What you type is hidden, so it doesn't appear on screen or in your shell history. The file is saved readable only by you.
 3. Run `python check_chat.py`. It sends one real question to Claude (a fraction of a cent) and prints the reply.
 
+**Using Claude Code in the browser (cloud environment):** your project runs in a temporary cloud workspace, so a `.env` file there disappears when the session ends. Instead, add the key in the environment's settings: open the cloud environment menu in the session's title bar and choose **Edit**. Add it under **Network secrets** (called **API credentials** in older versions of the app) if that section is shown, otherwise as an environment variable, with the name `ANTHROPIC_API_KEY`. Then start a **new session**, which picks it up. The backend reads it automatically, and an environment variable takes priority over `.env`.
+
+The chatbot always sends the key to `https://api.anthropic.com`. It ignores `ANTHROPIC_BASE_URL`, which Claude Code sets for its own connection, so your key can't be sent anywhere else by accident. To use a different endpoint on purpose, set `CHAT_ANTHROPIC_BASE_URL`.
+
 If the key is missing, the site still works. The chat replies "The shopping assistant isn't set up yet", and the server log says how to fix it. Never put the key in frontend code, a commit or a chat message. If it leaks, delete it in the Anthropic Console and make a new one.
 
 ### Tests
