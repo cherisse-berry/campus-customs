@@ -30,8 +30,15 @@ const categories: Category[] = [{ slug: 'hoodies', name: 'Hoodies', count: 1 }]
 
 const testUser = { id: 1, name: 'Test User', first_name: 'Test', last_name: 'User', email: 'test@campuscustoms.yale.edu' }
 
+const savedChat = [
+  { role: 'user', content: 'Earlier question', products: [] },
+  { role: 'assistant', content: 'Earlier answer', products: [] },
+]
+let chatRequests: { message: string; history: { role: string; content: string }[] }[] = []
+
 function mockApi() {
   let loggedIn = false
+  chatRequests = []
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -48,6 +55,15 @@ function mockApi() {
         return json({ detail: 'An account with this email already exists. Try logging in.' }, 409)
       loggedIn = true
       return json({ id: 4, name: `${body.first_name} ${body.last_name}`, ...body, password: undefined }, 201)
+    }
+    if (url === '/api/chat/history') return json(loggedIn ? savedChat : [])
+    if (url === '/api/chat') {
+      if (body.message === 'break') return json({ detail: 'The assistant is having trouble right now.' }, 503)
+      chatRequests.push(body)
+      return json({
+        reply: `You asked: **${body.message}**. Try the Basic Hoodie Big Yale.`,
+        products: [{ product_id: hoodie.product_id, name: hoodie.name, price: 68, image_url: hoodie.image_url }],
+      })
     }
     if (url === '/api/auth/logout') {
       loggedIn = false
@@ -177,7 +193,7 @@ describe('Campus Customs site', () => {
     expect(await within(nav).findByRole('link', { name: 'Log In' })).toBeInTheDocument()
   })
 
-  it('chat window opens in the corner and replies with a placeholder', async () => {
+  it('chat sends messages to the assistant and shows replies with product cards', async () => {
     mockApi()
     renderAt('/about')
     const user = userEvent.setup()
@@ -185,7 +201,52 @@ describe('Campus Customs site', () => {
     const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
     await user.type(within(chat).getByLabelText('Message'), 'Do you have hoodies?')
     await user.click(within(chat).getByRole('button', { name: 'Send' }))
-    expect(within(chat).getByText('Do you have hoodies?')).toBeInTheDocument()
-    expect(await within(chat).findByText(/isn't connected yet/)).toBeInTheDocument()
+    expect(within(chat).getByText('Do you have hoodies?', { selector: '.chat-user' })).toBeInTheDocument()
+    // Markdown is rendered: the bold part becomes <strong>.
+    expect(await within(chat).findByText('Do you have hoodies?', { selector: 'strong' })).toBeInTheDocument()
+    const card = within(chat).getByRole('link', { name: /Basic Hoodie Big Yale/ })
+    expect(card).toHaveAttribute('href', '/products/basic-hoodie-big-yale')
+    expect(chatRequests[0]).toEqual({ message: 'Do you have hoodies?', history: [] })
+
+    // The guest's earlier turns go with the next message (without the greeting).
+    await user.type(within(chat).getByLabelText('Message'), 'In XL?')
+    await user.click(within(chat).getByRole('button', { name: 'Send' }))
+    await within(chat).findByText('In XL?', { selector: 'strong' })
+    expect(chatRequests[1].history.map((h) => h.role)).toEqual(['user', 'assistant'])
+    expect(chatRequests[1].history[0].content).toBe('Do you have hoodies?')
+  })
+
+  it('chat suggestions send a message', async () => {
+    mockApi()
+    renderAt('/')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    await user.click(screen.getByRole('button', { name: 'Anything with a bulldog?' }))
+    expect(chatRequests[0].message).toBe('Anything with a bulldog?')
+  })
+
+  it('chat shows server errors in the conversation', async () => {
+    mockApi()
+    renderAt('/')
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
+    await user.type(within(chat).getByLabelText('Message'), 'break')
+    await user.click(within(chat).getByRole('button', { name: 'Send' }))
+    expect(await within(chat).findByText('The assistant is having trouble right now.')).toBeInTheDocument()
+  })
+
+  it('logged-in customers see their saved chat', async () => {
+    mockApi()
+    renderAt('/login')
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), testUser.email)
+    await user.type(screen.getByLabelText('Password'), 'password')
+    await user.click(screen.getByRole('button', { name: 'Log in' }))
+    await screen.findByText('Hi, Test')
+    await user.click(screen.getByRole('button', { name: 'Open chat' }))
+    const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
+    expect(await within(chat).findByText('Earlier question')).toBeInTheDocument()
+    expect(within(chat).getByText('Earlier answer')).toBeInTheDocument()
   })
 })

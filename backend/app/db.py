@@ -96,6 +96,29 @@ def get_product(product_id: str) -> dict | None:
     return product
 
 
+def search_products(
+    category: str | None = None, q: str | None = None, sort: str = "name"
+) -> list[dict]:
+    """Products matching a category and every word of `q` (name, description, colors, tags)."""
+    items = list_products()
+    if category:
+        items = [p for p in items if p["category"] == category]
+    if q:
+        terms = q.lower().split()
+
+        def haystack(p: dict) -> str:
+            return " ".join(
+                [p["name"], p["description"], p["garment_type"], *p["colors"], *p["search_tags"]]
+            ).lower()
+
+        items = [p for p in items if all(t in haystack(p) for t in terms)]
+    if sort == "price-asc":
+        items.sort(key=lambda p: (p["price"], p["name"]))
+    elif sort == "price-desc":
+        items.sort(key=lambda p: (-p["price"], p["name"]))
+    return items
+
+
 _USER_COLUMNS = "id, name, email, password_hash, created_at, first_name, last_name"
 
 
@@ -134,3 +157,23 @@ def create_user(first_name: str, last_name: str, email: str, password_hash: str)
         return conn.execute(
             f"SELECT {_USER_COLUMNS} FROM users WHERE id = ?", (cur.lastrowid,)
         ).fetchone()
+
+
+def get_chat_history(user_id: int, limit: int = 20) -> list[sqlite3.Row]:
+    """The user's most recent chat messages, oldest first."""
+    with closing(connect()) as conn:
+        rows = conn.execute(
+            "SELECT id, role, content, products_json, created_at FROM chat_messages"
+            " WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+    return rows[::-1]
+
+
+def save_chat_exchange(user_id: int, question: str, answer: str, products_json: str | None) -> None:
+    """Store one customer message and the assistant's reply."""
+    with closing(connect(writable=True)) as conn, conn:
+        conn.executemany(
+            "INSERT INTO chat_messages (user_id, role, content, products_json) VALUES (?, ?, ?, ?)",
+            [(user_id, "user", question, None), (user_id, "assistant", answer, products_json)],
+        )

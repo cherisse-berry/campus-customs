@@ -1,4 +1,4 @@
-"""Campus Customs API: product catalogue, stock, images and customer accounts."""
+"""Campus Customs API: product catalogue, stock, images, customer accounts and chat."""
 
 import os
 from typing import Literal
@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, db
+from .chat.router import router as chat_router
 
 app = FastAPI(title="Campus Customs API")
 
@@ -22,6 +23,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(chat_router)
 
 # Serve only the images folder, never the data folder (which holds the database).
 app.mount(
@@ -55,23 +57,7 @@ def products(
     q: str | None = Query(None, description="Search name, description, colors and tags"),
     sort: Literal["name", "price-asc", "price-desc"] = "name",
 ) -> list[dict]:
-    items = db.list_products()
-    if category:
-        items = [p for p in items if p["category"] == category]
-    if q:
-        terms = q.lower().split()
-
-        def haystack(p: dict) -> str:
-            return " ".join(
-                [p["name"], p["description"], p["garment_type"], *p["colors"], *p["search_tags"]]
-            ).lower()
-
-        items = [p for p in items if all(t in haystack(p) for t in terms)]
-    if sort == "price-asc":
-        items.sort(key=lambda p: (p["price"], p["name"]))
-    elif sort == "price-desc":
-        items.sort(key=lambda p: (-p["price"], p["name"]))
-    return items
+    return db.search_products(category, q, sort)
 
 
 @app.get("/api/products/{product_id}")

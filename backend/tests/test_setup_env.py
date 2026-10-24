@@ -22,7 +22,7 @@ def secret(env):
 
 
 def test_creates_env_with_strong_secret(env_paths, capsys):
-    setup_env.main(force=False)
+    setup_env.main([])
     text = env_paths.read_text()
     assert len(secret(env_paths)) == 64
     assert "COOKIE_SECURE=false" in text  # other settings kept
@@ -30,17 +30,37 @@ def test_creates_env_with_strong_secret(env_paths, capsys):
 
 
 def test_keeps_existing_secret_unless_forced(env_paths):
-    setup_env.main(force=False)
+    setup_env.main([])
     first = secret(env_paths)
-    setup_env.main(force=False)
+    setup_env.main([])
     assert secret(env_paths) == first
-    setup_env.main(force=True)
+    setup_env.main(["--force"])
     assert secret(env_paths) != first
     assert env_paths.read_text().count("SESSION_SECRET=") == 1
 
 
 def test_adds_secret_to_env_without_one(env_paths):
     env_paths.write_text("COOKIE_SECURE=true\n")
-    setup_env.main(force=False)
+    setup_env.main([])
     assert "COOKIE_SECURE=true" in env_paths.read_text()
     assert len(secret(env_paths)) == 64
+
+
+def test_api_key_is_saved_from_hidden_prompt(env_paths, monkeypatch, capsys):
+    real_ask = setup_env.ask_api_key
+    monkeypatch.setattr(setup_env, "ask_api_key", lambda text: real_ask(text, prompt=lambda _: "  sk-ant-test-123  "))
+    setup_env.main(["--api-key"])
+    assert "ANTHROPIC_API_KEY=sk-ant-test-123\n" in env_paths.read_text()
+    assert "sk-ant-test-123" not in capsys.readouterr().out
+    first_secret = secret(env_paths)
+
+    # Pressing Enter keeps the existing key; the session secret is untouched.
+    monkeypatch.setattr(setup_env, "ask_api_key", lambda text: real_ask(text, prompt=lambda _: ""))
+    setup_env.main(["--api-key"])
+    assert "ANTHROPIC_API_KEY=sk-ant-test-123\n" in env_paths.read_text()
+    assert secret(env_paths) == first_secret
+
+
+def test_key_with_special_characters_is_written_literally(env_paths):
+    text = setup_env.set_value("ANTHROPIC_API_KEY=\n", "ANTHROPIC_API_KEY", r"sk-ant-a\1b$c")
+    assert text == "ANTHROPIC_API_KEY=sk-ant-a\\1b$c\n"

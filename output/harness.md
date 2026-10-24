@@ -2,7 +2,7 @@
 
 This file explains how the Campus Customs database (`data/campus_customs.db`, a SQLite file) is organized. It lists each table and its fields, and says why each field matters for the website or the shopping chatbot.
 
-For Problem 2 the database was only read, never changed. From Problem 4 on, the website adds one new row to `users` each time a customer creates an account; nothing else is ever written. See [Authentication](#authentication) below.
+For Problem 2 the database was only read, never changed. From Problem 4 on, the website adds one new row to `users` each time a customer creates an account. From Problem 5 on, it also adds rows to `chat_messages` when a logged-in customer chats with the assistant. Products and stock are never written. See [Authentication](#authentication) and [Shopping assistant (chatbot)](#shopping-assistant-chatbot) below.
 
 ## Overview
 
@@ -11,7 +11,7 @@ For Problem 2 the database was only read, never changed. From Problem 4 on, the 
 | `catalogue` | 102 | One row per product: name, type, description, colors, tags, image and price |
 | `inventory` | 612 | Stock count for each product in each size (102 products × 6 sizes) |
 | `users` | 3 (as delivered) | Shopper accounts used for sign-in; grows as customers register |
-| `chat_messages` | 22 | Saved chatbot conversation history, per user |
+| `chat_messages` | 22 (as delivered) | Saved chatbot conversation history, per user; grows as logged-in customers chat |
 | `sqlite_sequence` | 3 | SQLite's internal counter for auto-numbered IDs (not app data) |
 
 ### How the tables connect
@@ -166,7 +166,124 @@ Responses only ever include `id`, `name`, `first_name`, `last_name` and `email`,
 
 - Password reset and changing a password
 - Limiting repeated login attempts
-- Linking chat history (`chat_messages`) to the logged-in user. That comes when the chatbot is connected.
+
+---
+
+## Shopping assistant (chatbot)
+
+The chat window in the bottom-right corner of every page talks to an AI shopping assistant. It's built with **PydanticAI** on **Claude** (Anthropic's model), served by FastAPI.
+
+### How a message travels
+
+```
+Chat window (React)  ──POST /api/chat──▶  FastAPI (chat/router.py)
+                                            │  who is it? (session cookie)
+                                            │  earlier messages (database or browser)
+                                            ▼
+                                     PydanticAI agent (chat/agent.py)
+                                            │  instructions: prompts/system_prompt.md
+                                            │  + "the customer's first name is …"
+                                            ▼
+                                  Claude ◀──▶ catalogue tools (chat/tools.py)
+                                            │       read-only: search, details, stock
+                                            ▼
+                     reply text + product cards ──▶ chat window
+```
+
+1. The customer types a message. The chat window sends it to `POST /api/chat`.
+2. The server works out who's chatting from the login cookie.
+   - **Logged in:** it loads their last 20 messages from `chat_messages`.
+   - **Guest:** it uses the last 20 messages the browser sends along. Guest chats aren't saved, and they disappear when the page is reloaded.
+3. The PydanticAI agent sends Claude the instructions, the conversation so far and the new message.
+4. Claude calls the catalogue tools to look things up, then writes a reply. For example: search for "hoodie" under $70, then get the details for one product.
+5. The server finds which looked-up products the reply mentions by name and returns them as **product cards** (name, price, image and a link to the product page).
+6. For logged-in customers, the message and reply are saved to `chat_messages`, with the cards in `products_json`. They reload the next time the customer opens the chat.
+
+### Files
+
+| File | What it's for |
+|---|---|
+| `backend/app/chat/prompts/system_prompt.md` | The assistant's instructions: persona, how to use the tools, store facts and safety rules. Edit this to change how it behaves. |
+| `backend/app/chat/agent.py` | Creates the agent, chooses the model and its settings, turns saved messages into conversation history, and picks the product cards |
+| `backend/app/chat/tools.py` | The three tools Claude can call |
+| `backend/app/chat/schemas.py` | The shapes of chat requests and replies, and the length limits |
+| `backend/app/chat/router.py` | The `/api/chat` endpoints, error handling, the rate limit and saving history |
+| `frontend/src/chatApi.ts`, `frontend/src/components/ChatWidget.tsx` | The chat window |
+| `backend/check_chat.py` | Sends one real message to Claude to check your API key works |
+
+### Tools
+
+The assistant can only see the shop through these tools. All of them only read the database.
+
+| Tool | What it does |
+|---|---|
+| `list_categories` | Lists the categories with how many styles each has and their price range |
+| `search_products` | Searches by words, category, highest price and an in-stock size, and returns up to 8 matches |
+| `get_product_details` | Returns one product's description, colors, price and stock for each size ("sold out", "only 2 left", "15 in stock") |
+
+The tools never return customer data. The assistant knows only the current customer's first name.
+
+### Model and settings
+
+| Setting | Value | Why |
+|---|---|---|
+| Model | `claude-opus-5-5` (Claude Opus 5.5) | The current default Claude model. You can change it with `CHAT_MODEL` in `.env`. |
+| Effort | `low` | Chat replies are short. Low effort keeps them fast and inexpensive. |
+| Max tokens | 4,096 per reply | Plenty for a chat answer |
+| Refusal fallback | On (`fallbacks: "default"`) | If Claude's safety filter wrongly declines a harmless question, the API retries it on another model automatically |
+| Usage limit | At most 6 model calls and 10 tool calls per message | Stops a runaway tool loop from costing money |
+
+### Safety guidelines
+
+These are in the prompt file and backed up in code:
+
+- **Stays on topic:** Campus Customs products, sizing, gifts and the shop. It politely declines homework, coding, medical, legal or financial questions.
+- **Doesn't make things up:** it looks up every product, price and stock level with the tools. It says plainly when the shop doesn't carry something (like shorts) or when it doesn't know (shipping, returns, order status).
+- **Protects privacy:** it never asks for card numbers, passwords or other sensitive details, and it tells customers not to share them. It can't see other customers' information.
+- **Stays respectful:** it won't produce hateful, harassing, sexual or violent content.
+- **Is honest:** it says it's an AI. It doesn't claim to be Yale's official store or speak for Yale.
+- **Resists prompt injection:** "ignore your instructions" style messages are treated as customer text, not new rules. It won't reveal its prompt.
+- **Limits in code:**
+  - Messages can be up to 1,000 characters, and only the last 20 messages are used.
+  - Each visitor can send 20 messages per 10 minutes.
+  - Claude's refusals become a polite "I can't help with that one" reply.
+  - API errors become a friendly "try again" message, without exposing details.
+- **Labelled in the window:** the chat window says it's an AI assistant and that answers may contain mistakes.
+
+### Chat API
+
+| Endpoint | Body | Result |
+|---|---|---|
+| `POST /api/chat` | `message` (1-1,000 characters), optional `history` (guests only) | `reply` (Markdown text) and `products` (cards). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
+| `GET /api/chat/history` | none | The logged-in customer's last 20 messages with their cards. Guests get an empty list. |
+
+### API key
+
+The assistant needs an Anthropic API key, kept in `backend/.env`, which is git-ignored and never committed.
+
+1. Create a key at https://platform.claude.com/settings/keys.
+2. In `backend/`, run `python setup_env.py --api-key` and paste the key. What you type is hidden, so it doesn't appear on screen or in your shell history. The file is saved readable only by you.
+3. Run `python check_chat.py`. It sends one real question to Claude (a fraction of a cent) and prints the reply.
+
+If the key is missing, the site still works. The chat replies "The shopping assistant isn't set up yet", and the server log says how to fix it. Never put the key in frontend code, a commit or a chat message. If it leaks, delete it in the Anthropic Console and make a new one.
+
+### Tests
+
+- **Backend** (`backend/tests/test_chat.py`, 16 tests):
+  - These run the real agent, tools and endpoint with PydanticAI's `FunctionModel`, a scripted stand-in for Claude, so they cost nothing and need no key.
+  - They check that messages reach the agent and the tools are called, and that the prompt file and the customer's name are included.
+  - They check that guest history is sent along, and that logged-in history is saved and reloaded (on a copy of the database).
+  - They also cover a missing key, refusals, runaway tool loops, the message length limit, the rate limit and the model settings.
+- **In a browser:** the real website and FastAPI server with the scripted stand-in.
+  - A guest asked for hoodies and got a formatted reply with product cards, and a card opened the product page.
+  - A logged-in customer's saved chat loaded, and a new message was still there after a reload. The phone layout fit the screen.
+- **Live Claude:** not tested yet, because this workspace has no API key. Run `python check_chat.py` after adding yours.
+
+### Not built yet
+
+- Streaming replies word by word (replies currently appear all at once)
+- Letting customers clear their chat history
+- Rate limits that survive a server restart or work across several servers
 
 ---
 

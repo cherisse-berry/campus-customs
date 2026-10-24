@@ -85,3 +85,15 @@ A record of the prompts used while building the Campus Customs website, organize
 *What was missing:* After the first attempt, no `SESSION_SECRET` was set up, and the backend only read `.env` if the server was started with an extra flag. Without a fixed secret, everyone was logged out whenever the server restarted. This prompt added automatic loading of `backend/.env`, a `setup_env.py` script that generates a strong secret, and warnings for a missing or weak secret.
 
 ---
+
+## Problem 5: AI Shopping Assistant
+
+### Original prompt
+
+> For Problem 5, connect the Campus Customs chat window to a working AI chatbot using PydanticAI and FastAPI.
+>
+> Set up the required agent, tools, models, and prompt files. The chatbot should be friendly, helpful, and appropriate for a college merchandise store, with basic safety guidelines.
+>
+> Make sure messages from the website reach the agent and return responses. Help me set up the API key securely, test that everything works, and update AI_prompts.md and output/harness.md.
+
+---
