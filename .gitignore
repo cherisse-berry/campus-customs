@@ -33,3 +33,6 @@ dist-preview/
 .DS_Store
 .vscode/
 .idea/
+
+# Exception: the public Yale SOM course catalogue the MCP server reads
+!mcp/yale_som_courses/yale_som.db

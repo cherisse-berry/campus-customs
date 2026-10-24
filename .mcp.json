@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "yale-som-courses": {
+      "command": "python",
+      "args": ["mcp/yale_som_courses/launch.py"]
+    }
+  }
+}
