@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { fetchCategories, fetchProducts, useAsync } from '../api'
 import ProductCard from '../components/ProductCard'
+import RecentlyViewed from '../components/RecentlyViewed'
 import { ErrorMessage, Loading } from '../components/Status'
 
 const FEATURED_IDS = [
@@ -71,6 +72,10 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      <div className="container">
+        <RecentlyViewed />
+      </div>
 
       <section className="banner">
         <div className="container banner-inner">

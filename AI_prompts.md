@@ -161,3 +161,17 @@ A record of the prompts used while building the Campus Customs website, organize
 > Check what we've already built, make any necessary improvements, test everything, and update output/harness.md and AI_prompts.md.
 
 ---
+
+## Problem 9: Usability Improvements
+
+### Original prompt
+
+> For Problem 9, I'd like to make four improvements to Campus Customs.
+>
+> For the website, add a recently viewed products section and make stock availability easier to see.
+>
+> For the chatbot, improve its ability to recommend similar products when something is unavailable and ask clarifying questions when a customer's request isn't clear.
+>
+> Check what we've already built to avoid duplicating features. Test all four improvements and create output/usability.md explaining what was added and why it helps customers. Also update AI_prompts.md.
+
+---

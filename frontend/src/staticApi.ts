@@ -18,7 +18,7 @@ function load(): Promise<Catalog> {
   return catalog
 }
 
-export async function staticProducts({ category, q, sort }: ProductQuery): Promise<Product[]> {
+export async function staticProducts({ category, q, sort, size }: ProductQuery): Promise<Product[]> {
   let items = (await load()).products
   if (category) items = items.filter((p) => p.category === category)
   if (q) {
@@ -31,6 +31,8 @@ export async function staticProducts({ category, q, sort }: ProductQuery): Promi
   items = [...items]
   if (sort === 'price-asc') items.sort((a, b) => a.price - b.price || a.name.localeCompare(b.name))
   else if (sort === 'price-desc') items.sort((a, b) => b.price - a.price || a.name.localeCompare(b.name))
+  items = items.map((p) => ({ ...p, stock: p.inventory }))
+  if (size) items = items.filter((p) => p.inventory.some((s) => s.size === size && s.quantity > 0))
   return items
 }
 

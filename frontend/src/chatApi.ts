@@ -16,6 +16,7 @@ export interface ChatResult {
   image_url: string
   description: string
   sold_out: boolean
+  stock?: { size: string; quantity: number }[]
 }
 
 /** The product page a customer was on when they sent a message. */
@@ -31,6 +32,8 @@ export interface ChatMessage {
   viewing?: ViewedProduct | null
   products?: ChatProduct[]
   results?: ChatResult[]
+  /** Tappable answers to a clarifying question in this reply. */
+  suggestions?: string[]
   /** True for messages the site shows when something went wrong; never sent to the assistant. */
   error?: boolean
 }
@@ -47,6 +50,7 @@ export interface ChatReply {
   products: ChatProduct[]
   results: ChatResult[]
   more_results?: MoreResults | null
+  suggestions?: string[]
 }
 
 const MAX_HISTORY = 20

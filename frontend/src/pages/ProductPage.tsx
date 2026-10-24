@@ -1,21 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { NotFoundError, fetchProduct, formatPrice, useAsync } from '../api'
+import RecentlyViewed from '../components/RecentlyViewed'
 import { ErrorMessage, Loading } from '../components/Status'
+import { addRecentlyViewed } from '../recentlyViewed'
+import { LOW_STOCK, availability, stockLabel, stockLevel } from '../stock'
 import type { SizeStock } from '../types'
 
-const LOW_STOCK = 5
-
-function stockLabel({ quantity }: SizeStock): string {
-  if (quantity === 0) return 'Sold out'
-  if (quantity <= LOW_STOCK) return `Only ${quantity} left`
-  return `${quantity} in stock`
+/** "In stock in XS, S and L · Sold out in M" */
+function sizeSummary(stock: SizeStock[]): string {
+  const list = (sizes: string[]) =>
+    sizes.length > 1 ? `${sizes.slice(0, -1).join(', ')} and ${sizes[sizes.length - 1]}` : sizes[0]
+  const inStock = stock.filter((s) => s.quantity > 0).map((s) => s.size)
+  const out = stock.filter((s) => s.quantity <= 0).map((s) => s.size)
+  if (inStock.length === 0) return 'Sold out in every size'
+  if (out.length === 0) return 'In stock in every size'
+  return `In stock in ${list(inStock)} · Sold out in ${list(out)}`
 }
 
 export default function ProductPage() {
   const { productId = '' } = useParams()
   const product = useAsync(() => fetchProduct(productId), productId)
   const [selected, setSelected] = useState<string | null>(null)
+  const loadedId = product.status === 'ready' ? product.data.product_id : null
+
+  // Remember this product for "Recently viewed", and reset the size when moving between products.
+  useEffect(() => {
+    if (loadedId) addRecentlyViewed(loadedId)
+    setSelected(null)
+  }, [loadedId])
 
   if (product.status === 'loading') return <div className="container section"><Loading /></div>
   if (product.status === 'error') {
@@ -36,6 +49,8 @@ export default function ProductPage() {
 
   const p = product.data
   const chosen = p.inventory.find((s) => s.size === selected)
+  const summary = availability(p.inventory)
+  const nearlyGone = p.inventory.filter((s) => stockLevel(s.quantity) === 'low')
 
   return (
     <div className="container section">
@@ -61,19 +76,35 @@ export default function ProductPage() {
             ))}
           </ul>
 
+          <div className={`availability availability-${summary.level}`} role="status">
+            <span className="availability-dot" aria-hidden="true" />
+            <div>
+              <p className="availability-title">{sizeSummary(p.inventory)}</p>
+              {nearlyGone.length > 0 && (
+                <p className="availability-note">
+                  Nearly gone: {nearlyGone.map((s) => `${s.size} (${s.quantity} left)`).join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+
           <p className="detail-label">
-            Size {chosen && <span className="muted">· {chosen.size}: {stockLabel(chosen)}</span>}
+            Size {chosen && <span className="muted">· {chosen.size}: {stockLabel(chosen.quantity)}</span>}
           </p>
           <div className="size-grid" role="group" aria-label="Choose a size">
             {p.inventory.map((s) => (
               <button
                 key={s.size}
-                className={`size-btn ${selected === s.size ? 'size-selected' : ''}`}
+                className={`size-btn size-${stockLevel(s.quantity)} ${selected === s.size ? 'size-selected' : ''}`}
                 disabled={s.quantity === 0}
                 aria-pressed={selected === s.size}
+                aria-label={`${s.size}: ${stockLabel(s.quantity)}`}
                 onClick={() => setSelected(s.size)}
               >
-                {s.size}
+                <span className="size-name">{s.size}</span>
+                <span className="size-stock">
+                  {s.quantity <= 0 ? 'Sold out' : s.quantity <= LOW_STOCK ? `${s.quantity} left` : 'In stock'}
+                </span>
               </button>
             ))}
           </div>
@@ -92,11 +123,9 @@ export default function ProductPage() {
                   <td>{s.size}</td>
                   <td>
                     <span
-                      className={`stock-pill ${
-                        s.quantity === 0 ? 'stock-out' : s.quantity <= LOW_STOCK ? 'stock-low' : 'stock-ok'
-                      }`}
+                      className={`stock-pill stock-${stockLevel(s.quantity)}`}
                     >
-                      {stockLabel(s)}
+                      {stockLabel(s.quantity)}
                     </span>
                   </td>
                 </tr>
@@ -111,6 +140,8 @@ export default function ProductPage() {
           </table>
         </div>
       </div>
+
+      <RecentlyViewed excludeId={p.product_id} />
     </div>
   )
 }

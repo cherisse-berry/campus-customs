@@ -101,8 +101,8 @@ export default function ChatWidget() {
     setDraft('')
     setSending(true)
     try {
-      const { reply, products = [], results = [], more_results } = await sendChatMessage(text, earlier, viewing?.product_id ?? null)
-      setMessages((m) => [...m, { role: 'assistant', content: reply, products, results }])
+      const { reply, products = [], results = [], more_results, suggestions = [] } = await sendChatMessage(text, earlier, viewing?.product_id ?? null)
+      setMessages((m) => [...m, { role: 'assistant', content: reply, products, results, suggestions }])
       if (results.length > 0) show(text, results, isWideScreen(), more_results)
     } catch (err) {
       const content = err instanceof Error ? err.message : 'Sorry, something went wrong. Please try again.'
@@ -144,6 +144,15 @@ export default function ChatWidget() {
                   {m.role === 'assistant' && !m.error ? <Markdown>{m.content}</Markdown> : m.content}
                 </div>
                 {m.products && m.products.length > 0 && <ProductCards products={m.products} />}
+                {i === messages.length - 1 && !sending && m.suggestions && m.suggestions.length > 0 && (
+                  <div className="chat-quick-replies" role="group" aria-label="Suggested answers">
+                    {m.suggestions.map((s) => (
+                      <button key={s} className="chip" onClick={() => send(s)}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {i === lastWithResults && (
                   <button
                     className="chat-see-results"

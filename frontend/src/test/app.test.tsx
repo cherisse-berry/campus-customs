@@ -41,6 +41,7 @@ const savedChat = [
   { role: 'user', content: 'Earlier question', products: [], viewing: { product_id: 'yale-dad-hoodie', name: 'Yale Dad Hoodie' } },
   { role: 'assistant', content: 'Earlier answer', products: [], results: [chatResults[1]] },
 ]
+let productQueries: string[] = []
 let chatRequests: {
   message: string
   history: { role: string; content: string; viewing_product_id: string | null }[]
@@ -50,6 +51,7 @@ let chatRequests: {
 function mockApi() {
   let loggedIn = false
   chatRequests = []
+  productQueries = []
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -84,7 +86,10 @@ function mockApi() {
     if (url.startsWith('/api/categories')) return json(categories)
     if (url === `/api/products/${hoodie.product_id}`) return json(hoodie)
     if (url.startsWith('/api/products/')) return json({ detail: 'Product not found' }, 404)
-    if (url.startsWith('/api/products')) return json([hoodie])
+    if (url.startsWith('/api/products')) {
+      productQueries.push(url)
+      return json([{ ...hoodie, stock: hoodie.inventory }])
+    }
     throw new Error(`unexpected fetch ${url}`)
   })
 }
@@ -135,8 +140,9 @@ describe('Campus Customs site', () => {
     expect(within(table).getByText('Only 5 left')).toBeInTheDocument()
     expect(within(table).getByText('Sold out')).toBeInTheDocument()
     expect(within(table).getByText('33 available')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'M' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'L' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'M: Sold out' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'L: 8 in stock' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'XL: Only 2 left' })).toBeEnabled()
   })
 
   it('shows a not-found message for an unknown product', async () => {
@@ -405,5 +411,91 @@ describe('Campus Customs site', () => {
     expect(await screen.findByText('Signed in as Test User · this chat is saved')).toBeInTheDocument()
     // Saved messages show which product they were about.
     expect(await screen.findByText('About: Yale Dad Hoodie')).toBeInTheDocument()
+  })
+
+  // --- Problem 9 ---------------------------------------------------------------
+
+  it('product cards show availability for each size', async () => {
+    mockApi()
+    renderAt('/products')
+    const card = await screen.findByRole('link', { name: /Basic Hoodie Big Yale/ })
+    expect(within(card).getByText('5 of 6 sizes in stock')).toBeInTheDocument()
+    const sizes = within(card).getByRole('list', { name: 'Sizes' })
+    expect(within(sizes).getByLabelText('M: Sold out')).toHaveClass('stock-size-out')
+    expect(within(sizes).getByLabelText('XL: Only 2 left')).toHaveClass('stock-size-low')
+    expect(within(sizes).getByLabelText('XS: 15 in stock')).toHaveClass('stock-size-ok')
+  })
+
+  it('the shop can be filtered to products in stock in a size', async () => {
+    mockApi()
+    renderAt('/products?category=hoodies')
+    await screen.findByText('1 product')
+    await userEvent.click(within(screen.getByRole('group', { name: 'Filter by size in stock' })).getByRole('button', { name: 'XL' }))
+    expect(await screen.findByText(/in stock in XL/)).toBeInTheDocument()
+    expect(productQueries).toContain('/api/products?category=hoodies&size=XL')
+  })
+
+  it('the product page sums up availability in plain words', async () => {
+    mockApi()
+    renderAt(`/products/${hoodie.product_id}`)
+    const status = await screen.findByText('In stock in XS, S, L, XL and XXL · Sold out in M')
+    expect(status.closest('.availability')).toHaveClass('availability-low')
+    expect(screen.getByText('Nearly gone: S (5 left), XL (2 left), XXL (3 left)')).toBeInTheDocument()
+  })
+
+  it('remembers recently viewed products and shows them on the home page', async () => {
+    mockApi()
+    const first = renderAt(`/products/${hoodie.product_id}`)
+    await screen.findByRole('table', { name: 'Current stock' })
+    // On the product's own page it isn't listed as "recently viewed".
+    expect(screen.queryByRole('heading', { name: 'Recently viewed' })).not.toBeInTheDocument()
+    first.unmount()
+
+    renderAt('/')
+    const section = (await screen.findByRole('heading', { name: 'Recently viewed' })).closest('section')!
+    const card = within(section).getByRole('link', { name: /Basic Hoodie Big Yale/ })
+    expect(card).toHaveAttribute('href', '/products/basic-hoodie-big-yale')
+    expect(within(card).getByText('5 of 6 sizes in stock')).toBeInTheDocument() // live stock, not a snapshot
+
+    await userEvent.click(within(section).getByRole('button', { name: 'Clear' }))
+    expect(screen.queryByRole('heading', { name: 'Recently viewed' })).not.toBeInTheDocument()
+  })
+
+  it('recently viewed keeps the newest first, at most 8, and survives blocked storage', async () => {
+    const rv = await import('../recentlyViewed')
+    for (let i = 1; i <= 10; i++) rv.addRecentlyViewed(`p${i}`)
+    rv.addRecentlyViewed('p5')
+    expect(rv.getRecentlyViewed()).toEqual(['p5', 'p10', 'p9', 'p8', 'p7', 'p6', 'p4', 'p3'])
+
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+    expect(rv.getRecentlyViewed()).toEqual([])
+    expect(() => rv.addRecentlyViewed('p1')).not.toThrow()
+  })
+
+  it('shows tappable answers when the assistant asks a clarifying question', async () => {
+    const fetchMock = mockApi()
+    const realImpl = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input) === '/api/chat') {
+        const body = JSON.parse(String(init!.body))
+        chatRequests.push(body)
+        const asking = body.message === 'I need a gift'
+        return new Response(JSON.stringify({
+          reply: asking ? "Lovely! Who's it for?" : `Great, a gift for **${body.message}**.`,
+          products: [], results: [],
+          suggestions: asking ? ['For myself', 'A gift for my dad'] : [],
+        }))
+      }
+      return realImpl(input, init)
+    })
+    renderAt('/')
+    const { user, chat } = await askInChat('I need a gift')
+    const answers = await within(chat).findByRole('group', { name: 'Suggested answers' })
+    await user.click(within(answers).getByRole('button', { name: 'A gift for my dad' }))
+    expect(await within(chat).findByText('A gift for my dad', { selector: 'strong' })).toBeInTheDocument()
+    expect(chatRequests[1].message).toBe('A gift for my dad')
+    // The buttons go away once answered.
+    expect(within(chat).queryByRole('group', { name: 'Suggested answers' })).not.toBeInTheDocument()
   })
 })

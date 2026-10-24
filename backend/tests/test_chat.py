@@ -453,6 +453,7 @@ def test_page_results_have_everything_a_product_card_needs(client, monkeypatch):
             "product_id": p["product_id"], "name": p["name"], "garment_type": p["garment_type"],
             "price": p["price"], "image_url": p["image_url"], "description": p["description"],
             "sold_out": p["total_stock"] == 0,
+            "stock": p["inventory"],
         }
         assert client.get(r["image_url"]).status_code == 200  # the image loads
 
@@ -633,3 +634,143 @@ def test_check_chat_script_matches_run_chat(monkeypatch, capsys):
     monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(ScriptedClaude()))
     assert asyncio.run(check_chat.main("hoodies?")) == 0
     assert "The assistant is working." in capsys.readouterr().out
+
+
+# --- Problem 9: stock on cards, similar products, clarifying questions -------------
+
+def test_product_list_includes_stock_for_cards(client):
+    products = client.get("/api/products").json()
+    assert len(products) == 102
+    for p in products:
+        assert p["stock"] == db.get_product(p["product_id"])["inventory"]
+
+
+def test_product_list_can_filter_by_size_in_stock(client):
+    xl = client.get("/api/products", params={"category": "hoodies", "size": "xl"}).json()
+    all_hoodies = client.get("/api/products", params={"category": "hoodies"}).json()
+    assert 0 < len(xl) < len(all_hoodies)
+    assert all(any(s["size"] == "XL" and s["quantity"] > 0 for s in p["stock"]) for p in xl)
+    left_out = {p["product_id"] for p in all_hoodies} - {p["product_id"] for p in xl}
+    assert all(any(s["size"] == "XL" and s["quantity"] == 0 for s in p["stock"]) for p in all_hoodies
+               if p["product_id"] in left_out)
+
+
+def test_similar_products_are_in_stock_in_the_size_and_exclude_the_original():
+    import tools
+
+    r = tools.find_similar_products(Ctx(), "champion-reverse-weave-hoodie-1", size="xl")
+    assert r.based_on == "Champion Reverse Weave Hoodie 1" and r.looking_for == "in stock in XL"
+    assert 1 <= len(r.alternatives) <= 5
+    for a in r.alternatives:
+        assert a.product_id != "champion-reverse-weave-hoodie-1"
+        assert "XL" in a.sizes_in_stock and "in stock in XL" in a.why_similar
+        assert a.price_usd == db.get_product(a.product_id)["price"]
+        assert a.category == "hoodies"  # the closest matches are hoodies too
+
+
+def test_similar_products_follow_the_theme():
+    import tools
+
+    family = tools.find_similar_products(Ctx(), "yale-mom-hoodie").alternatives
+    assert {"Yale Dad Hoodie", "Yale Grandma Hoodie"} <= {a.name for a in family[:3]}
+    assert all("family style" in a.why_similar for a in family[:3])
+
+    sports = tools.find_similar_products(Ctx(), "ice-hockey-left-chest-hoodie", size="M").alternatives
+    assert all("sports design" in a.why_similar for a in sports[:3])
+
+    colleges = tools.find_similar_products(Ctx(), "pierson-college-crewneck", size="XXL").alternatives
+    assert "residential college" in colleges[0].why_similar
+    assert "sports design" not in colleges[0].why_similar  # "crewneck" isn't the sport "crew"
+
+
+def test_similar_products_by_color_and_budget():
+    import tools
+
+    gray = tools.find_similar_products(Ctx(), "basic-hoodie-big-yale", color="grey")
+    assert gray.note is None and all(any("gray" in c for c in a.colors) for a in gray.alternatives)
+
+    pink = tools.find_similar_products(Ctx(), "basic-hoodie-big-yale", color="pink")
+    assert "Nothing else in the shop comes in pink" in pink.note and pink.alternatives
+
+    cheap = tools.find_similar_products(Ctx(), "champion-full-zip-hood", max_price=60)
+    assert cheap.alternatives and all(a.price_usd <= 60 for a in cheap.alternatives)
+
+
+def test_similar_products_feed_the_page_and_the_price_check():
+    import tools
+
+    ctx = Ctx()
+    r = tools.find_similar_products(ctx, "champion-reverse-weave-hoodie-1", size="XL")
+    assert [a.product_id for a in r.alternatives] == list(ctx.deps.matches)
+    assert all(m["stock"] for m in ctx.deps.matches.values())
+    assert {a.price_usd for a in r.alternatives} <= ctx.deps.known_prices
+
+
+def test_similar_products_problems_are_reported():
+    import tools
+
+    assert "No product called" in tools.find_similar_products(Ctx(), "imaginary hoodie").error
+    assert "isn't a size" in tools.find_similar_products(Ctx(), "basic-hoodie-big-yale", size="4XL").error
+
+
+class SoldOutClaude:
+    """Checks a size; if it's sold out, asks for similar products and recommends the top two."""
+
+    def __call__(self, messages, info):
+        returns = [p for m in messages for p in getattr(m, "parts", []) if isinstance(p, ToolReturnPart)]
+        if not returns:
+            return ModelResponse(parts=[ToolCallPart("check_size", {"product": "champion-reverse-weave-hoodie-1", "size": "XL"})])
+        last = returns[-1].content
+        if hasattr(last, "status"):
+            if last.status != "sold out":
+                return ModelResponse(parts=[TextPart("It's in stock!")])
+            return ModelResponse(parts=[ToolCallPart(
+                "find_similar_products", {"product": last.product_id, "size": "XL"})])
+        a, b = last.alternatives[:2]
+        return ModelResponse(parts=[TextPart(
+            f"The **{last.based_on}** is **sold out in XL**. In stock in XL: the **{a.name}** "
+            f"(**{a.price}**, {a.why_similar.split(', ')[1]}) and the **{b.name}** (**{b.price}**).")])
+
+
+def test_sold_out_size_gets_recommendations_end_to_end(client, monkeypatch):
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(SoldOutClaude()))
+    body = client.post("/api/chat", json={"message": "Is the Champion Reverse Weave Hoodie 1 in XL?"}).json()
+    assert body["reply"].startswith("The **Champion Reverse Weave Hoodie 1** is **sold out in XL**.")
+    named = [c["product_id"] for c in body["products"]]
+    assert named[0] == "champion-reverse-weave-hoodie-1" and len(named) == 3  # the original, then 2 picks
+    for pid in named[1:]:
+        stock = {s["size"]: s["quantity"] for s in db.get_product(pid)["inventory"]}
+        assert stock["XL"] > 0
+    # The page shows the original first (it's named first), then the alternatives.
+    assert body["results"][0]["product_id"] == "champion-reverse-weave-hoodie-1"
+    assert len(body["results"]) == 6
+
+
+class ClarifyingClaude:
+    def __init__(self, options):
+        self.options = options
+
+    def __call__(self, messages, info):
+        if not any(isinstance(p, ToolReturnPart) for m in messages for p in getattr(m, "parts", [])):
+            return ModelResponse(parts=[ToolCallPart("suggest_replies", {"options": self.options})])
+        return ModelResponse(parts=[TextPart("Happy to help! Who's the gift for?")])
+
+
+def test_clarifying_question_comes_with_tappable_answers(client, monkeypatch):
+    options = ["For myself", "A gift for my dad", "  A gift for my dad ", "A gift for a student"]
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(ClarifyingClaude(options)))
+    body = client.post("/api/chat", json={"message": "I need a gift"}).json()
+    assert body["reply"] == "Happy to help! Who's the gift for?"
+    assert body["suggestions"] == ["For myself", "A gift for my dad", "A gift for a student"]  # cleaned, deduped
+
+
+def test_bad_suggestions_are_sent_back(client, monkeypatch):
+    too_long = ["x" * 60, "fine"]
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(ClarifyingClaude(too_long)))
+    r = client.post("/api/chat", json={"message": "gift"})
+    # The tool rejects them (asking the model to fix them), so no bad buttons are ever shown.
+    assert r.status_code == 200 and r.json()["suggestions"] == []
+
+
+def test_no_suggestions_unless_asked(client, claude):
+    assert client.post("/api/chat", json={"message": "hoodies"}).json()["suggestions"] == []

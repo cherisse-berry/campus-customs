@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { fetchCategories, fetchProducts, useAsync } from '../api'
 import ProductCard from '../components/ProductCard'
 import { ErrorMessage, Loading } from '../components/Status'
+import { SIZES } from '../stock'
 import type { SortOrder } from '../types'
 
 export default function Products() {
@@ -10,6 +11,7 @@ export default function Products() {
   const category = params.get('category') ?? ''
   const q = params.get('q') ?? ''
   const sort = (params.get('sort') as SortOrder | null) ?? 'name'
+  const size = params.get('size') ?? ''
 
   const [search, setSearch] = useState(q)
   useEffect(() => {
@@ -17,7 +19,7 @@ export default function Products() {
   }, [q])
 
   const categories = useAsync(fetchCategories, 'categories')
-  const products = useAsync(() => fetchProducts({ category, q, sort }), `${category}|${q}|${sort}`)
+  const products = useAsync(() => fetchProducts({ category, q, sort, size }), `${category}|${q}|${sort}|${size}`)
 
   function update(changes: Record<string, string>) {
     // Build on the latest URL so quick successive filter changes aren't lost.
@@ -88,6 +90,23 @@ export default function Products() {
         </div>
       )}
 
+      <div className="chips size-filter" role="group" aria-label="Filter by size in stock">
+        <span className="chips-label">Size in stock:</span>
+        <button className={`chip ${!size ? 'chip-active' : ''}`} onClick={() => update({ size: '' })}>
+          Any
+        </button>
+        {SIZES.map((s) => (
+          <button
+            key={s}
+            className={`chip ${size === s ? 'chip-active' : ''}`}
+            aria-pressed={size === s}
+            onClick={() => update({ size: s })}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
       {products.status === 'loading' && <Loading label="Loading products…" />}
       {products.status === 'error' && <ErrorMessage message="We couldn't load products." />}
       {products.status === 'ready' && (
@@ -95,11 +114,12 @@ export default function Products() {
           <p className="result-count">
             {products.data.length} {products.data.length === 1 ? 'product' : 'products'}
             {q && <> matching “{q}”</>}
+            {size && <> in stock in {size}</>}
           </p>
           {products.data.length === 0 ? (
             <div className="empty">
               <p>No products match your search.</p>
-              <button className="btn" onClick={() => update({ q: '', category: '' })}>Clear filters</button>
+              <button className="btn" onClick={() => update({ q: '', category: '', size: '' })}>Clear filters</button>
             </div>
           ) : (
             <div className="product-grid">

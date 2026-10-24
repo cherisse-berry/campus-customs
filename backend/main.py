@@ -80,8 +80,16 @@ def products(
     category: str | None = None,
     q: str | None = Query(None, description="Search name, description, colors and tags"),
     sort: Literal["name", "price-asc", "price-desc"] = "name",
+    size: str | None = Query(None, description="Only products in stock in this size (XS-XXL)"),
 ) -> list[dict]:
-    return db.search_products(category, q, sort)
+    items = db.search_products(category, q, sort)
+    stock = db.stock_by_product()
+    for p in items:
+        p["stock"] = stock.get(p["product_id"], [])  # quantity per size, for availability on cards
+    if size:
+        wanted = size.strip().upper()
+        items = [p for p in items if any(s["size"] == wanted and s["quantity"] > 0 for s in p["stock"])]
+    return items
 
 
 @app.get("/api/products/{product_id}")
@@ -172,14 +180,14 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
     viewing = chat_agent.viewing_info(body.viewing_product_id)
     message = body.message.strip()
     try:
-        reply, cards, results, more = await chat_agent.run_chat(message, history, customer, viewing)
+        turn = await chat_agent.run_chat(message, history, customer, viewing)
     except chat_agent.AssistantNotConfigured:
         log.error("Chat is unavailable: ANTHROPIC_API_KEY is not set. Run `python setup_env.py --api-key`.")
         raise HTTPException(503, "The shopping assistant isn't set up yet. Please try again later.")
     except ContentFilterError:
-        reply, cards, results, more = DECLINED_REPLY, [], [], None
+        turn = chat_agent.ChatTurn(DECLINED_REPLY, [], [], None, [])
     except UsageLimitExceeded:
-        reply, cards, results, more = TRIED_TOO_HARD_REPLY, [], [], None
+        turn = chat_agent.ChatTurn(TRIED_TOO_HARD_REPLY, [], [], None, [])
     except ModelHTTPError as e:
         hint = {
             401: "The API key was rejected; run `python setup_env.py --api-key` again.",
@@ -193,19 +201,19 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
         log.warning("Chat model call failed: %s", type(e).__name__)
         raise HTTPException(503, "The assistant is having trouble right now. Please try again in a moment.")
 
-    if not reply:
-        reply = TRIED_TOO_HARD_REPLY
+    reply = turn.reply or TRIED_TOO_HARD_REPLY
     if user:
         db.save_chat_exchange(
             user["id"], message, reply,
-            products_json=json.dumps(results) if results else None,
+            products_json=json.dumps(turn.results) if turn.results else None,
             viewing_json=json.dumps({"product_id": viewing["product_id"], "name": viewing["name"]}) if viewing else None,
         )
     return ChatReply(
         reply=reply,
-        products=[ProductCard(**c) for c in cards],
-        results=[ProductResult(**r) for r in results],
-        more_results=MoreResults(**more) if more else None,
+        products=[ProductCard(**c) for c in turn.cards],
+        results=[ProductResult(**r) for r in turn.results],
+        more_results=MoreResults(**turn.more) if turn.more else None,
+        suggestions=turn.suggestions,
     )
 
 

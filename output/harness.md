@@ -225,6 +225,8 @@ The assistant can only see the shop through these tools. They read the `catalogu
 | `get_product_details` | Everything about one product, including the exact quantity in every size | `ProductDetails`: a summary plus `stock_by_size` (one `SizeStock` per size) |
 | `check_size` | "Do you have this in M?" | `SizeAvailability`: exact quantity, status and the other sizes in stock |
 | `list_categories` | The categories and their price ranges | A list of `CategoryInfo` |
+| `find_similar_products` | In-stock alternatives when something is sold out in the customer's size, sold out everywhere, not in their color or over budget (Problem 9) | `SimilarProducts`: up to 5 `SimilarProduct` items, each with `why_similar`, plus a `note` when no product comes in the requested color |
+| `suggest_replies` | Tappable answers (2-4) under a clarifying question (Problem 9) | A confirmation. The answers are returned to the website as `suggestions` |
 
 If a product or size can't be found, the tools return a `LookupProblem` with a plain message instead of guessing.
 
@@ -335,6 +337,13 @@ The prompt's "Who you're talking to" section tells the assistant how to use this
 - The assistant gets only the name and email: never the password hash, and no other customers' data.
 - Guest messages never touch the database.
 
+### Similar products and clarifying questions (Problem 9)
+
+See `output/usability.md` for the full explanation. In short:
+- **`find_similar_products`** ranks in-stock alternatives by shared garment type or category (+4/+3), colors (+1 each, up to 2), themes such as family, sports, colleges, schools and bulldog (+2), distinctive tags (+1 each, up to 3), and price closeness (−1 per $20 of difference). It returns the top 5 with a plain-language reason for each. Alternatives go to the results panel and the price check like any other lookup.
+- **`suggest_replies`** stores 2-4 cleaned, de-duplicated answers (each under 40 characters) in `ChatDeps.suggestions`. They're returned as `suggestions` and shown as buttons under the latest reply. Bad options are sent back to the model to fix.
+- The prompt's "Recommending alternatives" and "Clarifying questions" sections say when to use them.
+
 ### Products shown on the page
 
 When the assistant searches or looks up products, the website shows what it found right on the page, not just in the small chat window.
@@ -379,7 +388,7 @@ When the assistant searches or looks up products, the website shows what it foun
 
 | Endpoint | Body | Result |
 |---|---|---|
-| `POST /api/chat` | `message` (1-1,000 characters), optional `viewing_product_id` (the product page the customer is on), optional `history` (guests only; each entry can carry its own `viewing_product_id`) | `reply` (Markdown text), `products` (chat cards), `results` (page results, up to 24) and `more_results` (`total` and `link`, or `null`). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
+| `POST /api/chat` | `message` (1-1,000 characters), optional `viewing_product_id` (the product page the customer is on), optional `history` (guests only; each entry can carry its own `viewing_product_id`) | `reply` (Markdown text), `products` (chat cards), `results` (page results, up to 24) `more_results` (`total` and `link`, or `null`) and `suggestions` (tappable answers to a clarifying question, usually empty). `503` if the API key isn't set or Claude can't be reached. `429` if the rate limit is hit. |
 | `GET /api/chat/history` | none | The logged-in customer's last 40 messages. Customer messages include `viewing` (the product page they were on), and replies include their chat cards and page results. Guests get an empty list. |
 
 ### API key

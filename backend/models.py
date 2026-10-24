@@ -51,6 +51,11 @@ class ProductCard(BaseModel):
     image_url: str
 
 
+class SizeQuantity(BaseModel):
+    size: str
+    quantity: int
+
+
 class ProductResult(BaseModel):
     """A product the assistant found, shown in the results panel on the page."""
 
@@ -61,6 +66,7 @@ class ProductResult(BaseModel):
     image_url: str
     description: str
     sold_out: bool = False
+    stock: list[SizeQuantity] = []  # quantity per size, so the card can show availability
 
 
 class MoreResults(BaseModel):
@@ -79,6 +85,8 @@ class ChatReply(BaseModel):
     # When a search matched more products than the page shows: how many, and a link to
     # the same search on the Products page.
     more_results: MoreResults | None = None
+    # Short answers the customer can tap, when the assistant asks a clarifying question.
+    suggestions: list[str] = []
 
 
 class ViewedProduct(BaseModel):
@@ -158,6 +166,17 @@ class CategoryInfo(BaseModel):
     highest_price: str
 
 
+class SimilarProduct(ProductSummary):
+    why_similar: str = Field(description="Why this is a good alternative, e.g. 'also a hoodie, also navy'")
+
+
+class SimilarProducts(BaseModel):
+    based_on: str
+    looking_for: str = Field(description="What the alternatives had to match, e.g. 'in stock in XL'")
+    alternatives: list[SimilarProduct]
+    note: str | None = None
+
+
 class LookupProblem(BaseModel):
     """Returned instead of a result when a product or size can't be found."""
 
@@ -186,3 +205,5 @@ class ChatDeps:
     known_prices: set[float] = field(default_factory=set)
     # Dollar amounts the customer typed (e.g. "under $70"); the reply may repeat them.
     customer_amounts: set[float] = field(default_factory=set)
+    # Tappable answers offered with a clarifying question (set by suggest_replies).
+    suggestions: list[str] = field(default_factory=list)

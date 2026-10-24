@@ -2,7 +2,7 @@
 
 The Campus Customs website: a Yale apparel shop built with **React + Vite + TypeScript** on the front end and **FastAPI** on the back end.
 
-- **Pages:** Home, Products (search, category filters, sorting), product detail (sizes and current stock), About Us, Log In and Create Account
+- **Pages:** Home, Products (search, category and size-in-stock filters, sorting, stock on every card), product detail (availability summary and stock per size), About Us, Log In and Create Account, plus Recently viewed
 - **Chat:** an AI shopping assistant (PydanticAI + Claude) in the bottom-right corner that looks up real products and stock (see `output/harness.md`)
 - **Accounts:** customers can register and log in; passwords are hashed with PBKDF2-HMAC-SHA256 (see `output/harness.md`)
 - **Database:** product and stock data is only ever read; the only writes are new `users` rows when someone registers and `chat_messages` rows when a logged-in customer chats
@@ -28,7 +28,7 @@ backend/
   tests/            pytest tests
 frontend/           React + Vite + TypeScript website (+ Vitest tests)
 data/               Database and product images (local only, not in GitHub)
-output/             Notes, e.g. harness.md (database, auth and chatbot guide)
+output/             Notes: harness.md (database, auth and chatbot guide), usability.md (Problem 9 improvements)
 ```
 
 ## Setup
@@ -70,7 +70,7 @@ Open http://localhost:5173. Vite forwards `/api` and `/media` requests to the AP
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/products?category=&q=&sort=` | Product list. `sort` is `name`, `price-asc` or `price-desc` |
+| `GET /api/products?category=&q=&sort=&size=` | Product list, with stock per size. `sort` is `name`, `price-asc` or `price-desc`; `size` (XS-XXL) keeps only products in stock in that size |
 | `GET /api/products/{product_id}` | One product, with stock for each size |
 | `GET /api/categories` | Product categories with counts |
 | `GET /media/products/{file}.jpg` | Product images |

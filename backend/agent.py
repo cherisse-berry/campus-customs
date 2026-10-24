@@ -3,6 +3,7 @@
 import os
 import re
 from functools import cache
+from typing import NamedTuple
 from pathlib import Path
 
 import config  # noqa: F401  (loads .env)
@@ -190,18 +191,23 @@ def with_viewing_note(text: str, viewing: dict | None) -> str:
     return f"[Customer was viewing: {viewing['name']} (product_id {viewing['product_id']})]\n{text}"
 
 
+class ChatTurn(NamedTuple):
+    """Everything one answer produces."""
+
+    reply: str  # the reply text (Markdown)
+    cards: list[dict]  # products the reply names, for small cards in the chat
+    results: list[dict]  # every product found (up to 24), for the results panel on the page
+    more: dict | None  # {"total", "link"} when a search found more than fit on the page
+    suggestions: list[str]  # tappable answers to a clarifying question
+
+
 async def run_chat(
     message: str,
     history: list[tuple[str, str]],
     customer: dict | None = None,
     viewing: dict | None = None,
-) -> tuple[str, list[dict], list[dict], dict | None]:
-    """Answer one customer message.
-
-    Returns the reply text, the chat cards (products the reply names), the page results
-    (every product the assistant found, up to 24) and, if a search found more than that,
-    the total and a link to see them all.
-    """
+) -> ChatTurn:
+    """Answer one customer message."""
     deps = ChatDeps(customer=customer, viewing=viewing)
     for text in [message, *(t for role, t in history if role == "user")]:
         deps.customer_amounts |= dollar_amounts(text)
@@ -213,4 +219,10 @@ async def run_chat(
         usage_limits=USAGE_LIMITS,
     )
     reply = result.output.strip()
-    return reply, cards_for_reply(reply, deps.seen_products), page_results(reply, deps.matches), deps.more_results
+    return ChatTurn(
+        reply=reply,
+        cards=cards_for_reply(reply, deps.seen_products),
+        results=page_results(reply, deps.matches),
+        more=deps.more_results,
+        suggestions=deps.suggestions,
+    )

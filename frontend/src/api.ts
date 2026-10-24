@@ -12,6 +12,8 @@ async function getJson<T>(path: string): Promise<T> {
 
 export interface ProductQuery {
   category?: string
+  /** Only products in stock in this size. */
+  size?: string
   q?: string
   sort?: SortOrder
 }
@@ -24,6 +26,7 @@ export async function fetchProducts(query: ProductQuery = {}): Promise<Product[]
   const params = new URLSearchParams()
   if (query.category) params.set('category', query.category)
   if (query.q) params.set('q', query.q)
+  if (query.size) params.set('size', query.size)
   if (query.sort && query.sort !== 'name') params.set('sort', query.sort)
   const qs = params.toString()
   return getJson(`/api/products${qs ? `?${qs}` : ''}`)

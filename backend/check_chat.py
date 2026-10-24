@@ -19,7 +19,7 @@ async def main(question: str) -> int:
     print(f"Model: {chat_agent.model_name()}")
     print(f"You: {question}\n")
     try:
-        reply, cards, _results, _more = await chat_agent.run_chat(question, history=[])
+        turn = await chat_agent.run_chat(question, history=[])
     except chat_agent.AssistantNotConfigured:
         print("ANTHROPIC_API_KEY is not set. Run `python setup_env.py --api-key` first.")
         return 1
@@ -36,8 +36,11 @@ async def main(question: str) -> int:
     except ContentFilterError:
         print("The model declined this message. Try a normal shopping question.")
         return 1
-    print(f"Assistant: {reply}\n")
-    print("Product cards:", ", ".join(c["name"] for c in cards) or "none")
+    print(f"Assistant: {turn.reply}\n")
+    print("Product cards:", ", ".join(c["name"] for c in turn.cards) or "none")
+    print("Products shown on the page:", len(turn.results))
+    if turn.suggestions:
+        print("Suggested replies:", " | ".join(turn.suggestions))
     print("\nThe assistant is working.")
     return 0
 

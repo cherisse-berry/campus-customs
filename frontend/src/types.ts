@@ -9,6 +9,8 @@ export interface Product {
   image_url: string
   price: number
   total_stock: number
+  /** Quantity per size (on product lists), for availability on cards. */
+  stock?: SizeStock[]
 }
 
 export interface SizeStock {
