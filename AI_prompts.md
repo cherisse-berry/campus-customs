@@ -208,4 +208,16 @@ A record of the prompts used while building the Campus Customs website, organize
 >
 > Check what we've already built, test everything, and update AI_prompts.md.
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> For Problem 12, I noticed the assignment requires the audit trail to be saved as output/audit_trail.json, but ours is currently saved in backend/logs/chat_audit.jsonl.
+>
+> Please make sure the audit trail is saved in the required location and format, continues adding new records without deleting previous ones, and doesn't include sensitive customer information.
+>
+> Test that it works and update the documentation and AI_prompts.md.
+
+*What was missing:* The audit trail was saved to the wrong place and in the wrong format: a JSON Lines file at backend/logs/chat_audit.jsonl instead of a JSON file at output/audit_trail.json, as the assignment requires.
+
 ---

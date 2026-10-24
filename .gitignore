@@ -18,7 +18,7 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Chat audit trail (kept on the machine running the API)
+# Old location of the chat audit trail (now output/audit_trail.json, which is safe to commit)
 backend/logs/
 
 # Node / Vite

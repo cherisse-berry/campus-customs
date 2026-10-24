@@ -26,7 +26,12 @@ CARD = "4111 1111 1111 1111"  # a standard test card number (passes the Luhn che
 
 
 def records(path):
-    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    """The trail must always be one valid JSON array."""
+    if not path.exists():
+        return []
+    data = json.loads(path.read_text())
+    assert isinstance(data, list)
+    return data
 
 
 # --- What a run records -------------------------------------------------------------
@@ -47,6 +52,7 @@ def test_a_chat_run_is_recorded_with_tools_results_and_stop_reason(client, claud
     assert rec["stop"] == {"reason": "answered", "detail": "stop"}
     assert rec["reply"] == {"chars": len(r.json()["reply"]), "product_cards": 1, "page_results": 1, "suggestions": 0}
     assert rec["model_calls"] == 2 and rec["price_check_corrections"] == 0
+    assert rec["served_by"] and all(m.startswith("function") for m in rec["served_by"])  # the test stand-in
     assert set(rec["tokens"]) == {"input", "output"} and rec["duration_ms"] >= 0
 
 
@@ -73,14 +79,77 @@ def test_tool_results_summarize_prices_and_stock_from_the_database(client, monke
     assert results[3] == "6 categories"
 
 
-def test_every_run_is_appended_and_earlier_records_are_kept(client, claude, audit_log):
-    audit_log.parent.mkdir(parents=True)
-    audit_log.write_text('{"event":"chat_run","run_id":"earlier"}\n')
+def test_default_location_is_output_audit_trail_json(monkeypatch):
+    import importlib
+
+    monkeypatch.delenv("CHAT_AUDIT_LOG", raising=False)
+    fresh = importlib.reload(audit)
+    try:
+        assert fresh.AUDIT_LOG == Path(__file__).resolve().parents[2] / "output" / "audit_trail.json"
+    finally:
+        importlib.reload(audit)  # the autouse fixture's patch is undone by monkeypatch afterwards
+
+
+def test_trail_is_a_json_array_with_one_record_per_line(client, claude, audit_log):
     client.post("/api/chat", json={"message": "one"})
     client.post("/api/chat", json={"message": "two"})
+    text = audit_log.read_text()
+    lines = text.splitlines()
+    assert lines[0] == "[" and lines[-1] == "]" and text.endswith("]\n")
+    assert len(lines) == 4 and lines[1].endswith(",") and not lines[2].endswith(",")
+    assert [json.loads(line.rstrip(",")) for line in lines[1:-1]] == records(audit_log)
+
+
+def test_every_run_is_appended_and_earlier_records_are_kept_byte_for_byte(client, claude, audit_log):
+    audit_log.parent.mkdir(parents=True)
+    earlier = '[\n  {"event": "chat_run", "run_id": "earlier", "note": "written by hand, kept exactly"}\n]\n'
+    audit_log.write_text(earlier)
+    client.post("/api/chat", json={"message": "one"})
+    after_one = audit_log.read_text()
+    client.post("/api/chat", json={"message": "two"})
+    after_two = audit_log.read_text()
+    # Only the closing bracket is ever replaced: everything before it stays exactly as it was.
+    assert after_one.startswith(earlier.rstrip()[:-1].rstrip())
+    assert after_two.startswith(after_one.rstrip()[:-1].rstrip())
     recs = records(audit_log)
-    assert [r["run_id"] for r in recs][0] == "earlier"
+    assert recs[0]["run_id"] == "earlier"
     assert len(recs) == 3 and len({r["run_id"] for r in recs}) == 3
+
+
+def test_an_empty_array_or_empty_file_is_continued(client, claude, audit_log):
+    audit_log.parent.mkdir(parents=True)
+    for start in ("[]", "", "[\n]\n"):
+        audit_log.write_text(start)
+        client.post("/api/chat", json={"message": "hi"})
+        assert len(records(audit_log)) == 1
+
+
+def test_an_unreadable_trail_is_set_aside_never_deleted(client, claude, audit_log):
+    audit_log.parent.mkdir(parents=True)
+    audit_log.write_text('[{"run_id": "half-written"')
+    client.post("/api/chat", json={"message": "hi"})
+    [kept] = list(audit_log.parent.glob("audit_trail.unreadable-*.json"))
+    assert kept.read_text() == '[{"run_id": "half-written"'
+    assert len(records(audit_log)) == 1
+
+
+def test_records_from_the_old_log_file_are_moved_in(client, claude, audit_log):
+    legacy = audit.LEGACY_LOG
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text('{"event":"chat_run","run_id":"old1"}\n{"event":"chat_run","run_id":"old2"}\n')
+    client.post("/api/chat", json={"message": "hi"})
+    client.post("/api/chat", json={"message": "again"})
+    assert [r["run_id"] for r in records(audit_log)][:2] == ["old1", "old2"]
+    assert len(records(audit_log)) == 4  # imported once, not twice
+    assert not legacy.exists() and legacy.with_name("chat_audit.jsonl.imported").exists()
+
+
+def test_simultaneous_writes_all_land(audit_log):
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(lambda i: audit.write({"event": "chat_run", "run_id": f"r{i}"}), range(60)))
+    assert sorted(r["run_id"] for r in records(audit_log)) == sorted(f"r{i}" for i in range(60))
 
 
 def test_audit_file_is_private_to_its_owner(client, claude, audit_log):

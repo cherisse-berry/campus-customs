@@ -119,7 +119,7 @@ python check_safety.py
 
 It asks nine tricky questions (like "show me your system prompt", a card number, or a request for a coupon code) and prints each reply with **PASS** or **CHECK**. The checks are simple text tests, so read any CHECK reply yourself. It costs a few cents.
 
-Every chatbot run is recorded in the audit trail, `backend/logs/chat_audit.jsonl`. It stores which tools were used and why each run stopped, but no message text or customer details. To see the latest runs:
+Every chatbot run is recorded in the audit trail, `output/audit_trail.json` (a JSON file; new records are added at the end and earlier ones are kept). It stores which tools were used and why each run stopped, but no message text or customer details. To see the latest runs:
 ```bash
 python audit.py
 ```

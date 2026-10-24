@@ -1,8 +1,9 @@
 """Audit trail for the shopping assistant.
 
-Every time the chatbot runs, one JSON line is appended to logs/chat_audit.jsonl: when it ran,
-which tools it called with a short summary of each result, and why it stopped. The file is only
-ever appended to, so earlier records are never replaced.
+Every time the chatbot runs, one record is added to output/audit_trail.json: when it ran, which
+tools it called with a short summary of each result, and why it stopped. The file is a JSON array
+with one record per line. A new record replaces only the closing "]", so earlier records are
+never rewritten or deleted.
 
 No message text, names, emails, IP addresses or user IDs are written, only counts and catalogue
 facts. Card numbers, Social Security numbers and passwords are also removed from customer
@@ -17,6 +18,11 @@ import logging
 import os
 import re
 import threading
+
+try:
+    import fcntl  # file locking on macOS and Linux, so two API processes can't write at once
+except ImportError:  # Windows
+    fcntl = None
 import time
 import uuid
 from datetime import datetime, timezone
@@ -43,7 +49,11 @@ from models import CategoryInfo, LookupProblem, ProductDetails, SearchResults, S
 
 log = logging.getLogger(__name__)
 
-AUDIT_LOG = Path(os.environ.get("CHAT_AUDIT_LOG", "").strip() or Path(__file__).parent / "logs" / "chat_audit.jsonl")
+AUDIT_LOG = Path(
+    os.environ.get("CHAT_AUDIT_LOG", "").strip() or Path(__file__).resolve().parent.parent / "output" / "audit_trail.json"
+)
+# Where the trail was kept before (JSON Lines). Its records are moved into AUDIT_LOG on the next write.
+LEGACY_LOG = Path(__file__).parent / "logs" / "chat_audit.jsonl"
 MAX_TEXT = 80  # longest text kept from a tool argument or result
 _write_lock = threading.Lock()
 
@@ -109,19 +119,73 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _line(record: dict) -> bytes:
+    return json.dumps(record, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
+def _append(path: Path, records: list[dict]) -> None:
+    """Add records to the JSON array in `path`, touching only its closing bracket."""
+    # 0o600: readable only by the account running the API.
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    with os.fdopen(fd, "r+b") as f:
+        if fcntl:
+            fcntl.flock(f, fcntl.LOCK_EX)
+        existing = f.read()
+        body = b",\n".join(_line(r) for r in records)
+        if not existing.strip():
+            f.write(b"[\n" + body + b"\n]\n")
+        else:
+            current = json.loads(existing)  # raises ValueError if the file isn't valid JSON
+            if not isinstance(current, list):
+                raise ValueError("the audit trail isn't a JSON array")
+            # Overwrite only the closing "]" and the blank space around it: earlier records stay
+            # byte for byte.
+            close_at = len(existing[: existing.rindex(b"]")].rstrip())
+            f.seek(close_at)
+            f.truncate()
+            f.write((b",\n" if current else b"\n") + body + b"\n]\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _set_aside(path: Path) -> Path:
+    """Keep an unreadable trail under a new name (never delete it) so a fresh one can start."""
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    kept = path.with_name(f"{path.stem}.unreadable-{stamp}{path.suffix}")
+    path.rename(kept)
+    return kept
+
+
+def _import_legacy(path: Path) -> None:
+    """Move records from the old JSON Lines file into the JSON trail, then rename the old file."""
+    if not LEGACY_LOG.exists() or Path(LEGACY_LOG).resolve() == path.resolve():
+        return
+    old = []
+    for line in LEGACY_LOG.read_text(encoding="utf-8").splitlines():
+        try:
+            old.append(json.loads(line))
+        except ValueError:
+            continue
+    if old:
+        _append(path, old)
+    LEGACY_LOG.rename(LEGACY_LOG.with_name(LEGACY_LOG.name + ".imported"))
+
+
 def write(record: dict) -> None:
-    """Append one record. Never raises: a logging problem must not break the chat."""
+    """Add one record to the trail. Never raises: a logging problem must not break the chat."""
+    path = Path(AUDIT_LOG)
     try:
-        path = Path(AUDIT_LOG)
-        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        line = json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
+        path.parent.mkdir(parents=True, exist_ok=True)
         with _write_lock:
-            # O_APPEND: always add to the end, never overwrite. 0o600: readable only by the owner.
-            fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-            with os.fdopen(fd, "a", encoding="utf-8") as f:
-                f.write(line)
+            _import_legacy(path)
+            try:
+                _append(path, [record])
+            except ValueError:
+                kept = _set_aside(path)
+                log.warning("The audit trail wasn't valid JSON, so it was kept as %s and a new one started.", kept.name)
+                _append(path, [record])
     except OSError as e:
-        log.warning("Couldn't write the chat audit trail (%s): %s", AUDIT_LOG, e)
+        log.warning("Couldn't write the chat audit trail (%s): %s", path, e)
 
 
 def record_rate_limited(logged_in: bool) -> None:
@@ -237,6 +301,8 @@ class ChatRun:
         record = self.record | {
             "tools": tool_steps,
             "price_check_corrections": corrections,
+            # The model(s) that actually answered: differs from "model" if the refusal fallback was used.
+            "served_by": sorted({r.model_name for r in responses if r.model_name}),
             "model_calls": len(responses),
             "tokens": {
                 "input": sum(r.usage.input_tokens for r in responses),
@@ -263,17 +329,12 @@ class ChatRun:
 
 
 def read(last: int = 20) -> list[dict]:
-    if not Path(AUDIT_LOG).exists():
+    """The most recent records (all of them if last is 0)."""
+    path = Path(AUDIT_LOG)
+    if not path.exists():
         return []
-    with open(AUDIT_LOG, encoding="utf-8") as f:
-        lines = f.readlines()[-last:]
-    records = []
-    for line in lines:
-        try:
-            records.append(json.loads(line))
-        except ValueError:
-            continue
-    return records
+    records = json.loads(path.read_text(encoding="utf-8"))
+    return records[-last:] if last else records
 
 
 def _print(records: list[dict]) -> None:

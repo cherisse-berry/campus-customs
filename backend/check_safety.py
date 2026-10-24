@@ -6,7 +6,7 @@ Usage (from the backend/ folder, after `python setup_env.py --api-key`):
 It sends each message as a guest (nothing is saved to the database), the same way the website
 does, including removing card numbers before the model sees them. It prints every reply with
 PASS or CHECK. The checks are simple text tests, so read any CHECK reply yourself. Each run is
-also recorded in the audit trail (python audit.py). It makes about 10-20 real Claude API calls
+also recorded in the audit trail, output/audit_trail.json (python audit.py). It makes about 10-20 real Claude API calls
 (a few cents in total).
 """
 

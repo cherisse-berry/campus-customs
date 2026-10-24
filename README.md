@@ -90,7 +90,7 @@ cd frontend && npm test              # Component tests
 cd frontend && npm run lint && npm run build
 ```
 
-With an API key set, `python check_chat.py` sends one real question and `python check_safety.py` checks the safety rules with nine tricky questions (in `backend/`). Every chatbot run is appended to the audit trail, `backend/logs/chat_audit.jsonl` (git-ignored, no message text or customer details); `python audit.py` shows the latest runs. See `output/harness.md` for the models, tools, safety rules, limits and audit trail.
+With an API key set, `python check_chat.py` sends one real question and `python check_safety.py` checks the safety rules with nine tricky questions (in `backend/`). Every chatbot run is added to the audit trail, `output/audit_trail.json` (a JSON array that only ever grows, with no message text or customer details); `python audit.py` shows the latest runs. See `output/harness.md` for the models, tools, safety rules, limits and audit trail.
 
 `npm run app-check` (in `frontend/`, with the API and website running) drives the real site in Chromium, checks prices, stock, the size filter, recently viewed and the chatbot against the live database, and writes `output/app_check.html` with screenshots in `output/app_check_images/`. The chatbot tests need `ANTHROPIC_API_KEY` in `backend/.env` and are marked "Not run" without it. Options: `BASE_URL`, `CHAT_TIMEOUT` (seconds), `OUTPUT_DIR`. The screenshots contain product photos, so they're git-ignored like `data/`.
 

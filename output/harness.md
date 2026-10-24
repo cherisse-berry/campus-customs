@@ -207,7 +207,7 @@ Chat window (React)  ──POST /api/chat──▶  FastAPI (main.py)
    - **Page results:** every product the assistant's searches and lookups found (up to 24), with image, name, type, price and description. The website shows these in a results panel at the top of the page. See [Products shown on the page](#products-shown-on-the-page).
    - **Chat cards:** the products the reply names, shown as small cards in the chat window.
 6. For logged-in customers, the message and reply are saved to `chat_messages`, with the page results in `products_json`. They reload the next time the customer opens the chat, and the last set of results goes back on the page.
-7. Every run, whether it answers or not, adds one line to the [audit trail](#audit-trail): which tools were used, a short summary of each result and why it stopped.
+7. Every run, whether it answers or not, adds one record to the [audit trail](#audit-trail) in `output/audit_trail.json`: which tools were used, a short summary of each result and why it stopped.
 
 Before step 3, the server removes card numbers, Social Security numbers and passwords from the message (and from a guest's earlier messages), so they never reach Claude, the database or the audit trail.
 
@@ -224,7 +224,7 @@ Before step 3, the server removes card numbers, Social Security numbers and pass
 | `frontend/src/components/ChatResultsPanel.tsx`, `ChatResultsProvider.tsx`, `frontend/src/chatResults.ts` | The results panel on the page, and the shared state the chat window uses to fill it |
 | `frontend/src/components/ProductCard.tsx` | The product card used on the Products page, the home page and in the results panel |
 | `backend/audit.py` | The audit trail: records each run, removes sensitive details from messages, and shows recent runs (`python audit.py`) |
-| `backend/logs/chat_audit.jsonl` | The audit trail itself, one JSON line per run. Created on first use, readable only by you, and git-ignored |
+| `output/audit_trail.json` | The audit trail itself: a JSON array with one record per run. Created on the first chat, readable only by you, and contains no customer details |
 | `backend/check_chat.py` | Sends one real message to Claude to check your API key works |
 | `backend/check_safety.py` | Asks the real assistant nine tricky questions and checks it follows the safety rules |
 
@@ -369,7 +369,16 @@ The rate limit is kept in memory, so it resets when the API restarts and isn't s
 
 ### Audit trail
 
-Every time the chatbot runs, the API appends one line to **`backend/logs/chat_audit.jsonl`** (JSON Lines: one JSON record per line). The code is in `backend/audit.py`.
+Every time the chatbot runs, the API adds one record to **`output/audit_trail.json`**, as the assignment requires. The code is in `backend/audit.py`.
+
+**Format:** the file is one valid JSON array, with each record on its own line, so it can be opened by any JSON tool and still read line by line:
+
+```json
+[
+{"time":"2026-10-24T14:21:21.182Z","event":"chat_run","run_id":"9b82ca95ac08","customer":"guest", … ,"stop":{"reason":"answered","detail":"stop"},"duration_ms":61},
+{"time":"2026-10-24T14:21:31.250Z","event":"chat_run","run_id":"2834183b503a","customer":"guest", … ,"sensitive_info_removed":["card number"], … }
+]
+```
 
 **What each record holds**
 
@@ -383,6 +392,7 @@ Every time the chatbot runs, the API appends one line to **`backend/logs/chat_au
 | `message_chars`, `history_messages` | `52`, `4` | How long the message was and how many earlier messages were sent, never the text itself |
 | `sensitive_info_removed` | `["card number"]` | Kinds of sensitive details removed from the message, never the details |
 | `model` | `"claude-opus-5-5"` | The model asked |
+| `served_by` | `["claude-opus-5-5"]` | The model that actually answered. It differs from `model` if the refusal fallback stepped in |
 | `tools` | see below | Each tool call in order, with its arguments and a one-line result summary |
 | `price_check_corrections` | `0` | How many times the price check sent the reply back |
 | `model_calls`, `tokens` | `2`, `{"input": 9120, "output": 210}` | Model calls and tokens used, for cost tracking |
@@ -413,7 +423,16 @@ Result summaries keep only catalogue facts: match counts and product IDs for sea
 | `rate_limited` | On a `chat_blocked` record: the visitor sent too many messages. The chatbot didn't run. |
 | `error` | Anything else. `detail` is the error's type only. |
 
-**Keeping earlier records:** the file is opened in append-only mode (`O_APPEND`), so each run is added to the end and earlier records are never replaced or rewritten. The file and its folder are created on first use, the file is readable only by the account running the API (permissions `600`), and `backend/logs/` is git-ignored, so the trail never goes to GitHub. Writing is protected by a lock, and if the file can't be written (for example a full disk), the chat still works and the server log gives a warning. The trail grows by about 1 KB per message. To start a fresh file, move the old one somewhere for safekeeping; the next run creates a new one. To keep it somewhere else, set `CHAT_AUDIT_LOG=/path/to/file.jsonl`.
+**Keeping earlier records:** a new record never rewrites what's already there. The API checks that the file is valid JSON, then overwrites only the closing `]` (and the blank space before it) with `,` plus the new record and a new `]`. Every earlier record stays exactly as it was, byte for byte.
+- **Locking:** writes are locked (within the API and, on macOS and Linux, between processes), so simultaneous messages can't mix their records.
+- **A damaged file is never deleted.** If the file isn't valid JSON (for example, it was edited by hand and broken), it's renamed to `audit_trail.unreadable-<date>.json`, and a new trail starts.
+- **Records from the old location are kept.** Before this change the trail was a JSON Lines file at `backend/logs/chat_audit.jsonl`. If that file exists, its records are moved into `output/audit_trail.json` on the next chat, ahead of the new ones, and the old file is renamed to `chat_audit.jsonl.imported` (not deleted).
+- **Permissions:** the file is created on the first chat and is readable only by the account running the API (permissions `600`).
+- **Failures never break the chat:** if the file can't be written (for example, the disk is full), the chat still works and the server log gives a warning.
+- **Size:** the trail grows by about 1 KB per message. To start a fresh one, move the file somewhere for safekeeping; the next chat creates a new one.
+- **Location:** to keep it somewhere else, set `CHAT_AUDIT_LOG=/path/to/file.json`.
+
+Because it holds no customer details, the file is safe to commit with the assignment. It isn't git-ignored.
 
 **What's never saved**, to protect customers:
 - the text of messages and replies;
@@ -441,7 +460,7 @@ python audit.py --last 50
     removed from the message: card number
 ```
 
-(This output is from the real website with the scripted stand-in model; the second message contained a test card number.) Because each line is JSON, the file can also be opened with other tools, for example `jq` or a spreadsheet import.
+(This output is from the real website with the scripted stand-in model; the second message contained a test card number.) Because the file is standard JSON, it can also be opened with other tools, for example `jq '.[-5:]' output/audit_trail.json` for the last five runs.
 
 ### Remembering customers
 
@@ -599,15 +618,20 @@ If the key is missing, the site still works. The chat replies "The shopping assi
     - On the Yale Mom Hoodie page, "Is this in stock in M?" and "this in pink?" were answered about that hoodie.
     - After a reload on the home page, those messages came back tagged "About: Yale Mom Hoodie". Logging out cleared the chat.
     - Only the logged-in customer's messages were saved (to a copy of the database), each with the product page it came from.
-- **Audit trail and safety** (`backend/tests/test_audit.py`, 31 tests):
+- **Audit trail and safety** (`backend/tests/test_audit.py`, 37 tests):
   - A run is recorded with its time, run ID, guest or logged-in, viewed product, model, every tool call with its arguments, result summaries that match the database (price, stock, sold-out sizes), counts, tokens and stop reason.
   - Every stop reason is recorded correctly: answered, missing key, refusal, runaway tool loop, HTTP error (with only the status, never the error body), repeated invented prices, rejected tool arguments and the rate limit.
-  - Records are appended: an existing record stays first, and every run gets its own line and ID. The file is private (`600`), and a broken log never breaks the chat.
+  - The trail is saved to `output/audit_trail.json` by default, and stays one valid JSON array with one record per line after every run.
+  - Records are added, never replaced. Everything before the closing `]` stays byte for byte, an earlier record stays first, and every run gets its own ID. An empty file or empty array is continued.
+  - A damaged file is kept under a new name, never deleted. Records from the old `backend/logs/chat_audit.jsonl` are moved in once, and the old file is renamed.
+  - 60 simultaneous writes all land.
+  - The file is private (`600`), and a broken log never breaks the chat.
   - Privacy: after a logged-in customer sends a message containing an email address and phone number, the file holds no name, email, phone number, message text, user ID or IP address. A card number never reaches the model, the saved history or the log. A guest's earlier Social Security number is removed before it's sent. Tool arguments are scrubbed and shortened.
   - Sensitive details are detected without touching ordinary messages: prices, sizes and an invalid 13-digit order number are left alone.
   - The strengthened safety rules are in the prompt, and `check_safety.py` passes when the replies follow them, flags a reply that invents a coupon code, and explains a missing key.
-- **All tests:** 123 backend tests (`python -m pytest` in `backend/`) and 32 frontend tests (`npm test` in `frontend/`).
+- **All tests:** 129 backend tests (`python -m pytest` in `backend/`) and 32 frontend tests (`npm test` in `frontend/`).
 - **In a browser (Problem 12):** the real website and API with the scripted stand-in. The app check passed 8 of 8, and `python audit.py` then showed each chat run with its tools, results and stop reason. A message with a test card number was recorded with `removed from the message: card number`, and the number appeared nowhere in the file.
+- **In a browser (Problem 12 follow-up):** the real website and API with the stand-in wrote to the default `output/audit_trail.json`. After the app check and a guest message containing a test card number and an email address, the file was a valid JSON array of 4 records, permissions `600`. It held no card number, email address, name or message text, and `python audit.py` read it back. Those stand-in records were then removed, so the committed project has no simulated chatbot runs.
 - **Live Claude:** not tested yet, because this workspace has no API key. With your key set, run `python check_chat.py`, `python check_safety.py` and `npm run app-check` (see [How to run the website and chatbot](#how-to-run-the-website-and-chatbot)).
 
 ### Not built yet
@@ -656,7 +680,7 @@ Open http://localhost:5173. The chat button is in the bottom-right corner. Log i
 
 | Command | Where | What it checks | Needs the key |
 |---|---|---|---|
-| `python -m pytest` | `backend/` | 123 tests: API, accounts, chatbot, tools, accuracy, audit trail, safety | No |
+| `python -m pytest` | `backend/` | 129 tests: API, accounts, chatbot, tools, accuracy, audit trail, safety | No |
 | `npm test`, `npm run lint`, `npm run build` | `frontend/` | 32 component tests, code style, production build | No |
 | `python check_chat.py` | `backend/` | One real question to Claude | Yes |
 | `python check_safety.py` | `backend/` | Nine tricky questions against the safety rules | Yes |
@@ -672,7 +696,7 @@ Open http://localhost:5173. The chat button is in the bottom-right corner. Log i
 | `ANTHROPIC_API_KEY` | none | The chatbot's key. Without it the site works, but the chat says the assistant isn't set up yet. |
 | `SESSION_SECRET` | created by `setup_env.py` | Signs login cookies |
 | `CHAT_MODEL` | `claude-opus-5-5` | The model for chat replies (see [Models](#models)) |
-| `CHAT_AUDIT_LOG` | `backend/logs/chat_audit.jsonl` | Where the audit trail is written |
+| `CHAT_AUDIT_LOG` | `output/audit_trail.json` | Where the audit trail is written |
 | `CHAT_ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Only to use a different Anthropic endpoint on purpose |
 | `CAMPUS_DATA_DIR` | `data/` | Where the database and images are |
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Which website addresses may call the API |
