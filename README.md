@@ -7,6 +7,8 @@ The Campus Customs website: a Yale apparel shop built with **React + Vite + Type
 - **Accounts:** customers can register and log in; passwords are hashed with PBKDF2-HMAC-SHA256 (see `output/harness.md`)
 - **Database:** product and stock data is only ever read; the only writes are new `users` rows when someone registers and `chat_messages` rows when a logged-in customer chats
 
+> **New to running this locally on a Mac?** Follow the step-by-step guide in [RUN_ON_MAC.md](RUN_ON_MAC.md).
+
 ## Project layout
 
 ```

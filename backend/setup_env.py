@@ -48,7 +48,11 @@ def ensure_session_secret(text: str, force: bool) -> str:
 def ask_api_key(text: str, prompt=getpass.getpass) -> str:
     print("Paste your Anthropic API key from https://platform.claude.com/settings/keys")
     print("(Typing is hidden. Press Enter on an empty line to keep the current key.)")
-    key = prompt("ANTHROPIC_API_KEY: ").strip()
+    try:
+        key = prompt("ANTHROPIC_API_KEY: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nCancelled; ANTHROPIC_API_KEY unchanged.")
+        return text
     if not key:
         print("No key entered; ANTHROPIC_API_KEY unchanged.")
         return text

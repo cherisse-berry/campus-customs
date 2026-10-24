@@ -230,3 +230,25 @@ def test_api_key_only_goes_to_anthropic(monkeypatch):
     monkeypatch.delenv("CHAT_ANTHROPIC_BASE_URL", raising=False)
     model = chat_agent.get_model()
     assert model.base_url.rstrip("/") == "https://api.anthropic.com"
+
+
+def test_rejected_key_is_logged_with_a_hint(client, monkeypatch, caplog):
+    from pydantic_ai.exceptions import ModelHTTPError
+
+    def reject(messages, info):
+        raise ModelHTTPError(401, "claude-opus-5-5", body={"error": "invalid x-api-key"})
+
+    monkeypatch.setattr(chat_agent, "get_model", lambda: FunctionModel(reject))
+    r = client.post("/api/chat", json={"message": "hi"})
+    assert r.status_code == 503
+    assert "invalid" not in r.text  # no details leak to the customer
+    assert "HTTP 401" in caplog.text and "setup_env.py --api-key" in caplog.text
+
+
+def test_setup_cancel_keeps_key(tmp_path, monkeypatch):
+    import setup_env
+
+    def cancel(_):
+        raise EOFError
+
+    assert setup_env.ask_api_key("ANTHROPIC_API_KEY=old\n", prompt=cancel) == "ANTHROPIC_API_KEY=old\n"

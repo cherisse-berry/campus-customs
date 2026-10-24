@@ -110,4 +110,10 @@ A record of the prompts used while building the Campus Customs website, organize
 
 *What was missing:* The earlier answer didn't say whether the `setup_env.py --api-key` script could be used from Claude Code in the browser. It can't safely: the script needs a terminal where you type the key yourself, and commands Claude runs in the cloud workspace can't ask you for hidden input. The only way to use it there would be to paste the key into the chat, which exposes it. The answer explains this and recommends the cloud environment's settings as the safest option, keeping `setup_env.py` for running the project on your own computer.
 
+**Follow-up 3**
+
+> Since I can't securely add my API key in the browser environment, please walk me through running Campus Customs on my Mac so I can test the chatbot with my API key. I'd like to do this step by step.
+
+*What was missing:* The README listed the setup commands, but not the Mac-specific details a beginner needs: installing Homebrew, Python 3.11+ and Node.js; where to put `data.zip`; using two Terminal tabs; and what each error means. This prompt added `RUN_ON_MAC.md`, a step-by-step guide that was dry-run on a fresh copy of the project. Testing the hidden key prompt also led to two fixes: `setup_env.py` now exits cleanly if the prompt is cancelled, and the server log now shows why a chat request failed (for example, HTTP 401 for a rejected key).
+
 ---

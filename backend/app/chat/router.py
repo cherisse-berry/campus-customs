@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic_ai.exceptions import (
     ContentFilterError,
     ModelAPIError,
+    ModelHTTPError,
     UnexpectedModelBehavior,
     UsageLimitExceeded,
 )
@@ -78,6 +79,15 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
         reply, cards = DECLINED_REPLY, []
     except UsageLimitExceeded:
         reply, cards = TRIED_TOO_HARD_REPLY, []
+    except ModelHTTPError as e:
+        hint = {
+            401: "The API key was rejected; run `python setup_env.py --api-key` again.",
+            403: "This API key can't use the model; check CHAT_MODEL and your Anthropic account.",
+            404: "Model not found; check CHAT_MODEL.",
+            429: "Rate limited or out of credit; check your Anthropic account.",
+        }.get(e.status_code, "")
+        log.warning("Chat model call failed with HTTP %s. %s", e.status_code, hint)
+        raise HTTPException(503, "The assistant is having trouble right now. Please try again in a moment.")
     except (ModelAPIError, UnexpectedModelBehavior) as e:
         log.warning("Chat model call failed: %s", type(e).__name__)
         raise HTTPException(503, "The assistant is having trouble right now. Please try again in a moment.")
