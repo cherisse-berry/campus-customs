@@ -14,6 +14,7 @@ def env_paths(tmp_path, monkeypatch):
     env = tmp_path / ".env"
     monkeypatch.setattr(setup_env, "EXAMPLE_FILE", example)
     monkeypatch.setattr(setup_env, "ENV_FILE", env)
+    monkeypatch.setattr(setup_env, "OLD_ENV_FILE", tmp_path / "backend" / ".env")
     return env
 
 
@@ -64,3 +65,26 @@ def test_api_key_is_saved_from_hidden_prompt(env_paths, monkeypatch, capsys):
 def test_key_with_special_characters_is_written_literally(env_paths):
     text = setup_env.set_value("ANTHROPIC_API_KEY=\n", "ANTHROPIC_API_KEY", r"sk-ant-a\1b$c")
     assert text == "ANTHROPIC_API_KEY=sk-ant-a\\1b$c\n"
+
+
+def test_files_are_in_the_hw4_folder():
+    hw4 = setup_env.HERE.parent
+    assert setup_env.ENV_FILE == hw4 / ".env" and setup_env.EXAMPLE_FILE == hw4 / ".env.example"
+    assert setup_env.EXAMPLE_FILE.exists()
+
+
+def test_old_backend_env_is_moved_and_kept(env_paths):
+    old = setup_env.OLD_ENV_FILE
+    old.parent.mkdir()
+    old.write_text("SESSION_SECRET=" + "a" * 64 + "\nANTHROPIC_API_KEY=sk-ant-old\n")
+    setup_env.main([])
+    assert not old.exists()
+    text = env_paths.read_text()
+    assert secret(env_paths) == "a" * 64 and "ANTHROPIC_API_KEY=sk-ant-old" in text
+
+
+def test_example_has_only_placeholders():
+    text = setup_env.EXAMPLE_FILE.read_text()
+    for name in ("SESSION_SECRET", "ANTHROPIC_API_KEY"):
+        assert setup_env.get_value(text, name) == ""
+    assert "sk-ant-" not in text

@@ -1,12 +1,12 @@
-# Database and product images (kept local, never committed)
+# Database and original product images (kept local, never committed)
 data/
-# App check screenshots show the product photos
-output/app_check_images/
 *.db
 *.sqlite
 *.sqlite3
+*.db-journal
+*.db-wal
 
-# Secrets and API keys
+# Secrets, API keys and private settings
 .env
 .env.*
 !.env.example
@@ -18,8 +18,10 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Old location of the chat audit trail (now output/audit_trail.json, which is safe to commit)
-backend/logs/
+# Old location of the chat audit trail (now hw4/output/audit_trail.json, which is safe to commit)
+hw4/backend/logs/
+# A damaged audit trail kept aside by audit.py, for you to look at locally
+hw4/output/audit_trail.unreadable-*.json
 
 # Node / Vite
 node_modules/

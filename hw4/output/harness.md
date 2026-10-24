@@ -9,6 +9,8 @@ This file explains how Campus Customs works behind the scenes: the database the 
 - [Shopping assistant (chatbot)](#shopping-assistant-chatbot): how a message travels, the [models](#models), the [tools](#tools), how [accuracy](#how-accuracy-is-enforced) is enforced, the [safety rules](#safety-rules), the [limits](#limits) and the [audit trail](#audit-trail)
 - [How to run the website and chatbot](#how-to-run-the-website-and-chatbot), and how to test them
 
+File paths in this document are relative to the `hw4` folder (for example, `backend/main.py` is `hw4/backend/main.py`).
+
 For Problem 2 the database was only read, never changed. From Problem 4 on, the website adds one new row to `users` each time a customer creates an account. From Problem 5 on, it also adds rows to `chat_messages` when a logged-in customer chats with the assistant. Products and stock are never written. The chatbot's [audit trail](#audit-trail) (Problem 12) is a separate file, not part of the database. See [Authentication](#authentication) and [Shopping assistant (chatbot)](#shopping-assistant-chatbot) below.
 
 ## Overview
@@ -157,7 +159,7 @@ Responses only ever include `id`, `name`, `first_name`, `last_name` and `email`,
 
 ### Secrets
 
-`SESSION_SECRET` is the key that signs login cookies. It lives in `backend/.env`, which is git-ignored and loaded automatically when the API starts.
+`SESSION_SECRET` is the key that signs login cookies. It lives in `hw4/.env`, which is git-ignored and loaded automatically when the API starts.
 
 - **Create it:** run `python setup_env.py` in `backend/`. It writes a 64-character random secret (256 bits) to `.env`, makes the file readable only by you, and never prints the secret.
 - **Keep it:** the script won't replace an existing secret. `python setup_env.py --force` makes a new one, which logs everyone out. Do that if the secret may have leaked.
@@ -300,7 +302,7 @@ The assistant can't make up prices or stock because of four layers:
 | Endpoint | Always `https://api.anthropic.com` | Your key can't be sent anywhere else by accident (see [API key](#api-key)) |
 | Framework | PydanticAI 2.61 with the Anthropic SDK | Runs the tool loop, checks tool arguments against their types, and lets the price check send a reply back |
 
-**Changing the model:** set `CHAT_MODEL` in `backend/.env` and restart the API, for example `CHAT_MODEL=claude-sonnet-5-5`. Claude Opus 5.5 costs $4 per million input tokens and $20 per million output tokens. Claude Sonnet 5.5 ($2 / $10) is cheaper and also supports the refusal fallback. Claude Haiku 5.5 ($0.10 / $0.50) is cheapest but has no refusal fallback. A typical question uses two or three model calls. Run `python check_chat.py` and `python check_safety.py` after switching, because a different model may follow the instructions differently.
+**Changing the model:** set `CHAT_MODEL` in `hw4/.env` and restart the API, for example `CHAT_MODEL=claude-sonnet-5-5`. Claude Opus 5.5 costs $4 per million input tokens and $20 per million output tokens. Claude Sonnet 5.5 ($2 / $10) is cheaper and also supports the refusal fallback. Claude Haiku 5.5 ($0.10 / $0.50) is cheapest but has no refusal fallback. A typical question uses two or three model calls. Run `python check_chat.py` and `python check_safety.py` after switching, because a different model may follow the instructions differently.
 
 ### Safety rules
 
@@ -331,7 +333,7 @@ The other sections of the prompt add accuracy rules ("Facts come from the databa
 | Checked tool arguments | PydanticAI and `tools.py` | Tool arguments are type-checked. Bad sizes, unknown products and bad suggestion buttons get a plain error back instead of a guess. |
 | Usage limits and rate limit | `agent.py`, `main.py` | Stop runaway tool loops and floods of messages (see [Limits](#limits)). |
 | Refusals and errors handled | `main.py` | A refusal becomes "Sorry, I can't help with that one…". API errors become a friendly "try again" message without technical details. The server log gives the owner a hint (for example, a rejected key). |
-| Key kept on the server | `config.py`, `agent.py` | The API key lives only in `backend/.env` or the environment, never in the website's code, and is only ever sent to `api.anthropic.com`. |
+| Key kept on the server | `config.py`, `agent.py` | The API key lives only in `hw4/.env` or the environment, never in the website's code, and is only ever sent to `api.anthropic.com`. |
 | Audit trail | `audit.py` | Every run is recorded without customer details, so problems can be investigated afterwards (see [Audit trail](#audit-trail)). |
 | Labelled as AI | `ChatWidget.tsx` | A note under the message box says it's an AI assistant whose answers can contain mistakes, and asks customers not to share card numbers or passwords. |
 
@@ -446,7 +448,7 @@ Logged-in customers' own conversations are still saved in `chat_messages` for th
 **Reading it:**
 
 ```bash
-cd backend
+cd hw4/backend
 python audit.py            # the last 20 runs
 python audit.py --last 50
 ```
@@ -558,7 +560,7 @@ When the assistant searches or looks up products, the website shows what it foun
 
 ### API key
 
-The assistant needs an Anthropic API key, kept in `backend/.env`, which is git-ignored and never committed.
+The assistant needs an Anthropic API key, kept in `hw4/.env`, which is git-ignored and never committed.
 
 1. Create a key at https://platform.claude.com/settings/keys.
 2. In `backend/`, run `python setup_env.py --api-key` and paste the key. What you type is hidden, so it doesn't appear on screen or in your shell history. The file is saved readable only by you.
@@ -629,7 +631,8 @@ If the key is missing, the site still works. The chat replies "The shopping assi
   - Privacy: after a logged-in customer sends a message containing an email address and phone number, the file holds no name, email, phone number, message text, user ID or IP address. A card number never reaches the model, the saved history or the log. A guest's earlier Social Security number is removed before it's sent. Tool arguments are scrubbed and shortened.
   - Sensitive details are detected without touching ordinary messages: prices, sizes and an invalid 13-digit order number are left alone.
   - The strengthened safety rules are in the prompt, and `check_safety.py` passes when the replies follow them, flags a reply that invents a coupon code, and explains a missing key.
-- **All tests:** 129 backend tests (`python -m pytest` in `backend/`) and 32 frontend tests (`npm test` in `frontend/`).
+- **All tests:** 132 backend tests (`python -m pytest` in `backend/`) and 32 frontend tests (`npm test` in `frontend/`).
+- **Submission layout (Problem 13):** after the move into `hw4/`, all tests and builds pass from the new folders, `setup_env.py` writes `hw4/.env` (and moves an older `backend/.env` there), `.env.example` holds only placeholders, and a fresh clone of the repository, with only `data.zip` added, installs, tests and runs.
 - **In a browser (Problem 12):** the real website and API with the scripted stand-in. The app check passed 8 of 8, and `python audit.py` then showed each chat run with its tools, results and stop reason. A message with a test card number was recorded with `removed from the message: card number`, and the number appeared nowhere in the file.
 - **In a browser (Problem 12 follow-up):** the real website and API with the stand-in wrote to the default `output/audit_trail.json`. After the app check and a guest message containing a test card number and an email address, the file was a valid JSON array of 4 records, permissions `600`. It held no card number, email address, name or message text, and `python audit.py` read it back. Those stand-in records were then removed, so the committed project has no simulated chatbot runs.
 - **Live Claude:** not tested yet, because this workspace has no API key. With your key set, run `python check_chat.py`, `python check_safety.py` and `npm run app-check` (see [How to run the website and chatbot](#how-to-run-the-website-and-chatbot)).
@@ -647,29 +650,29 @@ If the key is missing, the site still works. The chat replies "The shopping assi
 
 You need Python 3.11 or later, Node.js 20 or later, `data.zip` (the database and product images) and an Anthropic API key from https://platform.claude.com/settings/keys. `RUN_ON_MAC.md` has the same steps in more detail for a Mac.
 
-**1. Add the data.** Unzip `data.zip` into the project folder so you have `data/campus_customs.db` and `data/products/*.jpg`. They aren't in GitHub.
+**1. Add the data.** Unzip `data.zip` into the `hw4` folder so you have `hw4/data/campus_customs.db` and `hw4/data/products/*.jpg`. They aren't in GitHub.
 
 **2. Set up the API (first time only).**
 
 ```bash
-cd backend
+cd hw4/backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python setup_env.py --api-key    # creates backend/.env with SESSION_SECRET; asks for your key (typing is hidden)
+python setup_env.py --api-key    # creates hw4/.env from .env.example with SESSION_SECRET; asks for your key (typing is hidden)
 python check_chat.py             # sends one real question to Claude to check the key works
 ```
 
 **3. Start the API** (keep this terminal open):
 
 ```bash
-cd backend && source .venv/bin/activate
+cd hw4/backend && source .venv/bin/activate
 uvicorn main:app --reload --port 8000
 ```
 
 **4. Start the website** in a second terminal:
 
 ```bash
-cd frontend
+cd hw4/frontend
 npm install      # first time only
 npm run dev
 ```
@@ -680,7 +683,7 @@ Open http://localhost:5173. The chat button is in the bottom-right corner. Log i
 
 | Command | Where | What it checks | Needs the key |
 |---|---|---|---|
-| `python -m pytest` | `backend/` | 129 tests: API, accounts, chatbot, tools, accuracy, audit trail, safety | No |
+| `python -m pytest` | `backend/` | 132 tests: API, accounts, chatbot, tools, accuracy, audit trail, safety, setup | No |
 | `npm test`, `npm run lint`, `npm run build` | `frontend/` | 32 component tests, code style, production build | No |
 | `python check_chat.py` | `backend/` | One real question to Claude | Yes |
 | `python check_safety.py` | `backend/` | Nine tricky questions against the safety rules | Yes |
@@ -689,16 +692,16 @@ Open http://localhost:5173. The chat button is in the bottom-right corner. Log i
 
 **In a cloud session (Claude Code in the browser):** a `.env` file disappears when the session ends, so add `ANTHROPIC_API_KEY` in the environment's settings instead (see [API key](#api-key)), start a new session, and upload `data.zip` again.
 
-**Settings** (in `backend/.env` or the environment):
+**Settings** (in `hw4/.env` or the environment):
 
 | Setting | Default | What it's for |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | none | The chatbot's key. Without it the site works, but the chat says the assistant isn't set up yet. |
 | `SESSION_SECRET` | created by `setup_env.py` | Signs login cookies |
 | `CHAT_MODEL` | `claude-opus-5-5` | The model for chat replies (see [Models](#models)) |
-| `CHAT_AUDIT_LOG` | `output/audit_trail.json` | Where the audit trail is written |
+| `CHAT_AUDIT_LOG` | `hw4/output/audit_trail.json` | Where the audit trail is written |
 | `CHAT_ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Only to use a different Anthropic endpoint on purpose |
-| `CAMPUS_DATA_DIR` | `data/` | Where the database and images are |
+| `CAMPUS_DATA_DIR` | `hw4/data/` | Where the database and images are |
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Which website addresses may call the API |
 
 **Stopping:** press Ctrl + C in each terminal. Nothing else needs cleaning up. The audit trail and saved chats stay for next time.

@@ -45,13 +45,13 @@ cd campus-customs
 git checkout claude/fervent-sagan-xmn8y0
 ```
 
-This puts the project in a `campus-customs` folder in your home folder.
+This puts the project in a `campus-customs` folder in your home folder. Everything for the assignment is inside its `hw4` folder.
 
 ## Step 3: Add the database and images
 
 ```bash
-unzip ~/Downloads/data.zip -d ~/campus-customs
-ls ~/campus-customs/data
+unzip ~/Downloads/data.zip -d ~/campus-customs/hw4
+ls ~/campus-customs/hw4/data
 ```
 
 You should see `campus_customs.db` and `products`. (If `data.zip` is somewhere else, change the path in the first command.) This folder is excluded from GitHub, so it stays only on your Mac.
@@ -59,7 +59,7 @@ You should see `campus_customs.db` and `products`. (If `data.zip` is somewhere e
 ## Step 4: Set up the backend
 
 ```bash
-cd ~/campus-customs/backend
+cd ~/campus-customs/hw4/backend
 python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -78,7 +78,7 @@ python setup_env.py --api-key
 1. When you see `ANTHROPIC_API_KEY:`, paste your key with **Cmd + V**. **Nothing appears as you paste.** That's on purpose: the key is hidden.
 2. Press **Return**. You should see `Saved ANTHROPIC_API_KEY.`
 
-This creates `backend/.env` with your key and a random login secret. The file:
+This creates `hw4/.env` with your key and a random login secret. The file:
 - can be read only by your Mac user account,
 - is excluded from GitHub (it's in `.gitignore`),
 - is read automatically by the backend.
@@ -104,7 +104,7 @@ If it doesn't work, it tells you why:
 |---|---|
 | `API error 401` | The key was mistyped or deleted. Run `python setup_env.py --api-key` again. |
 | `API error 429` | Out of credit or too many requests. Check billing in the Anthropic Console. |
-| `API error 403` or `404` | Your account can't use the model. Add `CHAT_MODEL=claude-sonnet-5-5` to `backend/.env` and try again. |
+| `API error 403` or `404` | Your account can't use the model. Add `CHAT_MODEL=claude-sonnet-5-5` to `hw4/.env` and try again. |
 | `Couldn't reach the Anthropic API` | Check your internet connection. |
 
 You can also ask your own question:
@@ -139,7 +139,7 @@ Leave this window open. The API is running while you see `Application startup co
 Open a **new Terminal tab** with **Cmd + T**, then run:
 
 ```bash
-cd ~/campus-customs/frontend
+cd ~/campus-customs/hw4/frontend
 npm install
 npm run dev
 ```
@@ -162,7 +162,7 @@ If the chat says *"The assistant is having trouble right now"*, look at the firs
 This script tests the running website in a real browser, takes screenshots and writes **output/app_check.html**, including the chatbot tests with your real assistant. Keep the API (Step 7) and the website (Step 8) running, and open a **third Terminal tab** with **Cmd + T**:
 
 ```bash
-cd ~/campus-customs/frontend
+cd ~/campus-customs/hw4/frontend
 npm install                       # picks up Playwright, the browser tester
 npx playwright install chromium   # first time only, downloads the test browser
 npm run app-check
@@ -182,25 +182,48 @@ Each test shows **Passed**, **Failed** or **Not run**. If the chatbot tests say 
 - **To start again later:**
   ```bash
   # Tab 1
-  cd ~/campus-customs/backend
+  cd ~/campus-customs/hw4/backend
   source .venv/bin/activate
   uvicorn main:app --reload --port 8000
 
   # Tab 2
-  cd ~/campus-customs/frontend
+  cd ~/campus-customs/hw4/frontend
   npm run dev
   ```
 
-Your key stays saved in `backend/.env`, so you don't need to enter it again.
+Your key stays saved in `hw4/.env`, so you don't need to enter it again.
 
 ## Getting the latest changes
 
 ```bash
 cd ~/campus-customs
 git pull
-cd backend && source .venv/bin/activate && pip install -r requirements.txt
+cd hw4/backend && source .venv/bin/activate && pip install -r requirements.txt
 cd ../frontend && npm install
 ```
+
+### If you set this up before the project moved into `hw4/`
+
+Git moves only the files it tracks. Your private files and installed packages stay in the old folders, so move them once after `git pull`:
+
+```bash
+cd ~/campus-customs
+mv data hw4/                                    # the database and product images
+mv backend/.env hw4/.env                        # your key and login secret
+[ -f output/audit_trail.json ] && mv output/audit_trail.json hw4/output/   # your chatbot audit trail, if you have one
+[ -d backend/logs ] && mv backend/logs hw4/backend/                         # the older audit log, if you have one
+ls -a backend frontend output                   # see what's left in the old folders
+```
+
+If `git pull` stops with "Your local changes … would be overwritten" (for example after running `npm run app-check`, which rewrites `output/app_check.html`), run `git stash`, then `git pull` again, and run the app check again afterwards.
+
+Only things that were never in Git should be left, such as `.venv`, `node_modules`, `__pycache__`, `.pytest_cache` and old app-check screenshots (`npm run app-check` makes new ones). Once you've checked, delete the old folders (your code is safe in `hw4/`):
+
+```bash
+rm -rf backend frontend output
+```
+
+Then set up the Python environment and website packages again in their new place (Step 4 and `npm install` in Step 8), and check that `git status --short` doesn't list `.env` or `data/`. If you skip moving `.env`, `python setup_env.py` moves it for you, and the API also still reads it from the old place.
 
 ## Troubleshooting
 
@@ -208,7 +231,7 @@ cd ../frontend && npm install
 |---|---|
 | `command not found: brew` after installing Homebrew | Run the "Next steps" commands Homebrew printed, then open a new Terminal window |
 | `command not found: python3.13` | Run `brew install python@3.13` |
-| `No module named ...` | Run `source .venv/bin/activate` in `backend` first, then try again |
+| `No module named ...` | Run `source .venv/bin/activate` in `hw4/backend` first, then try again |
 | `Address already in use` | Something is already using that port. Close the other Terminal tab running the server, or restart your Mac. |
-| Website shows "We couldn't load products" | The API (Step 7) isn't running, or `data/` is missing (Step 3) |
-| Chat says "isn't set up yet" | The key isn't in `backend/.env`. Repeat Step 5, then restart the API (Ctrl + C, then Step 7). |
+| Website shows "We couldn't load products" | The API (Step 7) isn't running, or `hw4/data/` is missing (Step 3) |
+| Chat says "isn't set up yet" | The key isn't in `hw4/.env`. Repeat Step 5, then restart the API (Ctrl + C, then Step 7). |

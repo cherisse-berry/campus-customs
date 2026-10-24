@@ -221,3 +221,17 @@ A record of the prompts used while building the Campus Customs website, organize
 *What was missing:* The audit trail was saved to the wrong place and in the wrong format: a JSON Lines file at backend/logs/chat_audit.jsonl instead of a JSON file at output/audit_trail.json, as the assignment requires.
 
 ---
+
+## Problem 13: Preparing for Submission
+
+### Original prompt
+
+> For Problem 13, I need to prepare Campus Customs for submission on GitHub.
+>
+> Please organize the project into the required hw4 folder, following the assignment's file structure. Make sure all required code, documentation, and testing files are included, along with a README explaining how to run the website.
+>
+> Check that the database, original product images, API keys, and private settings are excluded. Include a .env.example with placeholders.
+>
+> Review everything for missing files or errors, test that the project still works after reorganizing it, and update AI_prompts.md. Let me know what I still need to do before submitting.
+
+---

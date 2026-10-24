@@ -1,4 +1,4 @@
-"""Create or update backend/.env with the backend's secrets.
+"""Create or update hw4/.env with the backend's secrets.
 
 Usage (from the backend/ folder):
     python setup_env.py             # create .env with a random SESSION_SECRET (if it has none)
@@ -16,8 +16,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ENV_FILE = HERE / ".env"
-EXAMPLE_FILE = HERE / ".env.example"
+ENV_FILE = HERE.parent / ".env"  # hw4/.env, next to .env.example
+EXAMPLE_FILE = HERE.parent / ".env.example"
+OLD_ENV_FILE = HERE.parent.parent / "backend" / ".env"  # campus-customs/backend/.env, before the move into hw4/
 
 
 def _line(name: str) -> re.Pattern[str]:
@@ -62,7 +63,15 @@ def ask_api_key(text: str, prompt=getpass.getpass) -> str:
     return set_value(text, "ANTHROPIC_API_KEY", key)
 
 
+def move_old_env() -> None:
+    """Move the .env from before the hw4/ move to hw4/.env, so existing secrets are kept."""
+    if OLD_ENV_FILE.exists() and not ENV_FILE.exists():
+        OLD_ENV_FILE.rename(ENV_FILE)
+        print(f"Moved your existing settings from {OLD_ENV_FILE} to {ENV_FILE}.")
+
+
 def main(args: list[str]) -> None:
+    move_old_env()
     text = ENV_FILE.read_text() if ENV_FILE.exists() else EXAMPLE_FILE.read_text()
     text = ensure_session_secret(text, force="--force" in args)
     if "--api-key" in args:

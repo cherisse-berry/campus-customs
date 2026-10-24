@@ -1,7 +1,7 @@
 /**
  * Campus Customs app check: drives the real, running website in a browser, takes screenshots and
  * writes output/app_check.html. Nothing is simulated: the chatbot tests use the real assistant
- * (your ANTHROPIC_API_KEY in backend/.env), and every claim is checked against live database data.
+ * (your ANTHROPIC_API_KEY in hw4/.env), and every claim is checked against live database data.
  *
  * Usage (with the API and website already running, see RUN_ON_MAC.md):
  *   cd frontend
