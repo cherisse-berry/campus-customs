@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:preview": "tsc -b && VITE_STATIC=1 vite build --base ./ --outDir dist-preview && cd ../backend && python3 export_static.py ../frontend/dist-preview"
   },
   "dependencies": {
     "react": "^19.1.0",

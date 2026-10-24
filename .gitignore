@@ -19,6 +19,7 @@ venv/
 # Node / Vite
 node_modules/
 dist/
+dist-preview/
 *.local
 
 # Editors and OS

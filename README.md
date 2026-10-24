@@ -64,6 +64,10 @@ cd frontend && npm test              # Component tests
 cd frontend && npm run lint && npm run build
 ```
 
+## Static preview
+
+`npm run build:preview` (in `frontend/`) builds a version of the site that needs no server, in `frontend/dist-preview/`. It exports product and stock data (no user accounts or chats) to `data/catalog.json` and copies the product images. It's used for sharing a live preview and is git-ignored.
+
 ## Secrets
 
 API keys go in a local `.env` file, which is git-ignored. Never commit keys, the database or the images.

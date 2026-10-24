@@ -16,7 +16,11 @@ export interface ProductQuery {
   sort?: SortOrder
 }
 
-export function fetchProducts(query: ProductQuery = {}): Promise<Product[]> {
+/** True in the static preview build, which reads a JSON snapshot instead of the API. */
+export const IS_STATIC = import.meta.env.VITE_STATIC === '1'
+
+export async function fetchProducts(query: ProductQuery = {}): Promise<Product[]> {
+  if (IS_STATIC) return (await import('./staticApi')).staticProducts(query)
   const params = new URLSearchParams()
   if (query.category) params.set('category', query.category)
   if (query.q) params.set('q', query.q)
@@ -25,11 +29,17 @@ export function fetchProducts(query: ProductQuery = {}): Promise<Product[]> {
   return getJson(`/api/products${qs ? `?${qs}` : ''}`)
 }
 
-export function fetchProduct(id: string): Promise<ProductDetail> {
+export async function fetchProduct(id: string): Promise<ProductDetail> {
+  if (IS_STATIC) {
+    const product = await (await import('./staticApi')).staticProduct(id)
+    if (!product) throw new NotFoundError('Not found')
+    return product
+  }
   return getJson(`/api/products/${encodeURIComponent(id)}`)
 }
 
-export function fetchCategories(): Promise<Category[]> {
+export async function fetchCategories(): Promise<Category[]> {
+  if (IS_STATIC) return (await import('./staticApi')).staticCategories()
   return getJson('/api/categories')
 }
 

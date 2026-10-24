@@ -56,4 +56,12 @@ A record of the prompts used while building the Campus Customs website, organize
 >
 > Test the website, keep the database unchanged, and exclude the database, images, and API keys from GitHub. Update AI_prompts.md
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> Can you show me a live preview of the Campus Customs website so I can review the design and functionality?
+
+*What was missing:* The first build only ran on servers inside the private cloud workspace, so the only way to see it was through screenshots. This prompt led to a static preview build that runs without a server, published as a private live page for review.
+
 ---
