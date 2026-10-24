@@ -34,9 +34,9 @@
 <body>
 <div class="top"><div class="wrap">
   <h1>Campus Customs App Check</h1>
-  <p>Automated check of the running website at http://localhost:5173 on October 24, 2026 at 2:32 PM. Every screenshot is from the real site, checked against the live database.
-     The chatbot tests did not run because the assistant has no API key yet (see below).</p>
-  <div class="summary"><span>5 passed</span><span>0 failed</span><span>3 not run</span></div>
+  <p>Automated check of the running website at http://localhost:5173 on October 24, 2026 at 9:59 AM. Every screenshot is from the real site, checked against the live database.
+     The chatbot answers come from the real assistant, not a simulation.</p>
+  <div class="summary"><span>8 passed</span><span>0 failed</span><span>0 not run</span></div>
 </div></div>
 <main class="wrap">
 <h2>Website</h2>
@@ -78,31 +78,53 @@
           <span class="badge pass">Passed</span>
         </header>
         <p>The product page at phone width (390px): the layout stacks into one column, the size buttons and stock summary stay readable, and nothing scrolls sideways.</p>
-        <a href="app_check_images/06-phone-product-page.png"><img src="app_check_images/06-phone-product-page.png" alt="Screenshot: Works on a phone" loading="lazy"></a>
+        <a href="app_check_images/08-phone-product-page.png"><img src="app_check_images/08-phone-product-page.png" alt="Screenshot: Works on a phone" loading="lazy"></a>
       </article><h2>Chatbot (real assistant, live data)</h2>
       <article class="test" id="test-6">
         <header>
           <h3><span class="num">6</span>Chatbot checks a product&#39;s actual price and stock</h3>
-          <span class="badge not-run">Not run</span>
+          <span class="badge pass">Passed</span>
         </header>
-        <p class="note">The assistant replied: &quot;The shopping assistant isn&#39;t set up yet. Please try again later.&quot; Add your ANTHROPIC_API_KEY (python setup_env.py --api-key) and restart the API.</p>
-        <a href="app_check_images/05-chat-not-configured.png"><img src="app_check_images/05-chat-not-configured.png" alt="Screenshot: Chatbot checks a product&#39;s actual price and stock" loading="lazy"></a>
+        <p>Asked the real assistant: &quot;How much is the Champion Reverse Weave Hoodie 1, and is it in stock in XL?&quot; The database says $68.00, with XL at 0 (sold out). The assistant looked it up with its tools and replied: &quot;The Champion Reverse Weave Hoodie 1 costs $68.00, but it&#39;s sold out in XL. You can still get it in S, M, L and XXL. If you like a roomier fit, XXL might work, but that&#39;s up to you.
+
+These similar hoodies are in stock in XL, all at $68.00:
+
+The Forest School Hoodie: navy with bold white YALE lettering and a kangaroo pocket
+Squash Left Chest Hoodie: navy with a small white YALE SQUASH print on the left chest
+Yale Aunt Hoodie: navy with a white Yale University Aunt graphic across the chest
+
+You can see a few more options on the page. Go Bulldogs! 🐶&quot;</p>
+        <a href="app_check_images/05-chat-price-stock.png"><img src="app_check_images/05-chat-price-stock.png" alt="Screenshot: Chatbot checks a product&#39;s actual price and stock" loading="lazy"></a>
       </article>
       <article class="test" id="test-7">
         <header>
           <h3><span class="num">7</span>Matching products appear on the page after a chat search</h3>
-          <span class="badge not-run">Not run</span>
+          <span class="badge pass">Passed</span>
         </header>
-        <p class="note">The assistant replied: &quot;The shopping assistant isn&#39;t set up yet. Please try again later.&quot; Add your ANTHROPIC_API_KEY (python setup_env.py --api-key) and restart the API.</p>
-        
+        <p>Asked &quot;What hoodies do you have?&quot;. The assistant searched the database, and the website showed the results panel &quot;27 products for “What hoodies do you have?”&quot; with 24 product cards (images, names, prices and descriptions), all of them real hoodies from the catalogue. Clicking a card opens its product page. The assistant replied: &quot;I found 27 hoodies, and they&#39;re all on the page now. Here are a few favorites:
+
+Basic Hoodie Big Yale ($68.00): a classic navy pullover with big white YALE lettering. It&#39;s in stock in every size, but there are only a few left in S, M and XL.
+Champion Full Zip Hood ($88.00): a charcoal gray full-zip with white-and-navy YALE lettering. Every size is in stock, but there are only a few left in XS through L.
+District Vit Hoodie Vintage Bulldog ($68.00): dark heather gray with a vintage bulldog graphic. It&#39;s sold out in XXL.
+
+Are you looking for a particular style, design or price range?&quot;</p>
+        <a href="app_check_images/06-chat-results-panel.png"><img src="app_check_images/06-chat-results-panel.png" alt="Screenshot: Matching products appear on the page after a chat search" loading="lazy"></a>
       </article>
       <article class="test" id="test-8">
         <header>
           <h3><span class="num">8</span>Usability (Problem 9): chatbot suggests similar in-stock products</h3>
-          <span class="badge not-run">Not run</span>
+          <span class="badge pass">Passed</span>
         </header>
-        <p class="note">The assistant replied: &quot;The shopping assistant isn&#39;t set up yet. Please try again later.&quot; Add your ANTHROPIC_API_KEY (python setup_env.py --api-key) and restart the API.</p>
-        
+        <p>Champion Reverse Weave Hoodie 1 has 0 in XL. Asked &quot;Is the Champion Reverse Weave Hoodie 1 available in XL? If not, what&#39;s similar?&quot; The assistant said it&#39;s sold out and recommended alternatives. The page shows 5 of them, each in stock in XL (12 in stock, 12 in stock, 12 in stock, 8 in stock, Only 2 left). It replied: &quot;Sorry, the Champion Reverse Weave Hoodie 1 ($68.00) is sold out in XL. It&#39;s still in stock in S, M, L and XXL, so the XXL could work if you like a roomier fit.
+
+These similar hoodies are in stock in XL:
+
+The Forest School Hoodie ($68.00): navy and white with a kangaroo pocket and bold YALE lettering
+Squash Left Chest Hoodie ($68.00): navy blue with a small white YALE SQUASH print on the left chest
+Yale Dad Hoodie ($68.00): navy blue with a big white Yale University Dad graphic, which makes a great gift
+
+I&#39;ve put these and a couple more on the page. Go Bulldogs! 🐶&quot;</p>
+        <a href="app_check_images/07-chat-similar-products.png"><img src="app_check_images/07-chat-similar-products.png" alt="Screenshot: Usability (Problem 9): chatbot suggests similar in-stock products" loading="lazy"></a>
       </article>
 <footer>
   Generated by <code>frontend/scripts/app-check.mjs</code> (<code>npm run app-check</code>). Chatbot questions were asked as a guest, so nothing was saved to the database.
