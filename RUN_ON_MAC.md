@@ -117,7 +117,7 @@ python check_chat.py "Do you have anything with a bulldog?"
 In the same Terminal window (still in `backend`, with `(.venv)` showing):
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 Leave this window open. The API is running while you see `Application startup complete`.
@@ -153,7 +153,7 @@ If the chat says *"The assistant is having trouble right now"*, look at the firs
   # Tab 1
   cd ~/campus-customs/backend
   source .venv/bin/activate
-  uvicorn app.main:app --reload --port 8000
+  uvicorn main:app --reload --port 8000
 
   # Tab 2
   cd ~/campus-customs/frontend

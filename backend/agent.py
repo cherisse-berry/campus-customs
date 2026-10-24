@@ -5,6 +5,7 @@ import re
 from functools import cache
 from pathlib import Path
 
+import config  # noqa: F401  (loads .env)
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.models import Model
@@ -12,9 +13,10 @@ from pydantic_ai.models.anthropic import AnthropicModel, AnthropicModelSettings
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.usage import UsageLimits
 
-from .tools import TOOLS, ChatDeps
+from models import ChatDeps
+from tools import TOOLS
 
-PROMPT_FILE = Path(__file__).parent / "prompts" / "system_prompt.md"
+PROMPT_FILE = Path(__file__).parent / "prompts" / "prompt.md"
 DEFAULT_MODEL = "claude-opus-5-5"
 ANTHROPIC_API_URL = "https://api.anthropic.com"
 MAX_PRODUCT_CARDS = 6

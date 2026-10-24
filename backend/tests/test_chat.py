@@ -7,10 +7,10 @@ from pydantic_ai.exceptions import ContentFilterError
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from app import db
-from app.chat import agent as chat_agent
-from app.chat import router as chat_router
-from app.main import app
+import agent as chat_agent
+import db
+import main as chat_router
+from main import app
 
 pytestmark = pytest.mark.skipif(
     not db.DB_PATH.exists(), reason="database not present (it is not committed to git)"
@@ -179,7 +179,7 @@ class Ctx:
 
 
 def test_search_tool_filters_and_records_products():
-    from app.chat import tools
+    import tools
 
     ctx = Ctx()
     result = tools.search_products(ctx, query="bulldog", max_price=60)
@@ -196,7 +196,7 @@ def test_search_tool_filters_and_records_products():
 
 
 def test_details_tool_reports_stock_labels():
-    from app.chat import tools
+    import tools
 
     d = tools.get_product_details(Ctx(), "basic-hoodie-big-yale")
     assert d["stock_by_size"]["XS"] == "15 in stock"

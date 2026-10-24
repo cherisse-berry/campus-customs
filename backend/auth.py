@@ -18,9 +18,9 @@ import secrets
 import time
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
-from pydantic import BaseModel
-
-from . import db
+import config  # noqa: F401  (loads .env)
+import db
+from models import LoginRequest, RegisterRequest
 
 ALGORITHM = "pbkdf2_sha256"
 ITERATIONS = 120_000
@@ -102,18 +102,6 @@ def read_session_token(token: str, now: float | None = None) -> int | None:
 # --- API ---------------------------------------------------------------------
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-
-class RegisterRequest(BaseModel):
-    first_name: str
-    last_name: str
-    email: str
-    password: str
-
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
 
 
 def public_user(row) -> dict:

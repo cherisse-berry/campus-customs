@@ -10,7 +10,9 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
-DEFAULT_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+import config  # noqa: F401  (loads .env)
+
+DEFAULT_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 DATA_DIR = Path(os.environ.get("CAMPUS_DATA_DIR", DEFAULT_DATA_DIR))
 DB_PATH = DATA_DIR / "campus_customs.db"
 IMAGES_DIR = DATA_DIR / "products"

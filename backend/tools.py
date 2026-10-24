@@ -1,20 +1,12 @@
 """Read-only catalogue tools the assistant calls to look up products and stock."""
 
-from dataclasses import dataclass, field
-
 from pydantic_ai import RunContext
 
-from .. import db
+import db
+from models import ChatDeps
 
 MAX_RESULTS = 8
 LOW_STOCK = 5
-
-
-@dataclass
-class ChatDeps:
-    customer_first_name: str | None = None
-    # Every product a tool returned during this reply, by id, for the product cards.
-    seen_products: dict[str, dict] = field(default_factory=dict)
 
 
 def _remember(ctx: RunContext[ChatDeps], product: dict) -> None:

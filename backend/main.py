@@ -1,11 +1,15 @@
-"""Chat API: POST /api/chat sends a message to the assistant, GET /api/chat/history reloads it."""
+"""Campus Customs API: product catalogue, stock, images, customer accounts and chat."""
 
 import json
 import logging
+import os
 import time
 from collections import defaultdict, deque
+from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic_ai.exceptions import (
     ContentFilterError,
     ModelAPIError,
@@ -14,12 +18,72 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
 )
 
-from .. import auth, db
-from . import agent as chat_agent
-from .schemas import MAX_HISTORY, ChatReply, ChatRequest, HistoryEntry, ProductCard
+import agent as chat_agent
+import auth
+import config  # noqa: F401  (loads .env)
+import db
+from models import MAX_HISTORY, ChatReply, ChatRequest, HistoryEntry, ProductCard
 
 log = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+app = FastAPI(title="Campus Customs API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.environ.get(
+        "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(","),
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
+
+app.include_router(auth.router)
+
+# Serve only the images folder, never the data folder (which holds the database).
+app.mount(
+    "/media/products",
+    StaticFiles(directory=db.IMAGES_DIR, check_dir=False),
+    name="product-images",
+)
+
+
+@app.get("/api/health")
+def health() -> dict:
+    return {"status": "ok", "database": db.DB_PATH.exists()}
+
+
+@app.get("/api/categories")
+def categories() -> list[dict]:
+    products = db.list_products()
+    return [
+        {
+            "slug": slug,
+            "name": name,
+            "count": sum(p["category"] == slug for p in products),
+        }
+        for slug, name, _ in db.CATEGORIES
+    ]
+
+
+@app.get("/api/products")
+def products(
+    category: str | None = None,
+    q: str | None = Query(None, description="Search name, description, colors and tags"),
+    sort: Literal["name", "price-asc", "price-desc"] = "name",
+) -> list[dict]:
+    return db.search_products(category, q, sort)
+
+
+@app.get("/api/products/{product_id}")
+def product_detail(product_id: str) -> dict:
+    product = db.get_product(product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+# --- Chat ----------------------------------------------------------------------
 
 DECLINED_REPLY = (
     "Sorry, I can't help with that one. I'm happy to help you find Yale gear, check sizes "
@@ -56,7 +120,7 @@ def _cards(products_json: str | None) -> list[ProductCard]:
         return []
 
 
-@router.post("", response_model=ChatReply)
+@app.post("/api/chat", response_model=ChatReply)
 async def chat(body: ChatRequest, request: Request) -> ChatReply:
     user = auth.current_user(request)
     client = request.client.host if request.client else "unknown"
@@ -99,8 +163,8 @@ async def chat(body: ChatRequest, request: Request) -> ChatReply:
     return ChatReply(reply=reply, products=[ProductCard(**c) for c in cards])
 
 
-@router.get("/history", response_model=list[HistoryEntry])
-def history(request: Request) -> list[HistoryEntry]:
+@app.get("/api/chat/history", response_model=list[HistoryEntry])
+def chat_history(request: Request) -> list[HistoryEntry]:
     """The logged-in customer's recent messages. Guests have no saved history."""
     user = auth.current_user(request)
     if user is None:

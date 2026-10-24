@@ -12,10 +12,23 @@ The Campus Customs website: a Yale apparel shop built with **React + Vite + Type
 ## Project layout
 
 ```
-backend/    FastAPI app: product, stock and image API (+ pytest tests)
-frontend/   React + Vite + TypeScript website (+ Vitest tests)
-data/       Database and product images (local only, not in GitHub)
-output/     Notes, e.g. harness.md (database guide)
+backend/
+  main.py           FastAPI app: products, images, accounts and the /api/chat endpoints
+  agent.py          PydanticAI shopping assistant: model, settings, instructions
+  tools.py          Read-only catalogue tools the assistant calls
+  models.py         Pydantic request/response models and the agent's dependencies
+  prompts/
+    prompt.md       The assistant's instructions and safety guidelines
+  auth.py           Password hashing, login cookies, /api/auth endpoints
+  db.py             SQLite access (products and stock are read-only)
+  config.py         Loads backend/.env
+  setup_env.py      Creates .env with SESSION_SECRET and your API key
+  check_chat.py     Sends one live test message to Claude
+  export_static.py  Exports data for the static preview
+  tests/            pytest tests
+frontend/           React + Vite + TypeScript website (+ Vitest tests)
+data/               Database and product images (local only, not in GitHub)
+output/             Notes, e.g. harness.md (database, auth and chatbot guide)
 ```
 
 ## Setup
@@ -38,7 +51,7 @@ cd backend
 pip install -r requirements.txt
 python setup_env.py --api-key   # one time: creates .env, asks for your Anthropic API key
 python check_chat.py            # optional: sends one test question to Claude
-uvicorn app.main:app --reload --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 `setup_env.py` writes a 64-character random `SESSION_SECRET` to `backend/.env`, which the API loads automatically. With `--api-key`, it also asks for your Anthropic API key (create one at https://platform.claude.com/settings/keys). What you type is hidden, and the key is saved only to `.env`. Run it once on each computer that runs the site. It never prints secrets and won't replace the session secret unless you pass `--force`, which also logs everyone out. Without an API key the site still works, but the chat says the assistant isn't set up yet.

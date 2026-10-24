@@ -12,7 +12,7 @@ import sys
 
 from pydantic_ai.exceptions import ContentFilterError, ModelAPIError, ModelHTTPError
 
-from app.chat import agent as chat_agent
+import agent as chat_agent
 
 
 async def main(question: str) -> int:

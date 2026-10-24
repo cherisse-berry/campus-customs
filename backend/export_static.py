@@ -10,7 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from app import db
+import db
 
 
 def main(out: Path) -> None:

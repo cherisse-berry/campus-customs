@@ -116,4 +116,10 @@ A record of the prompts used while building the Campus Customs website, organize
 
 *What was missing:* The README listed the setup commands, but not the Mac-specific details a beginner needs: installing Homebrew, Python 3.11+ and Node.js; where to put `data.zip`; using two Terminal tabs; and what each error means. This prompt added `RUN_ON_MAC.md`, a step-by-step guide that was dry-run on a fresh copy of the project. Testing the hidden key prompt also led to two fixes: `setup_env.py` now exits cleanly if the prompt is cancelled, and the server log now shows why a chat request failed (for example, HTTP 401 for a rejected key).
 
+**Follow-up 4**
+
+> For Problem 5, please check that the files are organized exactly as required in the assignment: main.py, agent.py, tools.py, models.py, and prompts/prompt.md inside the backend folder. Make any necessary adjustments without changing functionality, test everything, and update the prompt log.
+
+*What was missing:* The first attempt put the chatbot code in nested folders (`backend/app/` and `backend/app/chat/`), with the prompt in `system_prompt.md`, the data models in `schemas.py` and the chat endpoints in a separate `router.py`. That worked, but it didn't match the file layout the assignment requires. This prompt moved the files to `backend/main.py`, `backend/agent.py`, `backend/tools.py`, `backend/models.py` and `backend/prompts/prompt.md`. The chat endpoints were folded into `main.py`, and all the Pydantic models went into `models.py`. The supporting files `auth.py`, `db.py` and `config.py` sit beside them. The server now starts with `uvicorn main:app`. Behavior is unchanged: the same 45 backend tests, 13 frontend tests and browser tests pass.
+
 ---

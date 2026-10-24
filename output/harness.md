@@ -88,7 +88,7 @@ SQLite manages this table itself. It records the last ID used in each auto-numbe
 
 ## Authentication
 
-Customers can create an account and log in. The code is in `backend/app/auth.py`, with the database queries in `backend/app/db.py`.
+Customers can create an account and log in. The code is in `backend/auth.py`, the request models in `backend/models.py`, and the database queries in `backend/db.py`.
 
 ### How passwords are stored
 
@@ -176,15 +176,15 @@ The chat window in the bottom-right corner of every page talks to an AI shopping
 ### How a message travels
 
 ```
-Chat window (React)  ──POST /api/chat──▶  FastAPI (chat/router.py)
+Chat window (React)  ──POST /api/chat──▶  FastAPI (main.py)
                                             │  who is it? (session cookie)
                                             │  earlier messages (database or browser)
                                             ▼
-                                     PydanticAI agent (chat/agent.py)
-                                            │  instructions: prompts/system_prompt.md
+                                     PydanticAI agent (agent.py)
+                                            │  instructions: prompts/prompt.md
                                             │  + "the customer's first name is …"
                                             ▼
-                                  Claude ◀──▶ catalogue tools (chat/tools.py)
+                                  Claude ◀──▶ catalogue tools (tools.py)
                                             │       read-only: search, details, stock
                                             ▼
                      reply text + product cards ──▶ chat window
@@ -203,11 +203,11 @@ Chat window (React)  ──POST /api/chat──▶  FastAPI (chat/router.py)
 
 | File | What it's for |
 |---|---|
-| `backend/app/chat/prompts/system_prompt.md` | The assistant's instructions: persona, how to use the tools, store facts and safety rules. Edit this to change how it behaves. |
-| `backend/app/chat/agent.py` | Creates the agent, chooses the model and its settings, turns saved messages into conversation history, and picks the product cards |
-| `backend/app/chat/tools.py` | The three tools Claude can call |
-| `backend/app/chat/schemas.py` | The shapes of chat requests and replies, and the length limits |
-| `backend/app/chat/router.py` | The `/api/chat` endpoints, error handling, the rate limit and saving history |
+| `backend/main.py` | The FastAPI app, including the `/api/chat` endpoints, error handling, the rate limit and saving history |
+| `backend/agent.py` | Creates the agent, chooses the model and its settings, turns saved messages into conversation history, and picks the product cards |
+| `backend/tools.py` | The three tools Claude can call |
+| `backend/models.py` | The shapes of chat requests and replies, the length limits, and `ChatDeps` (what the tools can see) |
+| `backend/prompts/prompt.md` | The assistant's instructions: persona, how to use the tools, store facts and safety rules. Edit this to change how it behaves. |
 | `frontend/src/chatApi.ts`, `frontend/src/components/ChatWidget.tsx` | The chat window |
 | `backend/check_chat.py` | Sends one real message to Claude to check your API key works |
 

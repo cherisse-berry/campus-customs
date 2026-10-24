@@ -4,8 +4,8 @@ from contextlib import closing
 import pytest
 from fastapi.testclient import TestClient
 
-from app import db
-from app.main import app
+import db
+from main import app
 
 pytestmark = pytest.mark.skipif(
     not db.DB_PATH.exists(), reason="database not present (it is not committed to git)"
