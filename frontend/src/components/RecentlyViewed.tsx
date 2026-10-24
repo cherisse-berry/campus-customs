@@ -22,8 +22,8 @@ export default function RecentlyViewed({ excludeId, max = 4 }: { excludeId?: str
         </button>
       </div>
       <div className="product-grid">
-        {viewed.map((p) => (
-          <ProductCard key={p.product_id} product={p} />
+        {viewed.map((p, i) => (
+          <ProductCard key={p.product_id} product={p} index={i} />
         ))}
       </div>
     </section>

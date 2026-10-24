@@ -4,8 +4,22 @@ import { NotFoundError, fetchProduct, formatPrice, useAsync } from '../api'
 import RecentlyViewed from '../components/RecentlyViewed'
 import { ErrorMessage, Loading } from '../components/Status'
 import { addRecentlyViewed } from '../recentlyViewed'
+import { openChat } from '../chatEvents'
 import { LOW_STOCK, availability, stockLabel, stockLevel } from '../stock'
 import type { SizeStock } from '../types'
+
+// Approximate swatch colors for the color names used in the catalogue.
+const SWATCHES: [string, string][] = [
+  ['navy', '#1d2a4d'], ['charcoal', '#3f4248'], ['heather', '#9aa0a8'], ['gray', '#8e939b'], ['grey', '#8e939b'],
+  ['white', '#ffffff'], ['black', '#111111'], ['red', '#b3262e'], ['green', '#2f6b45'], ['blue', '#2b5aa8'],
+  ['pink', '#e8a1b8'], ['purple', '#5b3c88'], ['orange', '#d9692b'], ['yellow', '#e9c341'], ['gold', '#c6a052'],
+  ['cream', '#efe7d4'], ['oatmeal', '#d9cdb5'], ['maroon', '#6b1f2b'], ['tan', '#c9a67a'], ['brown', '#6b4a2f'],
+]
+
+function swatch(color: string): string | undefined {
+  const name = color.toLowerCase()
+  return SWATCHES.find(([word]) => name.includes(word))?.[1]
+}
 
 /** "In stock in XS, S and L · Sold out in M" */
 function sizeSummary(stock: SizeStock[]): string {
@@ -72,7 +86,10 @@ export default function ProductPage() {
           <p className="detail-label">Colors</p>
           <ul className="color-list">
             {p.colors.map((c) => (
-              <li key={c}>{c}</li>
+              <li key={c}>
+                {swatch(c) && <span className="swatch" style={{ background: swatch(c) }} aria-hidden="true" />}
+                {c}
+              </li>
             ))}
           </ul>
 
@@ -108,6 +125,16 @@ export default function ProductPage() {
               </button>
             ))}
           </div>
+
+          <button className="btn btn-secondary btn-block ask-about" onClick={() => openChat()}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path
+                d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6A.5.5 0 0 1 5 19.2V16a2.5 2.5 0 0 1-1-2V5.5z"
+                fill="currentColor"
+              />
+            </svg>
+            Ask about sizing, colors or similar styles
+          </button>
 
           <table className="stock-table">
             <caption>Current stock</caption>

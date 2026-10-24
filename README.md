@@ -28,7 +28,7 @@ backend/
   tests/            pytest tests
 frontend/           React + Vite + TypeScript website (+ Vitest tests)
 data/               Database and product images (local only, not in GitHub)
-output/             Notes: harness.md (database, auth and chatbot guide), usability.md (Problem 9 improvements)
+output/             Notes: harness.md (database, auth and chatbot guide), usability.md (Problem 9), design.md (Problem 10)
 ```
 
 ## Setup

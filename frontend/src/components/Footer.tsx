@@ -5,7 +5,10 @@ export default function Footer() {
     <footer className="site-footer">
       <div className="container footer-grid">
         <div>
-          <p className="footer-brand">Campus Customs</p>
+          <p className="footer-brand">
+            <span className="brand-mark brand-mark-light" aria-hidden="true">CC</span>
+            Campus Customs
+          </p>
           <p className="muted-light">
             Yale apparel for students, alumni, family and fans. Designed with Bulldog pride in New Haven.
           </p>

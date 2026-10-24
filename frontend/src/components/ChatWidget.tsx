@@ -5,6 +5,7 @@ import { fetchProduct, formatPrice, useAsync } from '../api'
 import { useAuth } from '../authContext'
 import { fetchChatHistory, sendChatMessage, type ChatMessage, type ChatProduct } from '../chatApi'
 import { useChatResults } from '../chatResults'
+import { onOpenChat } from '../chatEvents'
 
 const greeting: ChatMessage = {
   role: 'assistant',
@@ -58,6 +59,8 @@ export default function ChatWidget() {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const sendRef = useRef<(text: string) => void>(() => {})
   const userId = user?.id
 
   // A logged-in customer sees their saved conversation; logging in or out starts fresh.
@@ -90,8 +93,19 @@ export default function ChatWidget() {
   // Lets the page make room for the open chat (see .chat-open in index.css).
   useEffect(() => {
     document.body.classList.toggle('chat-open', open)
+    if (open) inputRef.current?.focus({ preventScroll: true })
     return () => document.body.classList.remove('chat-open')
   }, [open])
+
+  // Other parts of the page can open the chat, optionally asking a question right away.
+  useEffect(
+    () =>
+      onOpenChat((message) => {
+        setOpen(true)
+        if (message) sendRef.current(message)
+      }),
+    [],
+  )
 
   async function send(text: string) {
     text = text.trim()
@@ -112,6 +126,8 @@ export default function ChatWidget() {
     }
   }
 
+  sendRef.current = send
+
   const lastWithResults = lastIndexOf(messages, (m) => m.role === 'assistant' && (m.results?.length ?? 0) > 0)
 
   function onSubmit(e: FormEvent) {
@@ -124,7 +140,10 @@ export default function ChatWidget() {
       {open && (
         <section className="chat-panel" role="dialog" aria-label="Campus Customs chat">
           <header className="chat-header">
-            <div>
+            <span className="chat-avatar" aria-hidden="true">
+              CC
+            </span>
+            <div className="chat-heading">
               <p className="chat-title">Campus Customs Assistant</p>
               <p className="chat-subtitle">
                 {user
@@ -191,6 +210,7 @@ export default function ChatWidget() {
           )}
           <form className="chat-form" onSubmit={onSubmit}>
             <input
+              ref={inputRef}
               id="chat-message"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -199,14 +219,16 @@ export default function ChatWidget() {
               maxLength={1000}
               autoComplete="off"
             />
-            <button type="submit" className="btn" disabled={!draft.trim() || sending}>
-              Send
+            <button type="submit" className="chat-send" aria-label="Send" disabled={!draft.trim() || sending}>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M4 12h14M12 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           </form>
         </section>
       )}
       <button
-        className="chat-launcher"
+        className={`chat-launcher ${open ? 'chat-launcher-open' : ''}`}
         aria-label={open ? 'Close chat' : 'Open chat'}
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
@@ -216,12 +238,17 @@ export default function ChatWidget() {
             <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
           </svg>
         ) : (
-          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-            <path
-              d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6A.5.5 0 0 1 5 19.2V16a2.5 2.5 0 0 1-1-2V5.5z"
-              fill="currentColor"
-            />
-          </svg>
+          <>
+            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+              <path
+                d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.2 3.6A.5.5 0 0 1 5 19.2V16a2.5 2.5 0 0 1-1-2V5.5z"
+                fill="currentColor"
+              />
+            </svg>
+            <span className="chat-launcher-label" aria-hidden="true">
+              Ask our assistant
+            </span>
+          </>
         )}
       </button>
     </div>

@@ -175,3 +175,15 @@ A record of the prompts used while building the Campus Customs website, organize
 > Check what we've already built to avoid duplicating features. Test all four improvements and create output/usability.md explaining what was added and why it helps customers. Also update AI_prompts.md.
 
 ---
+
+## Problem 10: Polished, Professional Design
+
+### Original prompt
+
+> For Problem 10, I'd like Campus Customs to look and feel like a polished, professional online store. Keep the Yale-inspired colors but make the design more modern, creative, and visually appealing.
+>
+> Improve the fonts, layout, product presentation, and chatbot appearance. Add subtle animations and thoughtful design details that make the site more engaging and easy to shop.
+>
+> Keep all existing functionality working, test the changes, and create output/design.md explaining what you improved and why it helps customers stay engaged and shop. Update AI_prompts.md.
+
+---

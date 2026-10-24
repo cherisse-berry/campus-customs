@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { fetchCategories, fetchProducts, useAsync } from '../api'
 import ProductCard from '../components/ProductCard'
-import { ErrorMessage, Loading } from '../components/Status'
+import { ProductGridSkeleton } from '../components/Skeleton'
+import { ErrorMessage } from '../components/Status'
 import { SIZES } from '../stock'
 import type { SortOrder } from '../types'
 
@@ -107,7 +108,7 @@ export default function Products() {
         ))}
       </div>
 
-      {products.status === 'loading' && <Loading label="Loading products…" />}
+      {products.status === 'loading' && <ProductGridSkeleton />}
       {products.status === 'error' && <ErrorMessage message="We couldn't load products." />}
       {products.status === 'ready' && (
         <>
@@ -123,8 +124,8 @@ export default function Products() {
             </div>
           ) : (
             <div className="product-grid">
-              {products.data.map((p) => (
-                <ProductCard key={p.product_id} product={p} />
+              {products.data.map((p, i) => (
+                <ProductCard key={p.product_id} product={p} index={i} />
               ))}
             </div>
           )}

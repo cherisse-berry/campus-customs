@@ -498,4 +498,38 @@ describe('Campus Customs site', () => {
     // The buttons go away once answered.
     expect(within(chat).queryByRole('group', { name: 'Suggested answers' })).not.toBeInTheDocument()
   })
+
+  // --- Problem 10 --------------------------------------------------------------
+
+  it("the home page's sample questions open the chat and ask them", async () => {
+    mockApi()
+    renderAt('/')
+    const questions = await screen.findByRole('group', { name: 'Try asking' })
+    await userEvent.click(within(questions).getByRole('button', { name: /Anything with a bulldog on it\?/ }))
+    const chat = await screen.findByRole('dialog', { name: 'Campus Customs chat' })
+    expect(await within(chat).findByText('Anything with a bulldog on it?', { selector: '.chat-user' })).toBeInTheDocument()
+    expect(chatRequests[0].message).toBe('Anything with a bulldog on it?')
+  })
+
+  it('the hero button and product page button open the assistant', async () => {
+    mockApi()
+    const home = renderAt('/')
+    await userEvent.click(screen.getByRole('button', { name: 'Ask our assistant' }))
+    expect(screen.getByRole('dialog', { name: 'Campus Customs chat' })).toBeInTheDocument()
+    home.unmount()
+
+    renderAt(`/products/${hoodie.product_id}`)
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask about sizing, colors or similar styles' }))
+    const chat = screen.getByRole('dialog', { name: 'Campus Customs chat' })
+    expect(await within(chat).findByText('Basic Hoodie Big Yale', { selector: '.chat-context strong' })).toBeInTheDocument()
+    expect(chatRequests).toEqual([]) // opening alone sends nothing
+  })
+
+  it('the header has a search shortcut and the product page shows color swatches', async () => {
+    mockApi()
+    renderAt(`/products/${hoodie.product_id}`)
+    expect(screen.getByRole('link', { name: 'Search the shop' })).toHaveAttribute('href', '/products')
+    const colors = await screen.findByText('navy blue')
+    expect(colors.querySelector('.swatch')).not.toBeNull()
+  })
 })

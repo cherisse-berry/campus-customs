@@ -68,8 +68,8 @@ export default function ChatResultsPanel() {
               </p>
             )}
             <div className="product-grid chat-results-grid">
-              {results.map((p) => (
-                <ProductCard key={p.product_id} product={p} />
+              {results.map((p, i) => (
+                <ProductCard key={p.product_id} product={p} index={i} />
               ))}
             </div>
           </>
