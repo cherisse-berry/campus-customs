@@ -90,6 +90,8 @@ cd frontend && npm test              # Component tests
 cd frontend && npm run lint && npm run build
 ```
 
+`npm run app-check` (in `frontend/`, with the API and website running) drives the real site in Chromium, checks prices, stock, the size filter, recently viewed and the chatbot against the live database, and writes `output/app_check.html` with screenshots in `output/app_check_images/`. The chatbot tests need `ANTHROPIC_API_KEY` in `backend/.env` and are marked "Not run" without it. Options: `BASE_URL`, `CHAT_TIMEOUT` (seconds), `OUTPUT_DIR`. The screenshots contain product photos, so they're git-ignored like `data/`.
+
 ## Static preview
 
 `npm run build:preview` (in `frontend/`) builds a version of the site that needs no server, in `frontend/dist-preview/`. It exports product and stock data (no user accounts or chats) to `data/catalog.json` and copies the product images. Log In, Create Account and the chat assistant are turned off in it, since they need the server. It's used for sharing a live preview and is git-ignored.

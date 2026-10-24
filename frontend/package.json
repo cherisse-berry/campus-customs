@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "build:preview": "tsc -b && VITE_STATIC=1 vite build --base ./ --outDir dist-preview && cd ../backend && python3 export_static.py ../frontend/dist-preview"
+    "build:preview": "tsc -b && VITE_STATIC=1 vite build --base ./ --outDir dist-preview && cd ../backend && python3 export_static.py ../frontend/dist-preview",
+    "app-check": "node scripts/app-check.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",
@@ -31,6 +32,7 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "jsdom": "^29.1.1",
+    "playwright": "1.63.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5",

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus Customs App Check</title>
+<style>
+  :root { --blue: #00356b; --blue-light: #286dc0; --ink: #0f1b2d; --muted: #5b6779; --line: #e1e7ef; --soft: #f6f8fb;
+          --ok: #137a52; --bad: #b42318; --warn: #b45309; color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--soft); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 max(16px, env(safe-area-inset-left)) 64px; }
+  .top { background: linear-gradient(160deg, var(--blue), #071a33); color: #fff; padding: 40px 0 32px; margin-bottom: 28px; }
+  .top h1 { margin: 0 0 6px; font: 600 clamp(1.8rem, 4vw, 2.6rem)/1.15 Georgia, serif; }
+  .top p { margin: 0; color: rgba(255,255,255,.8); }
+  .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .summary span { padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.12); font-weight: 600; font-size: .9rem; }
+  h2 { font: 600 1.5rem Georgia, serif; color: var(--blue); margin: 36px 0 14px; }
+  .test { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px 22px; margin-bottom: 20px;
+          box-shadow: 0 1px 2px rgba(7,26,51,.06); }
+  .test header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .test h3 { margin: 0 0 8px; font-size: 1.12rem; display: flex; gap: 10px; align-items: baseline; }
+  .num { display: inline-grid; place-items: center; min-width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; font-size: .85rem; }
+  .badge { flex-shrink: 0; padding: 3px 12px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+  .badge.pass { background: #e7f6ee; color: var(--ok); }
+  .badge.fail { background: #fdeceb; color: var(--bad); }
+  .badge.not-run { background: #fdf3e6; color: var(--warn); }
+  .test p { margin: 0 0 14px; color: #334155; overflow-wrap: anywhere; }
+  .note { padding: 10px 14px; border-radius: 10px; background: #fdf3e6; color: var(--warn) !important; }
+  .test img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="top"><div class="wrap">
+  <h1>Campus Customs App Check</h1>
+  <p>Automated check of the running website at http://localhost:5173 on October 24, 2026 at 1:51 PM. Every screenshot is from the real site, checked against the live database.
+     The chatbot tests did not run because the assistant has no API key yet (see below).</p>
+  <div class="summary"><span>5 passed</span><span>0 failed</span><span>3 not run</span></div>
+</div></div>
+<main class="wrap">
+<h2>Website</h2>
+      <article class="test" id="test-1">
+        <header>
+          <h3><span class="num">1</span>Home page loads with categories and featured products</h3>
+          <span class="badge pass">Passed</span>
+        </header>
+        <p>The redesigned home page loads from the running site: the hero, the category tiles with photos, and four featured products loaded from the database (found 4 featured cards and 6 categories; headline &quot;Wear your Bulldog pride.&quot;).</p>
+        <a href="app_check_images/01-home.png"><img src="app_check_images/01-home.png" alt="Screenshot: Home page loads with categories and featured products" loading="lazy"></a>
+      </article>
+      <article class="test" id="test-2">
+        <header>
+          <h3><span class="num">2</span>Product page shows the real price and stock for every size</h3>
+          <span class="badge pass">Passed</span>
+        </header>
+        <p>The Champion Reverse Weave Hoodie 1 page matches the database exactly: price $68.00 and stock XS 0, S 25, M 20, L 20, XL 0, XXL 15. Sold-out sizes are crossed out and can&#39;t be selected, and the summary box says which sizes are available.</p>
+        <a href="app_check_images/02-product-page.png"><img src="app_check_images/02-product-page.png" alt="Screenshot: Product page shows the real price and stock for every size" loading="lazy"></a>
+      </article>
+      <article class="test" id="test-3">
+        <header>
+          <h3><span class="num">3</span>Usability (Problem 9): stock on every card and the &quot;Size in stock&quot; filter</h3>
+          <span class="badge pass">Passed</span>
+        </header>
+        <p>Filtering hoodies to &quot;Size in stock: XL&quot; shows 21 of 27 hoodies, exactly the ones the database has in stock in XL. Every card shows its availability (&quot;5 of 6 sizes in stock&quot;) and size labels: green available, amber nearly gone, crossed out when sold out. Shoppers can see what they can buy without opening each product.</p>
+        <a href="app_check_images/03-size-filter.png"><img src="app_check_images/03-size-filter.png" alt="Screenshot: Usability (Problem 9): stock on every card and the &quot;Size in stock&quot; filter" loading="lazy"></a>
+      </article>
+      <article class="test" id="test-4">
+        <header>
+          <h3><span class="num">4</span>Usability (Problem 9): recently viewed products</h3>
+          <span class="badge pass">Passed</span>
+        </header>
+        <p>After opening four product pages, the home page lists them newest first (Berkeley Sweater Fleece Jacket, District Vit Crewneck Vintage Bulldog, Yale Mom Hoodie, Champion Reverse Weave Hoodie 1), with live prices and stock, so shoppers can get back to items they were comparing.</p>
+        <a href="app_check_images/04-recently-viewed.png"><img src="app_check_images/04-recently-viewed.png" alt="Screenshot: Usability (Problem 9): recently viewed products" loading="lazy"></a>
+      </article>
+      <article class="test" id="test-5">
+        <header>
+          <h3><span class="num">5</span>Works on a phone</h3>
+          <span class="badge pass">Passed</span>
+        </header>
+        <p>The product page at phone width (390px): the layout stacks into one column, the size buttons and stock summary stay readable, and nothing scrolls sideways.</p>
+        <a href="app_check_images/06-phone-product-page.png"><img src="app_check_images/06-phone-product-page.png" alt="Screenshot: Works on a phone" loading="lazy"></a>
+      </article><h2>Chatbot (real assistant, live data)</h2>
+      <article class="test" id="test-6">
+        <header>
+          <h3><span class="num">6</span>Chatbot checks a product&#39;s actual price and stock</h3>
+          <span class="badge not-run">Not run</span>
+        </header>
+        <p class="note">The assistant replied: &quot;The shopping assistant isn&#39;t set up yet. Please try again later.&quot; Add your ANTHROPIC_API_KEY (python setup_env.py --api-key) and restart the API.</p>
+        <a href="app_check_images/05-chat-not-configured.png"><img src="app_check_images/05-chat-not-configured.png" alt="Screenshot: Chatbot checks a product&#39;s actual price and stock" loading="lazy"></a>
+      </article>
+      <article class="test" id="test-7">
+        <header>
+          <h3><span class="num">7</span>Matching products appear on the page after a chat search</h3>
+          <span class="badge not-run">Not run</span>
+        </header>
+        <p class="note">The assistant replied: &quot;The shopping assistant isn&#39;t set up yet. Please try again later.&quot; Add your ANTHROPIC_API_KEY (python setup_env.py --api-key) and restart the API.</p>
+        
+      </article>
+      <article class="test" id="test-8">
+        <header>
+          <h3><span class="num">8</span>Usability (Problem 9): chatbot suggests similar in-stock products</h3>
+          <span class="badge not-run">Not run</span>
+        </header>
+        <p class="note">The assistant replied: &quot;The shopping assistant isn&#39;t set up yet. Please try again later.&quot; Add your ANTHROPIC_API_KEY (python setup_env.py --api-key) and restart the API.</p>
+        
+      </article>
+<footer>
+  Generated by <code>frontend/scripts/app-check.mjs</code> (<code>npm run app-check</code>). Chatbot questions were asked as a guest, so nothing was saved to the database.
+  <br>No page errors were seen during the check.
+</footer>
+</main>
+</body>
+</html>

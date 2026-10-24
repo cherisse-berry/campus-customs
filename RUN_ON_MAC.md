@@ -145,6 +145,25 @@ Open **http://localhost:5173** in your browser.
 
 If the chat says *"The assistant is having trouble right now"*, look at the first Terminal tab (the API). It shows the reason, for example `HTTP 401` for a rejected key.
 
+## Step 10: Run the app check (Problem 11)
+
+This script tests the running website in a real browser, takes screenshots and writes **output/app_check.html**, including the chatbot tests with your real assistant. Keep the API (Step 7) and the website (Step 8) running, and open a **third Terminal tab** with **Cmd + T**:
+
+```bash
+cd ~/campus-customs/frontend
+npm install                       # picks up Playwright, the browser tester
+npx playwright install chromium   # first time only, downloads the test browser
+npm run app-check
+```
+
+It takes a minute or two, since the chatbot tests wait for real replies. Then open the report:
+
+```bash
+open ../output/app_check.html
+```
+
+Each test shows **Passed**, **Failed** or **Not run**. If the chatbot tests say **Not run**, the API doesn't have your key yet: go back to Step 5, then restart the API (Ctrl + C in its tab, then `uvicorn main:app --reload --port 8000`) and run `npm run app-check` again. The chat tests run as a guest, so nothing is saved to the database.
+
 ## Stopping and starting again
 
 - **To stop:** press **Ctrl + C** in each Terminal tab.

@@ -1,5 +1,7 @@
 # Database and product images (kept local, never committed)
 data/
+# App check screenshots show the product photos
+output/app_check_images/
 *.db
 *.sqlite
 *.sqlite3

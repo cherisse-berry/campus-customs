@@ -187,3 +187,11 @@ A record of the prompts used while building the Campus Customs website, organize
 > Keep all existing functionality working, test the changes, and create output/design.md explaining what you improved and why it helps customers stay engaged and shop. Update AI_prompts.md.
 
 ---
+
+## Problem 11: App Check
+
+### Original prompt
+
+> please test the Campus Customs website and create output/app_check.html with screenshots showing that everything works. Include the chatbot checking a product's actual price and stock, matching products appearing on the page after a chat search, and one of the usability improvements from Problem 9. Give each test a heading, screenshot, and brief explanation of what it demonstrates. Save the screenshots in output/app_check_images and make sure the HTML opens properly. Please use actual screenshots from the running website, not simulated chatbot responses. If you can't test the real chatbot, let me know what I need to do.
+
+---
