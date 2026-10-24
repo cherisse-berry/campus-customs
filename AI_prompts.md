@@ -32,4 +32,14 @@ A record of the prompts used while building the Campus Customs website, organize
 >
 > Please also add this prompt to AI_prompts.md under Problem 2: Analyze the Database. Don't change the database or start building the website yet.
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> @"/root/.claude/uploads/fdfd79a1-0a59-5b7b-a0c0-1989838dd95a/79ba9514-data.zip"
+
+*(This message was just an uploaded file, `data.zip`, which contains `campus_customs.db` and the product images.)*
+
+*What was missing:* After the first prompt, there was no database in the project, so `output/harness.md` couldn't be written. Uploading `data.zip` provided the database, and the analysis was then completed.
+
 ---
