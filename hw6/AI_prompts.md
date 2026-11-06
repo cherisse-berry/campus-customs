@@ -23,3 +23,11 @@ A record of the prompts used during Homework 6, organized by assignment problem.
 *What was missing:* The first attempt used a placeholder title for Problem 1 because the assignment's title wasn't known. It also left an uncommitted edit in `hw4/AI_prompts.md` that recorded this Homework 6 prompt in the Homework 4 log. This prompt gave the correct title and asked for the Homework 4 file to be restored.
 
 ---
+
+## Problem 2: Handbook Token Count and Cost Estimate
+
+### Original prompt
+
+> For Problem 2, calculate the token count for `shop_handbook.md` and explain how you measured it. Using the GPT-6 Luna rates in `prices.json`, calculate the cost of sending the handbook for 1 call and 1,000 calls, with and without caching. Show the calculations and save the results in `hw6/output/handbook_estimate.md`. Update `AI_prompts.md`.
+
+---
