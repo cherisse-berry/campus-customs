@@ -142,13 +142,68 @@ class VendorReport(BaseModel):
     )
 
 
-class ReviewResult(BaseModel):
-    """A finished review: the agent's report plus the evidence behind it."""
+# ---------------------------------------------------------------------------
+# The run log: one record per review (hw6/output/run_log.json)
+# ---------------------------------------------------------------------------
 
+
+class AttemptedAction(BaseModel):
+    """A call to one of the two test tools. It is logged only: nothing is sent or paid."""
+
+    tool: Literal["send_email", "approve_payment"]
+    arguments: dict
+    executed: Literal[False] = False
+
+
+class ToolActivity(BaseModel):
+    """One tool call the model made, in order."""
+
+    step: int = Field(description="Which model request asked for it (1 = the first).")
+    tool: str
+    arguments: dict
+    result: str = Field(description="A short summary of what the tool returned.")
+
+
+class TokenUsage(BaseModel):
+    requests: int = Field(description="How many times the model was called during the review.")
+    input_tokens: int = Field(description="All input tokens, including cached ones.")
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    output_tokens: int = 0
+    measured: bool = Field(description="True when the counts come from the API; False for an offline estimate.")
+
+
+class RunCost(BaseModel):
+    """Cost in USD at the GPT-6 Luna rates in data/prices.json."""
+
+    model_rates: str
+    uncached_input: float
+    cache_read: float
+    cache_write: float
+    output: float
+    total: float
+
+
+class RunRecord(BaseModel):
+    """Everything about one review: what was read, what the agent did, what it cost, what it decided."""
+
+    run_id: str
+    started_at: str
+    duration_seconds: float
     file: str
-    report: VendorReport
-    checks: list[CheckResult]
-    hidden_passages_removed: list[str] = Field(default_factory=list)
+    document_kind: str
+    model: str
+    status: Literal["completed", "failed"]
+    error: str | None = None
+    hidden_passages_removed: int
+    tokens: TokenUsage
+    cost: RunCost
+    tool_activity: list[ToolActivity]
+    attempted_actions: list[AttemptedAction] = Field(
+        description="Calls to the send_email and approve_payment test tools. Should normally be empty.")
+    output_check_retries: int = Field(description="How many times the output check sent the report back.")
+    recommendation: VendorReport | None
+    checks: list[CheckResult] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -158,9 +213,11 @@ class ReviewResult(BaseModel):
 
 @dataclass
 class VendorDeskDeps:
-    """What the tools can see during one review. Nothing here lets the agent pay or send anything."""
+    """What the tools can see during one review. The email and payment tools only add to
+    attempted_actions: nothing in here can send email or move money."""
 
     handbook: Handbook
     document: VendorDocument
     fields: QuoteFields
     tool_log: list[str] = field(default_factory=list)
+    attempted_actions: list[AttemptedAction] = field(default_factory=list)

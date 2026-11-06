@@ -1,0 +1,845 @@
+{
+  "mode": "simulated",
+  "generated_at": "2026-11-06T04:37:18+00:00",
+  "model": "gpt-6-luna",
+  "rates_per_1m": {
+    "input_per_1m": 0.1,
+    "cached_input_per_1m": 0.01,
+    "cache_write_per_1m": 0.125,
+    "output_per_1m": 0.5
+  },
+  "documents": 12,
+  "documents_matching_key": 12,
+  "totals": {
+    "requests": 36,
+    "input_tokens": 429525,
+    "output_tokens": 3195,
+    "cache_read_tokens": 403200,
+    "cache_write_tokens": 11520,
+    "cost_without_caching": 0.04455,
+    "cost_with_caching": 0.00855,
+    "savings": 0.036,
+    "savings_percent": 80.8080808080808
+  },
+  "per_document": {
+    "average_requests": 3.0,
+    "average_input_tokens": 35793.75,
+    "average_output_tokens": 266.25,
+    "cost_without_caching": 0.0037125,
+    "cost_with_caching_warm_cache": 0.0006027454545454546
+  },
+  "request_breakdown_first_request": {
+    "input_tokens": 11750,
+    "shared_prefix_tokens": 11603,
+    "tool_definition_tokens": 998
+  },
+  "projection_1000_per_day_for_30_days": {
+    "documents": 30000,
+    "without_caching": 111.375,
+    "with_caching_one_cache_write_per_day": 18.121875272727273,
+    "with_caching_cache_rewritten_for_every_document": 57.594,
+    "savings_one_write_per_day": 93.25312472727273
+  },
+  "problem_2_estimate": {
+    "handbook_tokens": 10069,
+    "assumed_requests_per_document": 1,
+    "cost_per_document_without_caching": 0.0010069,
+    "cost_per_document_with_caching_warm": 0.00010069,
+    "cost_1000_calls_without_caching": 1.0069000000000001,
+    "cost_1000_calls_with_caching": 0.101847935
+  },
+  "documents_detail": [
+    {
+      "file": "p01_bluehen_quote.html",
+      "status": "completed",
+      "decision": "recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35789,
+      "output_tokens": 253,
+      "cache_read_tokens": 23040,
+      "cache_write_tokens": 11520,
+      "cost_without_caching": 0.0037054,
+      "cost_with_caching": 0.0019198000000000002,
+      "per_request": [
+        {
+          "input_tokens": 11750,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.001213
+          },
+          "with_caching": {
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 11520,
+            "uncached_input_tokens": 230,
+            "cost": 0.0015010000000000002
+          }
+        },
+        {
+          "input_tokens": 11924,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 74,
+          "without_caching": {
+            "cost": 0.0012294
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 404,
+            "cost": 0.00019260000000000002
+          }
+        },
+        {
+          "input_tokens": 12115,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 103,
+          "without_caching": {
+            "cost": 0.0012629999999999998
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 595,
+            "cost": 0.00022620000000000002
+          }
+        }
+      ]
+    },
+    {
+      "file": "p02_elmcity_quote.html",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35785,
+      "output_tokens": 273,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037150000000000004,
+      "cost_with_caching": 0.0006046000000000001,
+      "per_request": [
+        {
+          "input_tokens": 11750,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012135
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 230,
+            "cost": 0.0001767
+          }
+        },
+        {
+          "input_tokens": 11921,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012301000000000002
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 401,
+            "cost": 0.0001933
+          }
+        },
+        {
+          "input_tokens": 12114,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 120,
+          "without_caching": {
+            "cost": 0.0012714
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 594,
+            "cost": 0.0002346
+          }
+        }
+      ]
+    },
+    {
+      "file": "p03_ivyprint_catalog.html",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35798,
+      "output_tokens": 278,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037188,
+      "cost_with_caching": 0.0006084,
+      "per_request": [
+        {
+          "input_tokens": 11746,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012131
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 226,
+            "cost": 0.0001763
+          }
+        },
+        {
+          "input_tokens": 11917,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012297
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 397,
+            "cost": 0.00019290000000000003
+          }
+        },
+        {
+          "input_tokens": 12135,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 125,
+          "without_caching": {
+            "cost": 0.001276
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 615,
+            "cost": 0.00023920000000000001
+          }
+        }
+      ]
+    },
+    {
+      "file": "p04_harborstitch_quote.html",
+      "status": "completed",
+      "decision": "recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35840,
+      "output_tokens": 261,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037145,
+      "cost_with_caching": 0.0006041,
+      "per_request": [
+        {
+          "input_tokens": 11765,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 78,
+          "without_caching": {
+            "cost": 0.0012155
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 245,
+            "cost": 0.0001787
+          }
+        },
+        {
+          "input_tokens": 11940,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012324999999999999
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 420,
+            "cost": 0.00019569999999999999
+          }
+        },
+        {
+          "input_tokens": 12135,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 106,
+          "without_caching": {
+            "cost": 0.0012665
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 615,
+            "cost": 0.0002297
+          }
+        }
+      ]
+    },
+    {
+      "file": "p05_maplemills_quote.pdf",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35716,
+      "output_tokens": 260,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037016,
+      "cost_with_caching": 0.0005912000000000001,
+      "per_request": [
+        {
+          "input_tokens": 11726,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012111000000000001
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 206,
+            "cost": 0.0001743
+          }
+        },
+        {
+          "input_tokens": 11897,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012277000000000002
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 377,
+            "cost": 0.0001909
+          }
+        },
+        {
+          "input_tokens": 12093,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 107,
+          "without_caching": {
+            "cost": 0.0012628
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 573,
+            "cost": 0.00022600000000000002
+          }
+        }
+      ]
+    },
+    {
+      "file": "p06_qtextile_quote.pdf",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35892,
+      "output_tokens": 288,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037332,
+      "cost_with_caching": 0.0006228000000000001,
+      "per_request": [
+        {
+          "input_tokens": 11770,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 79,
+          "without_caching": {
+            "cost": 0.0012165000000000001
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 250,
+            "cost": 0.00017970000000000003
+          }
+        },
+        {
+          "input_tokens": 11949,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 78,
+          "without_caching": {
+            "cost": 0.0012339
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 429,
+            "cost": 0.00019710000000000002
+          }
+        },
+        {
+          "input_tokens": 12173,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 131,
+          "without_caching": {
+            "cost": 0.0012828
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 653,
+            "cost": 0.000246
+          }
+        }
+      ]
+    },
+    {
+      "file": "p07_longwharf_quote.pdf",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35775,
+      "output_tokens": 260,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037075,
+      "cost_with_caching": 0.0005971,
+      "per_request": [
+        {
+          "input_tokens": 11745,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012129999999999999
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 225,
+            "cost": 0.0001762
+          }
+        },
+        {
+          "input_tokens": 11917,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012297
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 397,
+            "cost": 0.00019290000000000003
+          }
+        },
+        {
+          "input_tokens": 12113,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 107,
+          "without_caching": {
+            "cost": 0.0012648
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 593,
+            "cost": 0.000228
+          }
+        }
+      ]
+    },
+    {
+      "file": "p08_chapelst_email.eml",
+      "status": "completed",
+      "decision": "recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35781,
+      "output_tokens": 258,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037071,
+      "cost_with_caching": 0.0005967,
+      "per_request": [
+        {
+          "input_tokens": 11750,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012135
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 230,
+            "cost": 0.0001767
+          }
+        },
+        {
+          "input_tokens": 11920,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.00123
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 400,
+            "cost": 0.0001932
+          }
+        },
+        {
+          "input_tokens": 12111,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 105,
+          "without_caching": {
+            "cost": 0.0012636000000000001
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 591,
+            "cost": 0.0002268
+          }
+        }
+      ]
+    },
+    {
+      "file": "p09_westville_email.eml",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35843,
+      "output_tokens": 260,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037143000000000002,
+      "cost_with_caching": 0.0006039,
+      "per_request": [
+        {
+          "input_tokens": 11769,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012154
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 249,
+            "cost": 0.0001786
+          }
+        },
+        {
+          "input_tokens": 11940,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.001232
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 420,
+            "cost": 0.0001952
+          }
+        },
+        {
+          "input_tokens": 12134,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 107,
+          "without_caching": {
+            "cost": 0.0012669
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 614,
+            "cost": 0.0002301
+          }
+        }
+      ]
+    },
+    {
+      "file": "p10_eastrock_email.eml",
+      "status": "completed",
+      "decision": "recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35836,
+      "output_tokens": 258,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037126,
+      "cost_with_caching": 0.0006022,
+      "per_request": [
+        {
+          "input_tokens": 11769,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012154
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 249,
+            "cost": 0.0001786
+          }
+        },
+        {
+          "input_tokens": 11938,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012318
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 418,
+            "cost": 0.00019500000000000002
+          }
+        },
+        {
+          "input_tokens": 12129,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 105,
+          "without_caching": {
+            "cost": 0.0012654
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 609,
+            "cost": 0.0002286
+          }
+        }
+      ]
+    },
+    {
+      "file": "p11_yorkst_quote.html",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35694,
+      "output_tokens": 274,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037064000000000003,
+      "cost_with_caching": 0.000596,
+      "per_request": [
+        {
+          "input_tokens": 11718,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 77,
+          "without_caching": {
+            "cost": 0.0012102999999999999
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 198,
+            "cost": 0.0001735
+          }
+        },
+        {
+          "input_tokens": 11891,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012271000000000003
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 371,
+            "cost": 0.00019030000000000002
+          }
+        },
+        {
+          "input_tokens": 12085,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 121,
+          "without_caching": {
+            "cost": 0.001269
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 565,
+            "cost": 0.0002322
+          }
+        }
+      ]
+    },
+    {
+      "file": "p12_bluehen_quote.pdf",
+      "status": "completed",
+      "decision": "do_not_recommend",
+      "matches_key": true,
+      "requests": 3,
+      "tool_calls": [
+        "get_quote_fields",
+        "look_up_vendor",
+        "check_purchase_rules"
+      ],
+      "attempted_actions": 0,
+      "input_tokens": 35776,
+      "output_tokens": 272,
+      "cache_read_tokens": 34560,
+      "cache_write_tokens": 0,
+      "cost_without_caching": 0.0037136,
+      "cost_with_caching": 0.0006032,
+      "per_request": [
+        {
+          "input_tokens": 11745,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 76,
+          "without_caching": {
+            "cost": 0.0012125
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 225,
+            "cost": 0.00017570000000000002
+          }
+        },
+        {
+          "input_tokens": 11919,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 75,
+          "without_caching": {
+            "cost": 0.0012294
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 399,
+            "cost": 0.00019260000000000002
+          }
+        },
+        {
+          "input_tokens": 12112,
+          "shared_prefix_tokens": 11603,
+          "tool_definition_tokens": 998,
+          "output_tokens": 121,
+          "without_caching": {
+            "cost": 0.0012717
+          },
+          "with_caching": {
+            "cache_read_tokens": 11520,
+            "cache_write_tokens": 0,
+            "uncached_input_tokens": 592,
+            "cost": 0.00023490000000000002
+          }
+        }
+      ]
+    }
+  ]
+}

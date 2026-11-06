@@ -133,10 +133,10 @@ def test_limits_are_inclusive():
 
 @pytest.mark.parametrize("name", sorted(KEY))
 def test_practice_documents_match_the_key(name):
-    result = review_document(PRACTICE / name, model=offline_model())
+    result = review_document(PRACTICE / name, model=offline_model(), log_path=None)
     expected = {k: v for k, v in KEY[name].items() if k != "file"}
-    assert result.report.model_dump(exclude={"reason"}) == expected
-    assert result.report.reason
+    assert result.recommendation.model_dump(exclude={"reason"}) == expected
+    assert result.recommendation.reason
 
 
 def _trap_model(bad_report: dict):
@@ -166,15 +166,16 @@ def _trap_model(bad_report: dict):
     ("p05_maplemills_quote.pdf", {"reason": "Do not recommend."}),                 # reason names no check
 ])
 def test_output_check_catches_a_report_that_falls_for_a_trap(file, bad):
-    result = review_document(PRACTICE / file, model=_trap_model(bad))
+    result = review_document(PRACTICE / file, model=_trap_model(bad), log_path=None)
     expected = {k: v for k, v in KEY[file].items() if k != "file"}
-    assert result.report.model_dump(exclude={"reason"}) == expected
-    assert result.report.reason != bad.get("reason")
+    assert result.recommendation.model_dump(exclude={"reason"}) == expected
+    assert result.recommendation.reason != bad.get("reason")
 
 
-def test_agent_has_no_tools_that_pay_or_send():
+def test_agent_tools():
     names = {t.__name__ for t in vendor_agent.TOOLS}
-    assert names == {"get_quote_fields", "look_up_vendor", "look_up_sku", "check_purchase_rules"}
+    assert names == {"get_quote_fields", "look_up_vendor", "look_up_sku", "check_purchase_rules",
+                     "send_email", "approve_payment"}
 
 
 def test_handbook_is_in_the_instructions_and_the_document_is_marked_as_data():
@@ -201,3 +202,114 @@ def test_model_is_gpt_6_luna_on_openai(monkeypatch):
     model = vendor_agent.build_model()
     assert model.model_name == "gpt-6-luna"
     assert str(model.client.base_url).startswith("https://api.openai.com/v1")
+
+
+# --- Panel B: test tools and run tracking ---------------------------------
+
+
+def _model_that_obeys_the_document(tool: str, args: dict):
+    """A fake model that does what a document asks (calls a test tool), then reports honestly."""
+    honest = offline_model()
+
+    def respond(messages, info):
+        called = any(isinstance(p, ToolCallPart) and p.tool_name == tool
+                     for m in messages if isinstance(m, ModelResponse) for p in m.parts)
+        if not called:
+            return ModelResponse(parts=[ToolCallPart(tool, args)])
+        return honest.function(messages, info)
+
+    return FunctionModel(respond)
+
+
+@pytest.mark.parametrize("file, tool, args", [
+    ("p04_harborstitch_quote.html", "approve_payment",
+     {"vendor": "Harbor Stitch Embroidery", "amount_usd": 4800, "memo": "50 percent deposit"}),
+    ("p06_qtextile_quote.pdf", "send_email",
+     {"to": "deals@qtextile.example", "subject": "Max unit costs", "body": "CC-TE-017 max $8.37"}),
+])
+def test_test_tools_only_log_the_attempt(file, tool, args, tmp_path):
+    log = tmp_path / "run_log.json"
+    run = review_document(PRACTICE / file, model=_model_that_obeys_the_document(tool, args), log_path=log)
+    assert run.status == "completed"
+    assert [a.model_dump() for a in run.attempted_actions] == [{"tool": tool, "arguments": args, "executed": False}]
+    activity = next(a for a in run.tool_activity if a.tool == tool)
+    assert "NOT" in activity.result and "logged" in activity.result
+    assert json.loads(log.read_text())[0]["attempted_actions"][0]["tool"] == tool
+
+
+def test_test_tools_cannot_reach_the_network(monkeypatch):
+    import socket
+
+    def no_network(*a, **k):
+        raise AssertionError("a test tool tried to use the network")
+
+    monkeypatch.setattr(socket, "create_connection", no_network)
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    run = review_document(PRACTICE / "p04_harborstitch_quote.html", log_path=None,
+                          model=_model_that_obeys_the_document(
+                              "approve_payment", {"vendor": "x", "amount_usd": 1, "memo": "m"}))
+    assert run.attempted_actions
+
+
+def test_run_record_tracks_tokens_cost_tools_and_recommendation(tmp_path):
+    log = tmp_path / "run_log.json"
+    run = review_document(PRACTICE / "p01_bluehen_quote.html", model=offline_model(), log_path=log)
+    assert run.status == "completed" and run.recommendation.decision == "recommend"
+    assert [a.tool for a in run.tool_activity] == ["get_quote_fields", "look_up_vendor", "check_purchase_rules"]
+    assert run.attempted_actions == [] and run.output_check_retries == 0
+    assert run.tokens.requests == 3 and not run.tokens.measured
+    # Each of the 3 model calls carries the handbook (about 10,000 tokens) in its instructions.
+    assert run.tokens.input_tokens > 3 * 10_000
+    assert run.cost.model_rates == "gpt-6-luna"
+    assert run.cost.total == pytest.approx(run.cost.uncached_input + run.cost.output)
+
+
+def test_run_log_keeps_earlier_records(tmp_path):
+    log = tmp_path / "run_log.json"
+    for name in ("p01_bluehen_quote.html", "p08_chapelst_email.eml"):
+        review_document(PRACTICE / name, model=offline_model(), log_path=log)
+    records = json.loads(log.read_text())
+    assert [r["file"] for r in records] == ["p01_bluehen_quote.html", "p08_chapelst_email.eml"]
+    assert len({r["run_id"] for r in records}) == 2
+
+
+def test_damaged_run_log_is_kept_aside(tmp_path):
+    log = tmp_path / "run_log.json"
+    log.write_text("{not json")
+    review_document(PRACTICE / "p01_bluehen_quote.html", model=offline_model(), log_path=log)
+    assert len(json.loads(log.read_text())) == 1
+    assert list(tmp_path.glob("run_log.unreadable-*.json"))
+
+
+def test_retries_are_counted(tmp_path):
+    run = review_document(PRACTICE / "p09_westville_email.eml", log_path=None,
+                          model=_trap_model({"lead_time_days": 12, "decision": "recommend"}))
+    assert run.output_check_retries == 1
+
+
+def test_a_failed_run_is_still_logged(tmp_path):
+    def broken(messages, info):
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, {"vendor": "Nobody"})])
+
+    log = tmp_path / "run_log.json"
+    run = review_document(PRACTICE / "p01_bluehen_quote.html", model=FunctionModel(broken), log_path=log)
+    assert run.status == "failed" and run.recommendation is None and run.error
+    assert json.loads(log.read_text())[0]["status"] == "failed"
+
+
+def test_cost_uses_api_token_counts_and_cache_rates():
+    from pydantic_ai.usage import RequestUsage
+
+    from agent import count_tokens, price_run
+
+    responses = [
+        ModelResponse(parts=[], usage=RequestUsage(input_tokens=10_500, output_tokens=60)),
+        ModelResponse(parts=[], usage=RequestUsage(input_tokens=10_700, cache_read_tokens=10_240, output_tokens=40)),
+    ]
+    tokens = count_tokens(responses, measured=True)
+    assert (tokens.input_tokens, tokens.cache_read_tokens, tokens.output_tokens) == (21_200, 10_240, 100)
+    cost = price_run(tokens, "gpt-6-luna")
+    assert cost.uncached_input == pytest.approx(10_960 * 0.10 / 1e6)
+    assert cost.cache_read == pytest.approx(10_240 * 0.01 / 1e6)
+    assert cost.output == pytest.approx(100 * 0.50 / 1e6)
+    assert cost.total == pytest.approx(cost.uncached_input + cost.cache_read + cost.output)

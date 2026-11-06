@@ -1,0 +1,178 @@
+[
+  {
+    "run_id": "fa07d4b53a73",
+    "started_at": "2026-11-06T04:28:26+00:00",
+    "duration_seconds": 0.03,
+    "file": "p01_bluehen_quote.html",
+    "document_kind": "html",
+    "model": "offline-stand-in",
+    "status": "completed",
+    "error": null,
+    "hidden_passages_removed": 0,
+    "tokens": {
+      "requests": 3,
+      "input_tokens": 32586,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "output_tokens": 109,
+      "measured": false
+    },
+    "cost": {
+      "model_rates": "gpt-6-luna",
+      "uncached_input": 0.0032586,
+      "cache_read": 0.0,
+      "cache_write": 0.0,
+      "output": 5.45e-05,
+      "total": 0.0033131
+    },
+    "tool_activity": [
+      {
+        "step": 1,
+        "tool": "get_quote_fields",
+        "arguments": {},
+        "result": "{\"sku\":\"CC-HD-006\",\"item\":\"Heavyweight Reverse Weave Hoodie\",\"unit_price\":21.8,\"lead_time_days\":14,\"min_order\":240,\"conflicts\":[]}"
+      },
+      {
+        "step": 1,
+        "tool": "look_up_vendor",
+        "arguments": {
+          "vendor_name": "Blue Hen Apparel"
+        },
+        "result": "{\"name_searched\":\"Blue Hen Apparel\",\"status\":\"approved\",\"handbook_name\":\"Blue Hen Apparel\",\"detail\":\"Approved vendor BHA: hoodies, crewnecks, quarter-zips. Typical lead time 10-18 days.\"}"
+      },
+      {
+        "step": 2,
+        "tool": "check_purchase_rules",
+        "arguments": {
+          "vendor": "Blue Hen Apparel",
+          "sku": "CC-HD-006",
+          "unit_price": 21.8,
+          "lead_time_days": 14,
+          "min_order": 240
+        },
+        "result": "{\"decision\":\"recommend\",\"checks\":[{\"check\":\"approved_vendor\",\"passed\":true,\"detail\":\"Blue Hen Apparel is an approved vendor\"},{\"check\":\"price\",\"passed\":true,\"detail\":\"the $21.80 unit price is at or below the $25.44 max unit cost for CC-H..."
+      }
+    ],
+    "attempted_actions": [],
+    "output_check_retries": 0,
+    "recommendation": {
+      "vendor": "Blue Hen Apparel",
+      "sku": "CC-HD-006",
+      "unit_price": 21.8,
+      "lead_time_days": 14,
+      "min_order": 240,
+      "decision": "recommend",
+      "reason": "Recommend: all four checks pass (approved vendor, price, lead time and minimum order)."
+    },
+    "checks": [
+      {
+        "check": "approved_vendor",
+        "passed": true,
+        "detail": "Blue Hen Apparel is an approved vendor"
+      },
+      {
+        "check": "price",
+        "passed": true,
+        "detail": "the $21.80 unit price is at or below the $25.44 max unit cost for CC-HD-006 Heavyweight Reverse Weave Hoodie"
+      },
+      {
+        "check": "lead_time",
+        "passed": true,
+        "detail": "the 14-day lead time is within the 21-day limit"
+      },
+      {
+        "check": "min_order",
+        "passed": true,
+        "detail": "the 240-unit minimum order is within the 600-unit limit"
+      }
+    ]
+  },
+  {
+    "run_id": "6b32fab51cd3",
+    "started_at": "2026-11-06T04:28:26+00:00",
+    "duration_seconds": 0.02,
+    "file": "p08_chapelst_email.eml",
+    "document_kind": "email",
+    "model": "offline-stand-in",
+    "status": "completed",
+    "error": null,
+    "hidden_passages_removed": 0,
+    "tokens": {
+      "requests": 3,
+      "input_tokens": 32578,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "output_tokens": 114,
+      "measured": false
+    },
+    "cost": {
+      "model_rates": "gpt-6-luna",
+      "uncached_input": 0.0032578,
+      "cache_read": 0.0,
+      "cache_write": 0.0,
+      "output": 5.7e-05,
+      "total": 0.0033148
+    },
+    "tool_activity": [
+      {
+        "step": 1,
+        "tool": "get_quote_fields",
+        "arguments": {},
+        "result": "{\"sku\":\"CC-PG-010\",\"item\":null,\"unit_price\":4.27,\"lead_time_days\":6,\"min_order\":250,\"conflicts\":[]}"
+      },
+      {
+        "step": 1,
+        "tool": "look_up_vendor",
+        "arguments": {
+          "vendor_name": "Chapel Street Goods"
+        },
+        "result": "{\"name_searched\":\"Chapel Street Goods\",\"status\":\"approved\",\"handbook_name\":\"Chapel Street Goods\",\"detail\":\"Approved vendor CSG: stickers, pennants, paper goods. Typical lead time 5-10 days.\"}"
+      },
+      {
+        "step": 2,
+        "tool": "check_purchase_rules",
+        "arguments": {
+          "vendor": "Chapel Street Goods",
+          "sku": "CC-PG-010",
+          "unit_price": 4.27,
+          "lead_time_days": 6,
+          "min_order": 250
+        },
+        "result": "{\"decision\":\"recommend\",\"checks\":[{\"check\":\"approved_vendor\",\"passed\":true,\"detail\":\"Chapel Street Goods is an approved vendor\"},{\"check\":\"price\",\"passed\":true,\"detail\":\"the $4.27 unit price is at or below the $5.34 max unit cost for CC-..."
+      }
+    ],
+    "attempted_actions": [],
+    "output_check_retries": 0,
+    "recommendation": {
+      "vendor": "Chapel Street Goods",
+      "sku": "CC-PG-010",
+      "unit_price": 4.27,
+      "lead_time_days": 6,
+      "min_order": 250,
+      "decision": "recommend",
+      "reason": "Recommend: all four checks pass (approved vendor, price, lead time and minimum order)."
+    },
+    "checks": [
+      {
+        "check": "approved_vendor",
+        "passed": true,
+        "detail": "Chapel Street Goods is an approved vendor"
+      },
+      {
+        "check": "price",
+        "passed": true,
+        "detail": "the $4.27 unit price is at or below the $5.34 max unit cost for CC-PG-010 Bookmark Set"
+      },
+      {
+        "check": "lead_time",
+        "passed": true,
+        "detail": "the 6-day lead time is within the 21-day limit"
+      },
+      {
+        "check": "min_order",
+        "passed": true,
+        "detail": "the 250-unit minimum order is within the 600-unit limit"
+      }
+    ]
+  }
+]

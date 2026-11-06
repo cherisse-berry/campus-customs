@@ -48,4 +48,26 @@ A record of the prompts used during Homework 6, organized by assignment problem.
 
 > For Problem 3, I need to build a vendor desk agent using PydanticAI and GPT-6 Luna. It should review PDF, HTML, and email documents, identify the vendor, SKU, price, delivery time, and minimum order, and use the shop handbook to decide whether to recommend the purchase. I also need it to briefly explain each decision. Please create the four required files and update my prompt log.
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> For Problem 3, I forgot to include Panel B. The agent also needs two test tools for emails and payments that only log attempted actions without actually sending or paying anything.
+>
+> Please track each run's token usage, cost, tool activity, and final recommendation. Test the agent using practice documents p01 and p08, and create the required file explaining the fields and tools. Update my prompt log.
+
+*What was missing:* The first version had no email or payment tools, no record of each run, and no file explaining the fields and tools. This prompt added `send_email` and `approve_payment` test tools that only log the attempt, and a run log (`hw6/output/run_log.json`) with each run's tokens, cost, tool calls, attempted actions and final recommendation. It also added `hw6/output/harness.md`, which explains the fields and tools. p01 and p08 were tested with the offline stand-in, and both were recommended, matching the key. A real GPT-6 Luna test needed an OpenAI API key. The request to add one in the cloud workspace was declined, so those runs' tokens and costs are estimates.
+
+---
+
+## Problem 4: Prompt Caching Comparison
+
+### Original prompt
+
+> For Problem 4, I want to test the agent on all 12 practice documents with and without caching to see how much money it saves. Please compare the token usage and actual costs for both approaches using the provided pricing.
+>
+> I also want to understand how the results compare to our estimates from Problem 2, what it would cost to process 1,000 documents a day for 30 days, and whether anything in the results was unexpected.
+>
+> Please save the results in the required files and update my prompt log.
+
 ---
