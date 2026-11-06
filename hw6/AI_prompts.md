@@ -30,4 +30,14 @@ A record of the prompts used during Homework 6, organized by assignment problem.
 
 > For Problem 2, calculate the token count for `shop_handbook.md` and explain how you measured it. Using the GPT-6 Luna rates in `prices.json`, calculate the cost of sending the handbook for 1 call and 1,000 calls, with and without caching. Show the calculations and save the results in `hw6/output/handbook_estimate.md`. Update `AI_prompts.md`.
 
+### Follow-up prompts
+
+**Follow-up 1**
+
+> @"/root/.claude/uploads/960ea48b-242b-55bc-8716-20def2c1f94c/16aa9a8c-data_1.zip"
+
+*(This message was just an uploaded file, `data_1.zip`, which contains `shop_handbook.md`, `prices.json`, `practice_key.json` and the practice and exam documents. They were saved in `hw6/data/`, which is kept out of GitHub.)*
+
+*What was missing:* After the first prompt, neither `shop_handbook.md` nor `prices.json` was in the project, so the tokens couldn't be counted and the costs couldn't be worked out. Uploading `data_1.zip` provided both files. The handbook was measured at 10,069 tokens with `tiktoken` (`o200k_base`), and the results were saved in `hw6/output/handbook_estimate.md`, along with the script that calculates them, `hw6/scripts/handbook_estimate.py`.
+
 ---
