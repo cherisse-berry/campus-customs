@@ -41,3 +41,11 @@ A record of the prompts used during Homework 6, organized by assignment problem.
 *What was missing:* After the first prompt, neither `shop_handbook.md` nor `prices.json` was in the project, so the tokens couldn't be counted and the costs couldn't be worked out. Uploading `data_1.zip` provided both files. The handbook was measured at 10,069 tokens with `tiktoken` (`o200k_base`), and the results were saved in `hw6/output/handbook_estimate.md`, along with the script that calculates them, `hw6/scripts/handbook_estimate.py`.
 
 ---
+
+## Problem 3: Vendor Desk Agent
+
+### Original prompt
+
+> For Problem 3, I need to build a vendor desk agent using PydanticAI and GPT-6 Luna. It should review PDF, HTML, and email documents, identify the vendor, SKU, price, delivery time, and minimum order, and use the shop handbook to decide whether to recommend the purchase. I also need it to briefly explain each decision. Please create the four required files and update my prompt log.
+
+---
