@@ -24,7 +24,7 @@ A record of the prompts used during Homework 6, organized by assignment problem.
 
 ---
 
-## Problem 2: Handbook Token Count and Cost Estimate
+## Problem 2: Size Up the Handbook
 
 ### Original prompt
 
