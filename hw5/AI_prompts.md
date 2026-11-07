@@ -360,5 +360,13 @@ So nothing else in Problem 9 was started. The database wasn't reset, no agents w
 
 The run itself, the approvals, the Actual and Cash sections, `resolved_tickets.json` and `resolved_board.html` wait until the connection check passes.
 
+**Follow-up 2**
+
+> Thank you for explaining. Let's use Option A. Please show me the secure form so I can add my Portkey key.
+>
+> Once that's done, let's confirm the connection works before moving forward with the actual ticket runs. I want to review the results before we reset the database or start processing tickets.
+
+*What happened:* The secure key form was shown, but it came back as declined, so no key was saved. It may have been closed, or the app may not have been able to display it. The connection check therefore couldn't run. As agreed, nothing else was started: the database wasn't reset and no tickets were run. The key can still be added through the environment's settings (Option B) or used on the user's own computer.
+
 ---
 
