@@ -19,9 +19,11 @@ from typing import Any, AsyncIterator
 
 from pydantic_ai import Agent, RunContext
 
-from agents.config import BOSS_NAME, MODEL_NAME, build_model
+from agents.config import BOSS_NAME, build_model
+from pricing import DEFAULT_BUDGET_USD, DEFAULT_MODEL, PRICES_PER_MTOK
 from agents.events import clip, run_traced
 from agents.specialists import run_specialist, specialist_name
+from agents.spend import BudgetExceeded, SpendLedger
 from models import BOOK_TITLES, Delegation
 
 PROMPT = (Path(__file__).resolve().parents[1] / "prompts" / "boss.md").read_text(encoding="utf-8")
@@ -31,6 +33,7 @@ MAX_DELEGATIONS = 12  # guard rail on Portkey spend per question
 @dataclass
 class BossDeps:
     queue: asyncio.Queue
+    ledger: SpendLedger
     delegations: list[dict] = field(default_factory=list)
     trace: list[dict] = field(default_factory=list)
     specialist_usage: list[dict] = field(default_factory=list)
@@ -49,6 +52,23 @@ class BossDeps:
         if event_type not in ("final", "error"):
             self.trace.append(event)
         self.queue.put_nowait(event)
+        if event_type == "agent_step" and data.get("kind") == "model_response":
+            self._charge(data)
+
+    def _charge(self, data: dict) -> None:
+        """Price one model response, stream the running bill, and stop at the budget."""
+        usage = data.get("usage") or {}
+        book = data.get("book_number")
+        key = f"book-{book}" if book else "boss"
+        usd = self.ledger.add(key, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+        snap = self.ledger.snapshot()
+        self.emit("spend", agent_key=key, agent=data.get("agent"), book_number=book, delta_usd=usd, **snap)
+        if snap["total_usd"] >= self.ledger.budget_usd and not self.ledger.blown:
+            self.ledger.blown = True
+            self.emit("budget_exceeded", **snap)
+            raise BudgetExceeded(
+                f"Budget blown: spent ${snap['total_usd']:.4f} of ${self.ledger.budget_usd:.2f}"
+            )
 
 
 boss_agent = Agent(deps_type=BossDeps, output_type=str, instructions=PROMPT, name="boss")
@@ -67,6 +87,8 @@ async def ask_book_specialist(ctx: RunContext[BossDeps], book_number: int, quest
     d = ctx.deps
     if book_number not in BOOK_TITLES:
         return {"status": "error", "reply": "book_number must be between 1 and 7."}
+    if d.ledger.blown:
+        raise BudgetExceeded("Budget already blown")
     if len(d.delegations) >= MAX_DELEGATIONS:
         return {"status": "error", "reply": "Delegation limit reached; answer from the reports you have."}
 
@@ -87,7 +109,7 @@ async def ask_book_specialist(ctx: RunContext[BossDeps], book_number: int, quest
         **{k: delegation[k] for k in ("agent", "book_number", "book_title", "question")},
     )
 
-    result = await run_specialist(book_number, question, emit=d.emit)
+    result = await run_specialist(book_number, question, emit=d.emit, model_name=d.ledger.model)
 
     delegation.update(reply=result["reply"], status=result["status"])
     if result.get("usage"):
@@ -103,17 +125,21 @@ def _total_usage(boss: dict | None, specialists: list[dict]) -> dict:
     return {"boss": boss, "specialists": {k: sum(p.get(k, 0) for p in specialists) for k in keys}, "total": total}
 
 
-async def run_boss_chat_stream(message: str) -> AsyncIterator[dict]:
+async def run_boss_chat_stream(
+    message: str, model: str = DEFAULT_MODEL, budget_usd: float = DEFAULT_BUDGET_USD
+) -> AsyncIterator[dict]:
     """Yield every queued event as it happens, ending with `final` or `error`."""
+    if model not in PRICES_PER_MTOK:
+        model = DEFAULT_MODEL
     queue: asyncio.Queue = asyncio.Queue()
-    deps = BossDeps(queue=queue)
+    deps = BossDeps(queue=queue, ledger=SpendLedger(model=model, budget_usd=budget_usd))
 
     async def work() -> None:
         boss_usage = None
         try:
-            deps.emit("boss_thinking", agent=BOSS_NAME, message=message, model=MODEL_NAME)
+            deps.emit("boss_thinking", agent=BOSS_NAME, message=message, model=model, budget_usd=budget_usd)
             answer, boss_usage = await run_traced(
-                boss_agent, message, emit=deps.emit, agent_name=BOSS_NAME, deps=deps, model=build_model()
+                boss_agent, message, emit=deps.emit, agent_name=BOSS_NAME, deps=deps, model=build_model(model)
             )
             deps.emit(
                 "final",
@@ -122,6 +148,19 @@ async def run_boss_chat_stream(message: str) -> AsyncIterator[dict]:
                 trace=list(deps.trace),
                 boss_name=BOSS_NAME,
                 usage=_total_usage(boss_usage, deps.specialist_usage),
+                spend=deps.ledger.snapshot(),
+            )
+        except BudgetExceeded as exc:
+            deps.emit(
+                "error",
+                answer=f"💥 BOOM. {exc}. The Headmaster stopped every agent.",
+                error=str(exc),
+                budget_exceeded=True,
+                delegations=deps.delegations,
+                trace=list(deps.trace),
+                boss_name=BOSS_NAME,
+                usage=_total_usage(boss_usage, deps.specialist_usage),
+                spend=deps.ledger.snapshot(),
             )
         except Exception as exc:
             deps.emit(
@@ -132,6 +171,7 @@ async def run_boss_chat_stream(message: str) -> AsyncIterator[dict]:
                 trace=list(deps.trace),
                 boss_name=BOSS_NAME,
                 usage=_total_usage(boss_usage, deps.specialist_usage),
+                spend=deps.ledger.snapshot(),
             )
         finally:
             queue.put_nowait(None)
@@ -145,9 +185,11 @@ async def run_boss_chat_stream(message: str) -> AsyncIterator[dict]:
             task.cancel()
 
 
-async def run_boss_chat(message: str) -> dict:
+async def run_boss_chat(
+    message: str, model: str = DEFAULT_MODEL, budget_usd: float = DEFAULT_BUDGET_USD
+) -> dict:
     final: dict = {"answer": "No answer produced.", "delegations": [], "boss_name": BOSS_NAME}
-    async for event in run_boss_chat_stream(message):
+    async for event in run_boss_chat_stream(message, model, budget_usd):
         if event["type"] in ("final", "error"):
             final = event["data"]
     return final

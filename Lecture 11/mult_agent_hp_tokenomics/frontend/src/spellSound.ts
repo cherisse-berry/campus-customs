@@ -32,6 +32,48 @@ function tone(
   osc.stop(start + dur + 0.02)
 }
 
+/** Budget blown: noise-burst explosion + sub-bass thump. */
+export function playBoom() {
+  const ctx = getCtx()
+  if (!ctx) return
+  try {
+    const now = ctx.currentTime
+    const len = Math.floor(ctx.sampleRate * 2.2)
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate)
+    const data = buf.getChannelData(0)
+    for (let i = 0; i < len; i += 1) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5)
+    }
+    const noise = ctx.createBufferSource()
+    noise.buffer = buf
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(3000, now)
+    lp.frequency.exponentialRampToValueAtTime(120, now + 1.8)
+    const ng = ctx.createGain()
+    ng.gain.setValueAtTime(1.4, now)
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 2.2)
+    noise.connect(lp)
+    lp.connect(ng)
+    ng.connect(ctx.destination)
+    noise.start(now)
+
+    const thump = ctx.createOscillator()
+    const tg = ctx.createGain()
+    thump.type = 'sine'
+    thump.frequency.setValueAtTime(140, now)
+    thump.frequency.exponentialRampToValueAtTime(28, now + 1.2)
+    tg.gain.setValueAtTime(1.2, now)
+    tg.gain.exponentialRampToValueAtTime(0.001, now + 1.4)
+    thump.connect(tg)
+    tg.connect(ctx.destination)
+    thump.start(now)
+    thump.stop(now + 1.5)
+  } catch {
+    // ignore
+  }
+}
+
 /** Call from a click/Send handler so later playback is allowed. */
 export async function unlockSpellAudio() {
   try {

@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic_ai import Agent, RunContext
 
 from agents.config import build_model
+from agents.spend import BudgetExceeded
 from agents.events import Emit, clip, run_traced
 from models import BOOK_TITLES
 from retrieval import Chunk, format_evidence, retrieve_chunks
@@ -84,7 +85,9 @@ async def search_book(ctx: RunContext[SpecialistDeps], keywords: str) -> str:
     return format_evidence(found, start=start)
 
 
-async def run_specialist(book_number: int, question: str, emit: Emit | None = None) -> dict:
+async def run_specialist(
+    book_number: int, question: str, emit: Emit | None = None, model_name: str | None = None
+) -> dict:
     """Answer `question` from book `book_number`'s retrieved passages only."""
     emit = emit or _noop
     name = specialist_name(book_number)
@@ -108,7 +111,7 @@ async def run_specialist(book_number: int, question: str, emit: Emit | None = No
             emit=emit,
             agent_name=name,
             deps=deps,
-            model=build_model(),
+            model=build_model(model_name),
             book_number=book_number,
         )
         return {
@@ -120,6 +123,8 @@ async def run_specialist(book_number: int, question: str, emit: Emit | None = No
             "chapters": list(dict.fromkeys(c.chapter for c in deps.chunks)),
             "usage": usage,
         }
+    except BudgetExceeded:  # out of money: stop the whole run, not just this book
+        raise
     except Exception as exc:  # report the failure to the boss rather than crash the run
         return {
             **base,

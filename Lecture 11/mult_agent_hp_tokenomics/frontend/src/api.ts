@@ -21,14 +21,33 @@ export async function fetchRoster(): Promise<{ boss: string; specialists: Specia
   return res.json()
 }
 
+export interface ModelOption {
+  id: string
+  label: string
+  input: number
+  output: number
+}
+
+export const FALLBACK_MODELS: ModelOption[] = [
+  { id: 'gpt-6-luna', label: 'GPT-6 Luna', input: 0.1, output: 0.5 },
+  { id: 'gpt-6-sol', label: 'GPT-6 Sol', input: 2, output: 10 },
+]
+
+export async function fetchModels(): Promise<{ default_model: string; default_budget_usd: number; models: ModelOption[] }> {
+  const res = await apiFetch('/api/models')
+  return res.json()
+}
+
 export async function streamChat(
   message: string,
+  model: string,
+  budgetUsd: number,
   onEvent: (ev: ProgressEvent) => void,
 ): Promise<ChatResult> {
   const res = await fetch(`${API_BASE}/api/chat/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, model, budget_usd: budgetUsd }),
   })
   if (!res.ok || !res.body) {
     const text = await res.text()

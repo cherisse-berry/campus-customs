@@ -2,9 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { FormEvent } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { fetchHealth, fetchRoster, streamChat } from './api'
+import { FALLBACK_MODELS, fetchHealth, fetchModels, fetchRoster, streamChat } from './api'
+import type { ModelOption } from './api'
+import { Thermometer, fmtUsd } from './components/Thermometer'
 import { BOOK_PROPS, Labubu } from './components/Labubu'
-import { playSpellComplete, playZap, unlockSpellAudio } from './spellSound'
+import { playBoom, playSpellComplete, playZap, unlockSpellAudio } from './spellSound'
 import type { ZapKind } from './spellSound'
 import type { AgentStatus, ChatResult, Delegation, ProgressEvent, SpecialistMeta } from './types'
 import './App.css'
@@ -23,6 +25,14 @@ interface Bolt {
   id: number
   dir: 'out' | 'back'
 }
+interface Spend {
+  total_usd: number
+  input_tokens: number
+  output_tokens: number
+  agents: Record<string, { input_tokens: number; output_tokens: number; usd: number }>
+}
+const NO_SPEND: Spend = { total_usd: 0, input_tokens: 0, output_tokens: 0, agents: {} }
+
 interface Usage {
   total?: { requests: number; input_tokens: number; output_tokens: number }
 }
@@ -92,7 +102,11 @@ function summarize(ev: ProgressEvent): string {
   }
   switch (ev.type) {
     case 'boss_thinking':
-      return `received question · model ${d.model}`
+      return `received question · model ${d.model} · budget $${Number(d.budget_usd ?? 0).toFixed(2)}`
+    case 'spend':
+      return `💸 ${d.agent_key} +${fmtUsd(Number(d.delta_usd ?? 0))} · total ${fmtUsd(Number(d.total_usd ?? 0))} / $${Number(d.budget_usd ?? 0).toFixed(2)}`
+    case 'budget_exceeded':
+      return `💥 BUDGET BLOWN · ${fmtUsd(Number(d.total_usd ?? 0))} ≥ $${Number(d.budget_usd ?? 0).toFixed(2)}`
     case 'specialist_started':
       return `⚡ delegates to Book ${d.book_number}: “${short(d.question)}”`
     case 'specialist_done':
@@ -157,6 +171,12 @@ export default function App() {
   const [bolts, setBolts] = useState<Record<number, Bolt>>({})
   const [zaps, setZaps] = useState<Record<string, number>>({})
   const [activity, setActivity] = useState<Record<string, string>>({})
+  const [models, setModels] = useState<ModelOption[]>(FALLBACK_MODELS)
+  const [model, setModel] = useState('gpt-6-luna')
+  const [budgetText, setBudgetText] = useState('10')
+  const [runBudget, setRunBudget] = useState(10)
+  const [spend, setSpend] = useState<Spend>(NO_SPEND)
+  const [boom, setBoom] = useState(0)
   const [geom, setGeom] = useState<{ w: number; h: number; edges: Record<number, EdgeGeom> }>({
     w: 0,
     h: 0,
@@ -186,6 +206,11 @@ export default function App() {
           })),
         )
       })
+    fetchModels()
+      .then((m) => {
+        if (m.models?.length) setModels(m.models)
+      })
+      .catch(() => {})
     fetchHealth()
       .then((h) => {
         setHealthOk(!!h.ok)
@@ -275,6 +300,18 @@ export default function App() {
     const act = activityOf(ev)
     if (act) setActivity((a) => ({ ...a, [String(key)]: act }))
 
+    if (ev.type === 'spend') {
+      setSpend({
+        total_usd: Number(d.total_usd ?? 0),
+        input_tokens: Number(d.input_tokens ?? 0),
+        output_tokens: Number(d.output_tokens ?? 0),
+        agents: (d.agents as Spend['agents']) || {},
+      })
+    }
+    if (ev.type === 'budget_exceeded') {
+      setBoom((b) => b + 1)
+      playBoom()
+    }
     if (ev.type === 'boss_thinking') {
       setBossStatus('thinking')
       setActivity((a) => ({ ...a, boss: 'pondering…' }))
@@ -329,6 +366,14 @@ export default function App() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (!message.trim() || busy) return
+    const budget = Number(budgetText)
+    if (!Number.isFinite(budget) || budget <= 0) {
+      setError('Budget must be a dollar amount above $0.')
+      return
+    }
+    setRunBudget(budget)
+    setSpend(NO_SPEND)
+    setBoom(0)
     // Clear previous run immediately so the old answer / ops don't linger.
     setError(null)
     setAnswer('')
@@ -346,7 +391,7 @@ export default function App() {
     await unlockSpellAudio()
 
     try {
-      const result: ChatResult = await streamChat(message.trim(), handleEvent)
+      const result: ChatResult = await streamChat(message.trim(), model, budget, handleEvent)
       scrollLockRef.current = {
         y: window.scrollY,
         height: document.documentElement.scrollHeight,
@@ -372,11 +417,28 @@ export default function App() {
   }
 
   const totals = usage?.total
+  const blown = boom > 0
+  const agentUsd = (key: string) => spend.agents[key]?.usd ?? 0
+  const modelOpt = models.find((m) => m.id === model)
 
   return (
-    <div className="app">
+    <div className={`app${blown ? ' shaking' : ''}`}>
+      {blown && (
+        <div className="boom-overlay" role="alert" key={boom}>
+          <div className="boom-flash" />
+          <div className="boom-text">
+            <span className="boom-word">💥 BOOM 💥</span>
+            <span>
+              You broke the bank: {fmtUsd(spend.total_usd)} of {fmtUsd(runBudget)}
+            </span>
+            <button type="button" onClick={() => setBoom(0)}>
+              I'm broke. Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <header className="hero">
-        <p className="eyebrow">MGT 409 · Lecture 10 demo</p>
+        <p className="eyebrow">MGT 409 · Lecture 11 tokenomics</p>
         <h1>{bossName}</h1>
         <p className="tagline">
           Chat with the Headmaster Labubu. He dispatches one specialist Labubu per Harry Potter book —
@@ -392,6 +454,7 @@ export default function App() {
         </div>
       </header>
 
+      <div className="stage-row">
       <section className="cast" aria-label="Agent cast" ref={castRef}>
         <svg className="edges" width={geom.w} height={geom.h} aria-hidden>
           <defs>
@@ -437,6 +500,9 @@ export default function App() {
           />
           {zaps.boss ? <span key={zaps.boss} className="node-zap" style={{ ['--accent' as string]: BOSS_ACCENT }} /> : null}
           {activity.boss && <span className="node-activity">{activity.boss}</span>}
+          <div className="node-thermo boss-thermo">
+            <Thermometer usd={agentUsd('boss')} budget={runBudget} accent={BOSS_ACCENT} blown={blown} label="Boss" />
+          </div>
         </div>
         <div className="cast-books">
           {rosterReady &&
@@ -462,14 +528,57 @@ export default function App() {
                   />
                   {z ? <span key={z} className="node-zap" style={{ ['--accent' as string]: b.accent }} /> : null}
                   {act && <span className="node-activity">{act}</span>}
+                  <div className="node-thermo">
+                    <Thermometer
+                      usd={agentUsd(`book-${b.book_number}`)}
+                      budget={runBudget}
+                      accent={b.accent}
+                      blown={blown}
+                      label={`Book ${b.book_number}`}
+                    />
+                  </div>
                 </div>
               )
             })}
         </div>
       </section>
+        <aside className="total-thermo" aria-label="Total spend">
+          <Thermometer usd={spend.total_usd} budget={runBudget} size="lg" accent="#e63946" blown={blown} label="Total spend" />
+          <p className="total-sub">
+            {spend.input_tokens.toLocaleString()} in · {spend.output_tokens.toLocaleString()} out tok
+          </p>
+        </aside>
+      </div>
 
       <main className="workspace">
         <form className="chat" onSubmit={onSubmit}>
+          <div className="money-row">
+            <label className="money-field">
+              <span>Budget ($)</span>
+              <input
+                type="number"
+                step="any"
+                value={budgetText}
+                disabled={busy}
+                onChange={(e) => setBudgetText(e.target.value)}
+              />
+            </label>
+            <label className="money-field">
+              <span>Model</span>
+              <select value={model} disabled={busy} onChange={(e) => setModel(e.target.value)}>
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {modelOpt && (
+              <span className="money-price">
+                ${modelOpt.input.toFixed(2)} in / ${modelOpt.output.toFixed(2)} out per 1M tokens
+              </span>
+            )}
+          </div>
           <label htmlFor="q">Ask the Headmaster</label>
           <textarea
             id="q"
@@ -487,7 +596,7 @@ export default function App() {
           />
           <div className="chat-actions">
             <button type="submit" disabled={busy || !message.trim()}>
-              {busy ? 'Consulting the castle…' : 'Send to Labubledore'}
+              {busy ? 'Spending money…' : '▶ Run'}
             </button>
             <button
               type="button"

@@ -1,0 +1,105 @@
+.thermo {
+  --accent: #e63946;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-mono);
+}
+.thermo-tube {
+  position: relative;
+  width: 14px;
+  height: 64px;
+  border: 2px solid #d8c4a8;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+.thermo-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  box-shadow: 0 0 10px var(--accent);
+}
+.thermo-tick {
+  position: absolute;
+  left: -6px;
+  width: 6px;
+  height: 2px;
+  background: #d8c4a8;
+}
+.thermo-tick em {
+  position: absolute;
+  right: 10px;
+  top: -0.55em;
+  font-style: normal;
+  font-size: 0.68rem;
+  color: #d8c4a8;
+  white-space: nowrap;
+}
+.thermo-bulb {
+  width: 26px;
+  height: 26px;
+  margin-top: -3px;
+  border: 2px solid #d8c4a8;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+.thermo-readout {
+  margin-top: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 0.7rem;
+  color: #f7e7c5;
+}
+.thermo.lg .thermo-tube {
+  width: 34px;
+  height: 260px;
+  border-width: 3px;
+  border-radius: 18px 18px 0 0;
+}
+.thermo.lg .thermo-tick {
+  left: -12px;
+  width: 12px;
+}
+.thermo.lg .thermo-bulb {
+  width: 62px;
+  height: 62px;
+  border-width: 3px;
+  margin-top: -6px;
+}
+.thermo.lg .thermo-readout {
+  font-size: 1rem;
+}
+.thermo.lg .thermo-readout strong {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d8c4a8;
+}
+.thermo.hot .thermo-bulb,
+.thermo.hot .thermo-fill {
+  animation: thermo-pulse 0.5s ease-in-out infinite alternate;
+}
+.thermo.blown .thermo-tube {
+  border-color: #ff3b30;
+  animation: thermo-crack 0.12s linear 8;
+}
+.thermo.blown .thermo-fill,
+.thermo.blown .thermo-bulb {
+  background: #ff3b30;
+}
+@keyframes thermo-pulse {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.7); }
+}
+@keyframes thermo-crack {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px) rotate(2deg); }
+}

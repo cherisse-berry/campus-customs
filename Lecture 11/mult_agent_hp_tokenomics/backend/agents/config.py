@@ -40,11 +40,11 @@ def require_api_key() -> str:
     return key
 
 
-@lru_cache(maxsize=1)
-def build_model() -> OpenAIResponsesModel:
+@lru_cache(maxsize=8)
+def build_model(model_name: str | None = None) -> OpenAIResponsesModel:
     client = AsyncOpenAI(
         api_key=require_api_key(),
         base_url=PORTKEY_BASE_URL,
         default_headers={"x-portkey-provider": "openai"},
     )
-    return OpenAIResponsesModel(MODEL_NAME, provider=OpenAIProvider(openai_client=client))
+    return OpenAIResponsesModel(model_name or MODEL_NAME, provider=OpenAIProvider(openai_client=client))

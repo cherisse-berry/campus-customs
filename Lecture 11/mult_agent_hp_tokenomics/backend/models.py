@@ -74,6 +74,8 @@ BOOK_TITLES = {b["book_number"]: b["title"] for b in BOOK_CATALOG}
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
+    model: str = "gpt-6-luna"
+    budget_usd: float = Field(default=10.0, gt=0)
 
 
 class Delegation(BaseModel):
@@ -91,3 +93,4 @@ class ChatResponse(BaseModel):
     trace: list[dict[str, Any]] | None = None
     boss_name: str
     usage: dict[str, Any] | None = None
+    spend: dict[str, Any] | None = None

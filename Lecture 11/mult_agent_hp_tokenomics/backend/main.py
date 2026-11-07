@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 
 from agents.boss import run_boss_chat, run_boss_chat_stream
 from agents.config import BOSS_NAME, MODEL_NAME
+from pricing import DEFAULT_BUDGET_USD, DEFAULT_MODEL, model_options
 from models import BOOK_CATALOG, ChatRequest, ChatResponse
 from retrieval import list_books
 
@@ -64,6 +65,12 @@ def health():
     }
 
 
+@app.get("/api/models")
+def models():
+    """Model dropdown options with USD per 1M token prices."""
+    return {"default_model": DEFAULT_MODEL, "default_budget_usd": DEFAULT_BUDGET_USD, "models": model_options()}
+
+
 @app.get("/api/roster")
 def roster():
     """Boss + specialist roster for the frontend."""
@@ -83,7 +90,7 @@ def roster():
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest):
-    result = await run_boss_chat(body.message)
+    result = await run_boss_chat(body.message, body.model, body.budget_usd)
     return ChatResponse(**result)
 
 
@@ -92,7 +99,7 @@ async def chat_stream(body: ChatRequest):
     """SSE stream of progress events + final payload."""
 
     async def gen():
-        async for event in run_boss_chat_stream(body.message):
+        async for event in run_boss_chat_stream(body.message, body.model, body.budget_usd):
             payload = json.dumps(event, ensure_ascii=False)
             yield f"event: {event['type']}\ndata: {payload}\n\n"
 

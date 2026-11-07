@@ -1,5 +1,5 @@
 .app {
-  max-width: 1100px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 1.5rem 1.25rem 3rem;
   font-family: var(--font-ui);
@@ -677,4 +677,127 @@ button.ghost {
   font-size: 0.78rem;
   font-family: var(--font-mono);
   color: #a58fbf;
+}
+
+/* ---- Lecture 11 tokenomics ---- */
+.stage-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.stage-row .cast {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.total-thermo {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0 1rem 2.6rem;
+}
+.total-sub {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: #b9a58c;
+}
+.node-thermo {
+  margin-top: 0.35rem;
+}
+.money-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.money-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #d8c4a8;
+}
+.money-field input,
+.money-field select {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7e7c5;
+  border: 1px solid #5a4a66;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  min-width: 9rem;
+}
+.money-field select option {
+  background: #1d1424;
+}
+.money-price {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: #b9a58c;
+  padding-bottom: 0.55rem;
+}
+.app.shaking {
+  animation: app-shake 0.09s linear 14;
+}
+@keyframes app-shake {
+  0% { transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(-12px, 6px) rotate(-1deg); }
+  50% { transform: translate(10px, -8px) rotate(1deg); }
+  75% { transform: translate(-6px, -4px) rotate(-0.5deg); }
+  100% { transform: translate(0, 0) rotate(0); }
+}
+.boom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.boom-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, #fff 0%, #ffd23f 18%, #ff6b00 40%, rgba(196, 30, 58, 0.85) 70%, rgba(0, 0, 0, 0.8) 100%);
+  animation: boom-flash 1.6s ease-out forwards;
+}
+.boom-text {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 2rem;
+  border-radius: 18px;
+  background: rgba(20, 8, 12, 0.85);
+  border: 3px solid #ff3b30;
+  color: #fff;
+  font-size: 1.1rem;
+  text-align: center;
+  animation: boom-pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.boom-word {
+  font-size: clamp(3rem, 12vw, 7rem);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: #ffd23f;
+  text-shadow: 0 0 30px #ff6b00, 0 0 60px #ff3b30;
+}
+@keyframes boom-flash {
+  0% { opacity: 1; transform: scale(0.2); }
+  15% { opacity: 1; transform: scale(1.4); }
+  100% { opacity: 0.55; transform: scale(1); }
+}
+@keyframes boom-pop {
+  0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@media (max-width: 700px) {
+  .stage-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
