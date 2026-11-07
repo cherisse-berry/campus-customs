@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T14:04:14+00:00",
+  "generated_at": "2026-11-07T14:38:03+00:00",
   "source": {
     "audit_trail": "output/audit_trail.json",
     "database": "data/campus_customs_new.db (read through the MCP server)",
@@ -15,8 +15,8 @@
       "type": "customer_order",
       "requester": "Tauhid Zaman",
       "database_status": "open",
-      "status": "needs_action",
-      "status_label": "Needs action — 2 requests pending",
+      "status": "resolved",
+      "status_label": "Resolved — every request decided",
       "runs": [
         {
           "run_id": "run_ef7b73a0f445",
@@ -213,7 +213,29 @@
             "cash_after_payment": 2560.0,
             "warnings": []
           },
-          "status": "pending"
+          "status": "approved",
+          "decision": {
+            "decided_by": "Cherisse Berry",
+            "timestamp": "2026-11-07T14:10:16+00:00",
+            "warnings_confirmed": []
+          },
+          "payment_recorded": {
+            "recorded": true,
+            "payment_id": 2,
+            "kind": "invoice",
+            "ref_id": 501,
+            "payee": "Bulldog Print Co",
+            "amount": 840.0,
+            "account": "checking",
+            "paid_at": "2026-08-31",
+            "approved_by": "Cherisse Berry",
+            "balance_after": 160.0,
+            "warnings": [],
+            "invoice_status": "paid",
+            "amount_on_file": 840.0,
+            "paid_so_far": 840.0,
+            "still_owed": 0.0
+          }
         },
         {
           "approval_id": "apr_42fdecbcd720",
@@ -243,13 +265,15 @@
               "Invoice 501 linked to this ticket (\"Rush reprint CC-TEE-WHITE S\") may already cover this item."
             ]
           },
-          "status": "pending"
+          "status": "rejected",
+          "decision": {
+            "decided_by": "Cherisse Berry",
+            "timestamp": "2026-11-07T14:11:35+00:00",
+            "note": ""
+          }
         }
       ],
-      "still_needs_action": [
-        "Payment request pending: Pay Bulldog Print Co $840.00 (invoice 501)",
-        "Purchase request pending: Buy 1 × CC-TEE-WHITE S from Bulldog Print Co (est. $8.00)"
-      ],
+      "still_needs_action": [],
       "boss_follow_ups_for_a_person": [
         "Approve or reject payment of invoice 501; if approved, record payment in the database.",
         "Resolve invoice 501 and confirm with Bulldog Print Co whether it covers the requested size S item; if restock is still needed and vendor is eligible, contact vendor about the proposed purchase.",
@@ -327,6 +351,8 @@
         ]
       },
       "screenshots": [
+        "ticket-101-invoice-paid.png",
+        "ticket-101-resolved.png",
         "ticket-101-run.png"
       ]
     },
@@ -591,8 +617,8 @@
       "type": "price_override",
       "requester": "Yale AI Club",
       "database_status": "open",
-      "status": "needs_action",
-      "status_label": "Needs action — 2 requests pending",
+      "status": "resolved",
+      "status_label": "Resolved — every request decided · 1 approved purchase on hold, not executed",
       "runs": [
         {
           "run_id": "run_332782f5368f",
@@ -828,7 +854,13 @@
             "recommended_discount_percent": 5.0,
             "recommendation_reason": "For this order, 5% reduces the total by $58 from list price while retaining $662 total profit. This is well below the 62.07% break-even discount. A person decides whether to approve; this recommendation is not a policy."
           },
-          "status": "pending"
+          "status": "approved",
+          "decision": {
+            "decided_by": "Cherisse Berry",
+            "timestamp": "2026-11-07T14:25:17+00:00",
+            "note": "",
+            "discount_percent": 5.0
+          }
         },
         {
           "approval_id": "apr_3456414c3059",
@@ -857,12 +889,31 @@
               "Bulldog Print Co can't ship until its unpaid invoice(s) 501 ($840.00) are paid: vendors with unpaid invoices cannot ship additional products."
             ]
           },
-          "status": "pending"
+          "status": "approved",
+          "decision": {
+            "decided_by": "Cherisse Berry",
+            "timestamp": "2026-11-07T14:25:24+00:00",
+            "note": "",
+            "warnings_confirmed": [],
+            "order_placed": false,
+            "vendor_contacted": false,
+            "money_moved": false
+          },
+          "execution": {
+            "executed": false,
+            "order_placed": false,
+            "vendor_contacted": false,
+            "money_moved": false,
+            "status": "on hold",
+            "hold_reasons": [
+              "Insufficient funds: the estimated $264.00 is more than the $160.00 in checking."
+            ],
+            "note": "Approval only records the decision. The system never places orders, contacts vendors or moves money for a purchase; a person would place the order outside the system."
+          }
         }
       ],
       "still_needs_action": [
-        "Discount request pending: Discount for Yale AI Club on 20 × CC-HOOD-NAVY M (agents recommended 5.0%)",
-        "Purchase request pending: Buy 12 × CC-HOOD-NAVY M from Bulldog Print Co (est. $264.00)"
+        "Approved purchase on hold, not executed: Buy 12 × CC-HOOD-NAVY M from Bulldog Print Co (est. $264.00). Insufficient funds: the estimated $264.00 is more than the $160.00 in checking."
       ],
       "boss_follow_ups_for_a_person": [
         "Decide whether to approve the recommended 5% discount for this request.",
@@ -967,26 +1018,25 @@
         "why": "Rent remains fully owed and is due in two days, as of 2026-08-31. The check allows payment and shows no warnings; human approval is required.",
         "balance_after": 1000.0,
         "balance_after_matches_running_total": true
+      },
+      {
+        "ticket_id": 101,
+        "payment_id": 2,
+        "payee": "Bulldog Print Co",
+        "kind": "invoice",
+        "ref_id": 501,
+        "amount": 840.0,
+        "approved_by": "Cherisse Berry",
+        "paid_at": "2026-08-31",
+        "why": "Invoice 501 is open and overdue by 3 days as of 2026-08-31, with $840.00 still owed. Payment is allowed by check_payment and would leave $2,560.00 in checking. Requires human approval; no payment has been made.",
+        "balance_after": 160.0,
+        "balance_after_matches_running_total": true
       }
     ],
-    "total_moved": 2400.0,
-    "final_balance": 1000.0,
+    "total_moved": 3240.0,
+    "final_balance": 160.0,
     "as_of": "2026-08-31",
     "still_owed": [
-      {
-        "kind": "invoice",
-        "id": 501,
-        "payee": "Bulldog Print Co",
-        "vendor_id": 1,
-        "description": "Rush reprint CC-TEE-WHITE S",
-        "amount": 840.0,
-        "amount_on_file": 840.0,
-        "paid_so_far": 0.0,
-        "due_date": "2026-08-28",
-        "days_until_due": -3,
-        "overdue": true,
-        "status": "open"
-      },
       {
         "kind": "rent",
         "id": 1,
@@ -1003,32 +1053,26 @@
     "no_money_moved_for": [
       {
         "ticket_id": 101,
-        "type": "payment",
-        "status": "pending",
-        "what": "Pay Bulldog Print Co $840.00 (invoice 501)"
-      },
-      {
-        "ticket_id": 101,
         "type": "purchase",
-        "status": "pending",
+        "status": "rejected",
         "what": "Buy 1 × CC-TEE-WHITE S from Bulldog Print Co (est. $8.00)"
       },
       {
         "ticket_id": 103,
         "type": "discount",
-        "status": "pending",
+        "status": "approved",
         "what": "Discount for Yale AI Club on 20 × CC-HOOD-NAVY M (agents recommended 5.0%)"
       },
       {
         "ticket_id": 103,
         "type": "purchase",
-        "status": "pending",
+        "status": "approved, on hold (not executed)",
         "what": "Buy 12 × CC-HOOD-NAVY M from Bulldog Print Co (est. $264.00)"
       }
     ],
     "verification": {
-      "final_balance_in_database": 1000.0,
-      "starting_balance_minus_recorded_payments": 1000.0,
+      "final_balance_in_database": 160.0,
+      "starting_balance_minus_recorded_payments": 160.0,
       "ending_balance_matches_database": true,
       "each_balance_after_matches": true,
       "rent_payments_in_database_match_audit": true,
