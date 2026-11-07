@@ -496,5 +496,37 @@ Gaps found:
 
 `build_results.py` was fixed to list pending requests separately from the Boss's pre-decision follow-ups, and to cite the agents' view of the cash when no reset is recorded; its tests pass. `harness.md` now has the actual Problem 9 results, the comparison with the plan, the verified cash, the safety rules in the real runs and the open items. No results were invented, no decision was changed, and the database wasn't reset.
 
+**Follow-up 12**
+
+> Please add the following reflection to the Reflection tab in `hw5/output/desk_tickets.html`.
+>
+> ## Reflection: Campus Customs Multi-Agent Operations
+>
+> **What worked well**
+>
+> The five-agent system successfully processed all three tickets using gpt-6-luna. The Boss agent coordinated the work and delegated tasks to the appropriate specialists. Accounting verified payments, Inventory checked stock and vendors, Facilities reviewed the lease, and Customer Service drafted responses without sending them.
+>
+> The most important safeguard was requiring human approval before financial decisions. For Ticket 102, I approved the $2,400 rent payment, and the checking balance decreased correctly from $3,400 to $1,000. The agents could recommend actions, but they could not independently authorize spending.
+>
+> **What surprised me**
+>
+> The agents did not always follow the workflow I expected. For Ticket 103, the Boss consulted Accounting before Inventory. More importantly, for Ticket 101, Inventory recommended purchasing a size-S tee even though the existing vendor invoice might already cover that item. The system identified the potential duplication and required additional review.
+>
+> Customer Service also drafted a response without checking which alternative shirt sizes were available. This showed me that delegating tasks to specialized agents does not automatically ensure that all relevant information is incorporated into the final recommendation.
+>
+> **What I would improve**
+>
+> I would require the agents to check existing invoices and purchase orders before recommending new purchases. I would also make the Customer Service agent confirm inventory and alternative options before preparing customer responses.
+>
+> I would improve coordination between Accounting and Inventory so the agents consider available cash, overdue obligations, and vendor restrictions together before recommending purchases.
+>
+> **What I learned**
+>
+> This assignment demonstrated that multi-agent AI can help coordinate routine business operations, but its recommendations still require oversight. The system was effective at retrieving information and identifying decisions, while human review remained essential for preventing duplicate purchases, managing limited cash, and approving transactions.
+>
+> Update `AI_prompts.md` to document this request, then commit and push the changes to GitHub.
+
+*What was done:* The reflection was added to the Reflection tab of `output/desk_tickets.html` exactly as written, with its title and four sections. The Expected plans, Actual sections and Cash tab weren't changed. A test now confirms that `build_results.py` never changes the Reflection tab, so re-running it to add the dashboard screenshots keeps the reflection. `harness.md` no longer describes the Reflection tab as blank.
+
 ---
 

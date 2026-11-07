@@ -109,7 +109,9 @@ async def test_builds_every_file_from_the_audit_trail_and_database(setup):
     # Expected plans are untouched; Actual and Cash are filled in.
     for marker in ("Who the Boss contacts first, and why", "How the work is delegated", "MCP tools we expect them to use"):
         assert page.count(marker) == desk_before.count(marker) == 3
-    assert "Not run yet." not in page and "Blank for now." in page            # Reflection stays blank
+    assert "Not run yet." not in page
+    reflection = lambda html_page: html_page.split('<section role="tabpanel" id="reflection"')[1].split("</section>")[0]
+    assert reflection(page) == reflection(desk_before)                         # the Reflection tab isn't touched
     assert "Resolved — every request decided" in page and "Needs action" in page
     assert build_results.fill_desk(page, data) == page                        # rebuilding is stable
     board = build_results.board_page(page, data)
