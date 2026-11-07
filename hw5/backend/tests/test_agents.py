@@ -424,9 +424,13 @@ def test_audit_file_stays_valid_json(tmp_path):
 async def test_approved_payments_follow_the_payment_rules(temp_db):
     import sqlite3
 
-    def pay(kind, ref_id, amount):
-        return approve.record_payment({"kind": kind, "ref_id": ref_id, "amount": amount,
-                                       "account": "checking"}, "Test Person")
+    async def pay(kind, ref_id, amount):
+        req = {"kind": kind, "ref_id": ref_id, "amount": amount, "account": "checking"}
+        try:
+            warnings = (await approve.check_now(req))["warnings"]  # what the approver is shown
+        except Exception:
+            warnings = []
+        return await approve.record_payment(req, "Test Person", warnings)
 
     def db(sql):
         with sqlite3.connect(temp_db) as conn:
@@ -468,7 +472,8 @@ async def test_vendor_can_ship_only_once_its_invoices_are_fully_paid(temp_db):
         async with Client(agents_module.mcp_transport("agent")) as c:
             return (await c.call_tool("get_vendor_status", {"vendor_id": 1})).data["vendors"][0]
     assert (await can_ship())["can_ship_additional_products"] is False
-    await approve.record_payment({"kind": "invoice", "ref_id": 501, "amount": 800, "account": "checking"}, "T")
+    req = {"kind": "invoice", "ref_id": 501, "amount": 800, "account": "checking"}
+    await approve.record_payment(req, "T", (await approve.check_now(req))["warnings"])
     v = await can_ship()
     assert v["can_ship_additional_products"] is False and v["unpaid_total"] == 40.0
     await approve.record_payment({"kind": "invoice", "ref_id": 501, "amount": 40, "account": "checking"}, "T")
@@ -485,3 +490,88 @@ def test_add_months_keeps_the_day_or_uses_month_end():
     out = subprocess.run([str(config.MCP_PYTHON), "-c", code, str(config.MCP_SERVER_SCRIPT.parent)],
                          capture_output=True, text=True, check=True).stdout.split()
     assert out == ["2026-10-02", "2027-01-15", "2027-02-28", "2028-02-29"]
+
+
+# ---------------------------------------------------------------- paying the same bill twice
+
+def pay_request(approval_id: str, ticket_id: int, kind: str, ref_id: int, amount: float) -> dict[str, Any]:
+    return {"event": "approval_requested", "approval_id": approval_id, "approval_type": "payment",
+            "run_id": "run_test", "ticket_id": ticket_id,
+            "request": {"kind": kind, "ref_id": ref_id, "payee": "Bulldog Print Co", "amount": amount,
+                        "account": "checking", "due_date": "2026-08-28", "reason": "overdue",
+                        "cash_available": 3400, "cash_after_payment": 2560, "warnings": []}}
+
+
+def answers(monkeypatch, *replies):
+    queue = list(replies)
+    monkeypatch.setattr(approve, "ask", lambda prompt: queue.pop(0))
+
+
+def paid_rows(db):
+    import sqlite3
+    with sqlite3.connect(db) as conn:
+        return conn.execute("SELECT kind, ref_id, amount FROM payments").fetchall()
+
+
+async def test_second_request_for_the_same_bill_is_flagged_and_needs_confirmation(
+        temp_db, audit, monkeypatch, capfd):
+    first = audit.record(**{k: v for k, v in pay_request("apr_1", 101, "invoice", 501, 840).items()
+                            if k != "event"}, event="approval_requested")
+    second = audit.record(**{k: v for k, v in pay_request("apr_2", 102, "invoice", 501, 840).items()
+                             if k != "event"}, event="approval_requested")
+
+    # First request: the other pending request for the same bill is shown, so confirmation is needed.
+    answers(monkeypatch, "y", "PAY ANYWAY", "Pat")
+    await approve.decide(audit, first)
+    out = capfd.readouterr().out
+    assert "ALSO PENDING for this bill: [apr_2]" in out and "pay it twice" in out
+    assert paid_rows(temp_db) == [("invoice", 501, 840.0)]
+
+    # Second request: checked live, so the person sees it's already paid, even though the
+    # agents saw no warning when they made the request. "y" alone doesn't pay it.
+    answers(monkeypatch, "y", "")
+    await approve.decide(audit, second)
+    out = capfd.readouterr().out
+    assert "WARNING: Invoice 501 is already paid in full" in out
+    assert "Not confirmed; nothing paid" in out
+    assert paid_rows(temp_db) == [("invoice", 501, 840.0)]
+    assert [p["approval_id"] for p in approve.pending(audit)] == ["apr_2"]   # still waiting
+
+    # The person can still reject it, which closes it.
+    answers(monkeypatch, "n", "Pat", "duplicate")
+    await approve.decide(audit, second)
+    assert approve.pending(audit) == [] and paid_rows(temp_db) == [("invoice", 501, 840.0)]
+
+
+async def test_more_than_owed_is_flagged_before_paying(temp_db, audit, monkeypatch, capfd):
+    e = audit.record(**{k: v for k, v in pay_request("apr_3", 101, "invoice", 501, 900).items()
+                        if k != "event"}, event="approval_requested")
+    answers(monkeypatch, "y", "no")
+    await approve.decide(audit, e)
+    out = capfd.readouterr().out
+    assert "Checked just now: $840.00 still owed" in out
+    assert "WARNING: $900.00 is more than the $840.00 still owed on invoice 501." in out
+    assert paid_rows(temp_db) == []
+
+
+async def test_record_payment_refuses_warnings_the_approver_did_not_confirm(temp_db):
+    req = {"kind": "invoice", "ref_id": 501, "amount": 840, "account": "checking"}
+    assert (await approve.record_payment(req, "Pat", []))["recorded"]
+    # The bill is now paid. Paying again without confirming that warning is refused...
+    again = await approve.record_payment(req, "Pat", [])
+    assert not again["recorded"] and "hasn't confirmed" in again["error"] and "already paid in full" in again["error"]
+    # ...and so is a stale confirmation for a different warning.
+    stale = await approve.record_payment(req, "Pat", ["Partial payment: $0.00 of invoice 501 would still be owed."])
+    assert not stale["recorded"]
+    assert paid_rows(temp_db) == [("invoice", 501, 840.0)]
+
+
+async def test_same_bill_twice_in_one_plan_is_flagged(temp_db, audit):
+    both = [payment("invoice", 501, 840), payment("invoice", 501, 840)]
+    script = Script({"boss": [("final", {**resolution(101, payment_approvals=both),
+                                         "status": "needs_human_approval"})]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(101)
+    assert out.payment_approvals[0].warnings == []
+    assert "requested more than once in this plan" in out.payment_approvals[1].warnings[0]
+

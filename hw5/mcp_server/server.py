@@ -581,7 +581,8 @@ def price_bulk_order(sku: str, size: str, qty: int, discount_percent: float = 0)
 # ---------------------------------------------------------------- approver-only
 
 def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
-                   approved_by: str, account: str = "checking") -> dict[str, Any]:
+                   approved_by: str, account: str = "checking",
+                   confirmed_warnings: list[str] | None = None) -> dict[str, Any]:
     """Record a payment that a person has approved. Approver role only.
 
     Re-checks the payment rules, then in one transaction: adds a row to
@@ -589,9 +590,14 @@ def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
     account. For an invoice, it's marked paid once the payments recorded for it
     cover the amount on file. For rent, the lease's next_due moves on one month
     for each full month's rent the payments cover. If a rule fails, nothing is
-    changed. Warnings from the check (for example a partial or extra payment)
-    are returned so they're on record; they don't block the payment, because
-    the person approving has already seen them.
+    changed.
+
+    Warnings (for example a bill already paid in full, or more than is still
+    owed) are worked out again at this moment. The payment is only recorded if
+    the approver confirmed every one of them (`confirmed_warnings`, exactly as
+    check_payment returned them). If anything changed since the approver
+    looked, for example the bill was paid in the meantime, nothing is recorded
+    and the approver has to review it again.
 
     Args:
         kind: "invoice" or "rent".
@@ -599,6 +605,7 @@ def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
         amount: The amount approved, in dollars.
         approved_by: The name of the person who approved the payment.
         account: The cash account to pay from (default "checking").
+        confirmed_warnings: The warnings the approver saw and confirmed.
     """
     approved_by = approved_by.strip()
     if not approved_by:
@@ -609,6 +616,10 @@ def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
             check = evaluate_payment(conn, kind, ref_id, amount, account)
             if not check["allowed"]:
                 raise ToolError("Payment not recorded: " + " ".join(check["problems"]))
+            unconfirmed = [w for w in check["warnings"] if w not in (confirmed_warnings or [])]
+            if unconfirmed:
+                raise ToolError("Payment not recorded: the approver hasn't confirmed these warnings: "
+                                + " ".join(unconfirmed) + " Review the payment again.")
             updated = conn.execute(
                 "UPDATE cash_accounts SET balance = balance - ?, date = ? WHERE name = ? AND balance >= ?",
                 (amount, check["today"], account, amount)).rowcount

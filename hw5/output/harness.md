@@ -486,7 +486,12 @@ Before any agent's answer is accepted, `check_output` in `backend/agents.py` che
 
 `python approve.py --list` shows the requests waiting for a decision. `python approve.py` lets a person decide them at a terminal; it refuses to run without a person typing.
 
-- **Payments:** the person sees the request with any warnings (for example a partial payment or a bill already paid), then approves and types their name. `record_payment` re-checks the shop's payment rules (cash available, balance not negative) and records the payment in one transaction:
+- **Payments:** right before asking, `approve.py` checks the payment again **against the database as it is now**, not just as it was when the agents ran. The person sees:
+  - how much is still owed and the cash before and after
+  - any warnings: a bill already paid in full, an amount above what's still owed, or a partial payment
+  - any other pending request for the same bill ("approving both would pay it twice")
+
+  If there's any warning, typing `y` isn't enough: the person must also type `PAY ANYWAY`, or nothing is paid and the request stays pending. Then they type their name. `record_payment` re-checks the shop's payment rules (cash available, balance not negative). It works the warnings out again and refuses the payment unless the person confirmed exactly those warnings. So if the bill was paid by someone else in the meantime, nothing is paid and the request has to be reviewed again. A refused payment stays pending. Once a payment is accepted, it's recorded in one transaction:
   - it adds a `payments` row with `approved_by` set to the person's name and `paid_at` set to the shop's date
   - it lowers the `cash_accounts` balance
   - for an invoice, it sets the status to `paid` once the payments recorded for it cover the amount on file
@@ -532,14 +537,15 @@ Each entry has a timestamp (UTC), the shop's date, the run ID, the ticket, the a
 
 The agents have **not yet been run with the real model**. This session had no Portkey key, and its network blocked `api.portkey.ai`. Everything below was tested without AI calls. The model's part was played by a scripted stand-in (PydanticAI's `FunctionModel`), with the real MCP server running on a temporary copy of the database.
 
-**Verified** (`backend/tests/test_agents.py`, 23 tests, and `mcp_server/test_tools.py`, all passing):
+**Verified** (`backend/tests/test_agents.py`, 27 tests, and `mcp_server/test_tools.py`, all passing):
 
 | Area | What was checked |
 |---|---|
 | MCP look-ups | The Problem 3 tools return values that match direct SQL queries of the working database (`test_tools.py`). The new tools return the expected values for tickets 101–103. |
+| Paying twice | Two pending requests for the same bill are flagged. After the first is paid, the second shows "already paid in full" (checked live) and isn't paid unless the person types `PAY ANYWAY`. More than is owed is flagged before paying. `record_payment` refuses warnings the approver didn't confirm. A refused payment stays pending. These were tested with scripted answers in place of a person typing. |
 | Payment rules | A payment over the cash available is refused and nothing changes. Partial and extra payments and already-paid bills are allowed with warnings. An invoice is marked paid only when fully covered. Rent moves `next_due` on a month per full month paid, and the date arithmetic handles month ends. A vendor can't ship until its invoices are fully paid. `record_payment` doesn't exist for agents, and needs an approver's name. |
 | Agent wiring | Each agent sees only its own MCP tools. Delegation works and is recorded. Delegating to yourself, looping back, going too deep or exceeding the count is refused. A runaway run stops at the usage limit and is recorded. |
-| Output checks | Payment requests are re-checked against the records (including cash for all requests together), and warnings are attached. Discount options and facts are replaced with the records' values. A recommendation must be an evaluated option with a reason. Customer drafts can't mention a discount, quote another price, or go to a vendor, the landlord or anyone but the customer requester. |
+| Output checks | Payment requests are re-checked against the records (including cash for all requests together), and warnings are attached, including when the same bill appears twice in one plan. Discount options and facts are replaced with the records' values. A recommendation must be an evaluated option with a reason. Customer drafts can't mention a discount, quote another price, or go to a vendor, the landlord or anyone but the customer requester. |
 | Audit trail | New entries are added and earlier ones kept. The file stays valid JSON, and a damaged file is never overwritten. |
 | Model setup | The model object is `gpt-6-luna`, at Portkey's address, with the key in the Portkey header. Any other model name is refused. A missing key gives a clear error. The key isn't passed to the MCP server. No request was sent to Portkey. |
 | Databases | Both real database files are unchanged after every test run. |
@@ -556,7 +562,7 @@ The agents have **not yet been run with the real model**. This session had no Po
 
    The code checks catch rule-breaking output, but not poor judgment.
 4. **Limits:** whether the usage limits (30 model calls, 40 tool calls, 150,000 tokens per ticket; 2,000 tokens per response) suit real runs, and what a ticket actually costs.
-5. **End-to-end scripts:** `run.py` with the real model, and `approve.py` typed by a person at a terminal. Only the payment-recording part of `approve.py` was tested.
+5. **End-to-end scripts:** `run.py` with the real model, and `approve.py` typed by a real person at a terminal. Its decision steps were tested with scripted answers, not by a person.
 6. **Other setups:** Windows (the MCP server path in `.mcp.json` and `config.py`), and two runs writing to the audit trail at the same time from separate processes.
 
 ## MCP server tools after Problem 5

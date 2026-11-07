@@ -192,5 +192,22 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
   - A person still decides in `approve.py`, nothing is offered to the customer, and the agents are told not to turn a recommendation into a general discount rule.
 - **What has been tested:** `harness.md` now has a section listing what was verified without the real model (23 offline tests plus the Problem 4 checks) and what still needs testing with gpt-6-luna through Portkey. That includes the connection and model name, tool calling and structured output, the agents' actual judgment, whether the usage limits fit, and the end-to-end scripts.
 
+**Follow-up 3**
+
+> Thank you. The changes make sense. I have one remaining question about payments.
+>
+> If a bill has already been paid, or someone enters more than the amount owed, does the system clearly alert the person approving it before the payment goes through? I want to make sure we don't accidentally pay the same bill twice.
+>
+> Please explain how that works and whether anything needs to be changed. Also, update AI_prompts.md with this follow-up.
+
+*What needed to be fixed:* The warnings shown in `approve.py` were the ones worked out when the agents made the request, not when the person approved it. If two requests for the same bill were pending (for example, invoice 501 in the plans for both Ticket 101 and Ticket 102), the second showed no warning after the first was paid. A single `y` would pay the bill twice, and the "already paid" warning only came back after the payment was recorded. Now:
+- **Live check:** `approve.py` re-checks each payment against the database right before asking, and shows what's still owed, any warnings and any other pending request for the same bill.
+- **Typed confirmation:** a payment with any warning needs the person to type `PAY ANYWAY`.
+- **Server-side check:** `record_payment` refuses a payment unless the approver confirmed exactly the warnings that apply at that moment, so a bill paid in the meantime can't go through unseen.
+- **Refusals stay pending:** a refused payment stays pending for review.
+- **Same bill twice in one plan:** this is flagged on the later request.
+
+No business rule was added: the person approving can still pay, after seeing and confirming the warnings. Four new tests cover this (27 in total).
+
 ---
 

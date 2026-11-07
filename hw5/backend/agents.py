@@ -203,6 +203,7 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
     # Payments: must pass the shop's payment rules, and together fit in the cash available.
     total = 0.0
     cash = None
+    seen_bills: set[tuple[str, int]] = set()
     for p in output.payment_approvals:
         check = await team.lookup("check_payment", {"kind": p.kind, "ref_id": p.ref_id,
                                                     "amount": p.amount, "account": p.account})
@@ -213,6 +214,9 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
         p.payee, p.due_date = check["payee"], check["due_date"]
         p.cash_available, p.cash_after_payment = check["cash_available"], check["cash_after_payment"]
         p.warnings = check["warnings"]
+        if (p.kind, p.ref_id) in seen_bills:
+            p.warnings.append(f"This {p.kind} ({p.ref_id}) is requested more than once in this plan.")
+        seen_bills.add((p.kind, p.ref_id))
         cash = check["cash_available"]
         total += p.amount
     if cash is not None and round(total, 2) > cash:
