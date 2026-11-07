@@ -368,5 +368,31 @@ The run itself, the approvals, the Actual and Cash sections, `resolved_tickets.j
 
 *What happened:* The secure key form was shown, but it came back as declined, so no key was saved. It may have been closed, or the app may not have been able to display it. The connection check therefore couldn't run. As agreed, nothing else was started: the database wasn't reset and no tickets were run. The key can still be added through the environment's settings (Option B) or used on the user's own computer.
 
+**Follow-up 3**
+
+> I'm having trouble with the secure form, so let's try Option B. Can you walk me through where to find the environment settings and how to add the key? I'm not familiar with this process.
+>
+> Once it's set up, please check that the Portkey connection works before we proceed with the tickets. I don't want to reset anything or run the agents until we've confirmed the connection.
+
+*What happened:* The assistant gave step-by-step instructions for adding the key as a network secret for `api.portkey.ai` in the `campus-customs` environment's settings. Nothing was run, reset or changed.
+
+**Follow-up 4**
+
+> I'm having trouble finding the environment settings. I've looked under Claude Code Settings and Capabilities, but I don't see where to add the Portkey key.
+>
+> Can you help me find the correct location based on the current Claude interface? Please walk me through it one step at a time.
+
+*What needed to be fixed:* The earlier directions ("the environment menu in the title bar") were too vague, and the settings aren't in account Settings or Capabilities. The assistant read Anthropic's current documentation and gave exact steps for claude.ai/code in a web browser: the caret after the session title, then **Edit cloud environment**, then the settings icon on **campus-customs**, then **Network secrets**, then **Add secret**. It noted that the documentation doesn't describe the desktop or mobile app. Nothing was run, reset or changed.
+
+**Follow-up 5**
+
+> I'm having trouble accessing my Portkey account. I tried signing in with my Yale email and resetting my password, but it keeps taking me to a page asking me to choose an organization.
+>
+> Since we used Portkey for Homework 4, can you check how we set it up previously and whether there's an existing API key or configuration we can use for Homework 5?
+>
+> Please don't display or share any API keys. I just want to understand what we used before and whether I need to contact my professor for access.
+
+*What was found:* Homework 4 didn't use Portkey. It used Anthropic's API directly (`ANTHROPIC_API_KEY`, a Claude model), run on the user's Mac with the key in a local `.env` that was never committed. Portkey doesn't appear anywhere in Homework 4 or the repository's history, and no model keys are set in this session. No key values were displayed. The "choose an organization" page suggests course-managed Portkey access, so the user likely needs the professor for organization access, a key, and confirmation of the exact model name. Nothing was run, reset or changed.
+
 ---
 
