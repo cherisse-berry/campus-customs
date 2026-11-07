@@ -844,3 +844,9 @@ Once the key is in place, the plan is:
 5. Fill in the Actual sections and Cash tab of `output/desk_tickets.html` from the real runs, keeping the Expected plans. Only money that actually moved counts, checked against the working database.
 6. Create `output/resolved_tickets.json` and `output/resolved_board.html` (with screenshots of the real dashboard runs) from the audit trail.
 
+**Where things stand:**
+- **Runs:** the user ran all three tickets with gpt-6-luna on their Mac.
+- **Approvals:** the user approved the $2,400 rent payment, leaving $1,000 in checking. Four other requests are still pending; the user decides those, not the agents or the assistant.
+- **Building the files:** the results are built by `backend/build_results.py`, run on the Mac. It needs the Mac because it checks the ending balance against the working database, which isn't in GitHub. It reads only the real audit trail and the working database, and never approves, pays or resets anything. Its checks are listed in `backend/README.md`.
+- **Still to come:** this section will be completed with the actual results once the Mac's audit trail, screenshots and generated files are pushed.
+

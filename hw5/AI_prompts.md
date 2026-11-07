@@ -457,5 +457,20 @@ The connection test is run by the user on their Mac. No key was displayed or com
 
 *What happened:* The connection check passed all three tests on the user's Mac with gpt-6-luna. The assistant walked the user step by step through setting up and verifying the working database, starting the backend and dashboard, resetting the working database, and running Ticket 101 only. It explained how the results are recorded: the real activity goes into `hw5/output/audit_trail.json` on the Mac, which the user commits and pushes along with dashboard screenshots, and the assignment files are then built only from that real data. One small change: a database reset now also records the starting checking balance in its audit entry, read through the MCP server. Approvals are left to the user in the dashboard. No results were simulated.
 
+**Follow-up 10**
+
+> All three tickets have run successfully using gpt-6-luna. I approved the $2,400 rent payment, leaving $1,000 in checking. The other four approval requests are still pending.
+>
+> Please help me finish Problem 9. Use only the actual run results and decisions. Do not fabricate outcomes, approve additional transactions, or reset the database.
+>
+> Tell me the minimum steps needed to get my local audit trail and run results into the required submission files. Then complete the remaining deliverables, including the ticket report, resolved tickets, dashboard evidence, and harness. Check everything against the assignment requirements.
+
+*What was found and done:* None of the real results had reached GitHub yet: the audit trail there was still empty, and there were no run screenshots. The working database, needed to verify the ending balance, is only on the user's Mac. So instead of writing the deliverables without the data, the assistant wrote `backend/build_results.py` for the user to run on the Mac. It:
+- reads only the real audit trail and the working database (read-only, through the MCP server)
+- writes `resolved_tickets.json`, the Actual and Cash sections of `desk_tickets.html` (leaving the Expected plans untouched) and `resolved_board.html` with the user's dashboard screenshots
+- checks the money (starting balance minus recorded payments must equal the database balance), the approvers, that no agent recorded a payment, that drafts are unsent, and that the Portkey key appears in none of the files
+
+It never approves, pays or resets anything. Its three tests use temporary copies only. The minimum steps given to the user: save dashboard screenshots, `git pull`, run `python build_results.py`, then commit and push the output files. The results, harness and requirements check are completed after that push.
+
 ---
 

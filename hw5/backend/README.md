@@ -69,6 +69,24 @@ uvicorn main:app --reload --port 8000
 
 It's then at http://localhost:8000, with interactive docs at http://localhost:8000/docs. The routes are listed in `hw5/output/harness.md` under "The backend API".
 
+## Building the Problem 9 results
+
+After the real runs, on the computer that ran them:
+
+```bash
+python build_results.py
+```
+
+It reads only the real audit trail (`hw5/output/audit_trail.json`) and the working database (read-only, through the MCP server). It writes `output/resolved_tickets.json`, fills in the Actual sections and Cash tab of `output/desk_tickets.html` (the Expected plans aren't touched), and builds `output/resolved_board.html` with any dashboard screenshots saved as `output/resolved_screenshots/ticket-101-….png` (and `102`, `103`). It checks:
+- the starting balance minus the recorded payments equals the balance in the database
+- each payment's balance matches the running total
+- every payment has a named approver
+- no agent called `record_payment`
+- every draft is unsent
+- your Portkey key appears in none of the files you'll commit
+
+It never approves, pays, resets or calls the AI, and running it again rebuilds the same files.
+
 ## Testing
 
 ```bash
