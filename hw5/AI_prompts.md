@@ -289,3 +289,29 @@ No new MCP tool, database table or purchasing rule was added. `harness.md` and t
 
 ---
 
+## Problem 8: Agent Dashboard
+
+### Original prompt
+
+> Let's move on to Problem 8. I want to build the Campus Customs dashboard using React, Vite, and TypeScript in the frontend folder.
+>
+> The dashboard should show all three tickets and their status, let me select a ticket and run the agents, and show what each agent is saying and doing as they work, including when they communicate with other agents and use the MCP tools.
+>
+> When a run finishes, I want to see a summary of what each agent contributed and whether the ticket was resolved or still needs action. Please make sure failed runs aren't marked as resolved.
+>
+> We also need to review and approve payments and purchase requests, with the amounts, reasons, and any warnings clearly displayed before approving. The checking balance should update after payments.
+>
+> Please connect everything to our FastAPI backend at http://localhost:8000 and make sure the dashboard runs with npm run dev at http://localhost:5173.
+>
+> I want the dashboard to look polished and professional, with a thoughtful layout that makes it easy to follow the agents and understand what's happening with each ticket. Please make the agents visually distinct and clearly show ticket status and cash.
+>
+> Create output/design.md explaining the layout, how the agents are displayed, how resolved tickets and cash appear, and what makes the design distinctive.
+>
+> Please test the dashboard and its connection to the backend, update AI_prompts.md under Problem 8: Agent Dashboard, and push the changes to GitHub.
+
+### Follow-up prompts
+
+None.
+
+---
+

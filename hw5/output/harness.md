@@ -713,3 +713,31 @@ The original is only read, never written. The audit trail is kept, and a `databa
 
 The real server was also started with `uvicorn main:app --reload --port 8000` from `hw5/backend`. The read-only routes were called against the working database. `POST /api/tickets/101/run` correctly answered `503` because no Portkey key is set. No payment, reset or agent run was made against the working database, and the real audit trail is still empty.
 
+---
+
+## The dashboard (Problem 8)
+
+`frontend/` is a React + Vite + TypeScript dashboard that uses the backend routes above. It doesn't read the database or call the MCP server itself. Start the backend, then run `npm run dev` in `frontend/` and open `http://localhost:5173`. The layout and design are explained in `output/design.md`.
+
+| Dashboard part | Backend routes it uses |
+|---|---|
+| Header: shop date, model, connection, checking balance | `GET /api/health`, `GET /api/tickets`, `GET /api/cash` |
+| Ticket stubs and status pills | `GET /api/tickets`, `GET /api/approvals?status=all` |
+| Ticket header | `GET /api/tickets/{id}` |
+| Run the agents | `POST /api/tickets/{id}/run` |
+| Live activity, team strip, run summary | `GET /api/runs/{run_id}` and `GET /api/activity?run_id=…&since=…` (every second while a run is going) |
+| Approvals panel | `GET /api/approvals?status=all` and `POST /api/approvals/{id}` |
+| Cash panel | `GET /api/cash` (refreshed after every decision and run, and every 10 seconds) |
+
+**Ticket status:**
+- **Resolved:** the latest run finished, and either needed no approval or had every request decided.
+- **Needs action:** a request from the latest run is pending, or expired in a reset.
+- **Failed** or **Stopped:** the run errored or hit a usage limit. These are never shown as resolved.
+
+**Testing:**
+- **Unit tests:** `npm test` (9 tests) covers the status logic.
+- **Build:** `npm run build` type-checks and builds.
+- **End-to-end:** `npm run e2e` makes 32 checks in Chromium. It uses `backend/tests/scripted_server.py`, which is the real backend and MCP server on temporary copies of the data, with scripted agents instead of gpt-6-luna (no AI calls, no real money).
+
+The dashboard was also opened against the real backend and working database. It showed the tickets and the $3,400.00 balance, and correctly reported that a run needs `PORTKEY_API_KEY`. Nothing was changed.
+

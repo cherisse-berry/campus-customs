@@ -33,3 +33,7 @@ dist-preview/
 .DS_Store
 .vscode/
 .idea/
+
+# Dashboard end-to-end test screenshots (npm run e2e)
+hw5/frontend/e2e-screenshots/
+*.tsbuildinfo
