@@ -892,12 +892,34 @@ All three tickets were run with the real agents on **gpt-6-luna** through Portke
 - **Date:** every date came from `desk.date_today` (2026-08-31).
 - **Key:** no Portkey key appears in the audit trail or the output files (checked by `build_results.py` on the Mac, and by a pattern scan).
 
+### Approval is not execution
+
+A person's decision and the action that follows are separate things, and the reports keep them apart:
+
+| Request type | What approval does | What actually happens |
+|---|---|---|
+| Payment | Records the decision **and** records the payment through `record_payment`, in one transaction | Money moves: the `payments` row is written and the balance goes down |
+| Purchase | Records the decision in the audit trail only (`order_placed: false`, `vendor_contacted: false`, `money_moved: false`) | **Nothing is executed.** No order, no vendor contact, no money. A person would order outside the system. |
+| Discount | Records the discount the person chose | Nothing is sent to the customer and no price changes |
+
+**Decisions can't be reversed or amended.** Once a request is decided, the approval process treats it as closed: a second decision is refused, and there's no route or command to revoke or change one. The audit trail can only be added to, never edited.
+
+**How an approved purchase is reported:** `build_results.py` shows it as **"Approved, not executed"**, with a status of **on hold** when the database shows it can't be carried out. The two reasons it checks:
+- **The vendor can't ship** while its invoice is unpaid.
+- **The cash isn't enough:** the estimated cost is more than the cash now, or more than the cash left after paying that vendor's unpaid invoice, which the vendor rule requires first.
+
+For the 12 hoodies, that would read: Bulldog Print Co can't ship until invoice 501 ($840) is paid, and paying it would leave $160, less than the $264 estimate. The approval itself is never changed.
+
+**The 12-hoodie purchase in the records:** as of the latest pushed results (commit `ddfd304`, built 14:04 UTC), the audit trail records **no decision** on it (`apr_3456414c3059`): it's **pending**. The Ticket 103 screenshot also shows it waiting. If it was approved on the Mac after that push, the approval appears only once the Mac's audit trail is pushed. The report will then show it as approved, not executed and on hold.
+
 ### Submission status
 
-Done: all nine problems' files are in place (see `README.md`). The real runs, the human rent approval, the audit trail, the Actual and Cash sections, `resolved_tickets.json` and `resolved_board.html` are complete, with the money verified against the database.
+Done: all nine problems' files are in place (see `README.md`).
+- **Runs and results:** the real runs, the human rent approval, the audit trail, the Actual and Cash sections, the Reflection, `resolved_tickets.json` and `resolved_board.html` are complete. The money is verified against the database.
+- **Screenshots:** six real dashboard and page screenshots are in `output/resolved_screenshots/` and shown on the board.
 
 Still open, for the user to decide or do:
-1. **Dashboard screenshots:** none were included with the results, so `resolved_board.html` has none. They go in `output/resolved_screenshots/` (`ticket-101-….png` and so on); then `build_results.py` is run again and the files pushed.
-2. **Four pending requests:** invoice 501 ($840), the 1-tee purchase, the 12-hoodie purchase and the discount. Until each is approved or rejected, Tickets 101 and 103 show **Needs action**, not Resolved. Problem 9 asks to run the tickets "until each is resolved". These are the user's decisions; nothing here approves or rejects them.
-3. **The missing reset:** the database reset isn't recorded in the audit trail. The starting balance is backed up by the agents' own tool results, and this is disclosed in the Cash tab. Resetting now would undo the approved rent payment, so it wasn't done.
-4. **Optional:** the professor's semester rule to make the model configurable through `OPENAI_MODEL` hasn't been added; it's waiting for a decision. The Problem 6 page's Reflection tab now holds the user's own reflection on the runs (`build_results.py` never changes it).
+1. **Pending requests:** in the pushed records, four requests are undecided: invoice 501 ($840), the 1-tee purchase, the 12-hoodie purchase and the discount. Tickets 101 and 103 show **Needs action** until each is approved or rejected, and Problem 9 asks to run the tickets "until each is resolved". These are the user's decisions.
+2. **Homework 5 isn't on `main`:** it's only on the branch `claude/friendly-ritchie-om2axn`, so it needs merging (a pull request into `main`).
+3. **The missing reset:** the database reset isn't recorded. The starting balance is backed up by the agents' own tool results and disclosed in the Cash tab. Resetting now would undo the approved rent payment.
+4. **Optional:** making the model configurable through `OPENAI_MODEL` (the professor's semester rule) is waiting for a decision.

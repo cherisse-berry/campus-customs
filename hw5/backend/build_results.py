@@ -211,10 +211,39 @@ async def read_database() -> dict[str, Any]:
         cash = (await call("get_payments_due")).data
         tickets = (await call("list_tickets")).data
         lease = (await call("get_lease", {"lease_id": 1})).data
+        vendors = (await call("get_vendor_status")).data
         linked = {}
         for t in tickets["tickets"]:
             linked[t["id"]] = (await call("get_ticket", {"ticket_id": t["id"]})).data["linked"]
-    return {"cash": cash, "tickets": tickets, "lease": lease, "linked": linked}
+    return {"cash": cash, "tickets": tickets, "lease": lease, "vendors": vendors, "linked": linked}
+
+
+def purchase_execution(a: dict[str, Any], db: dict[str, Any], balance: float) -> dict[str, Any]:
+    """What happened after a purchase was approved: nothing is ever executed by the system.
+
+    Hold reasons come only from the database as it is now: whether the vendor may ship,
+    and whether the estimated cost fits in the cash (now, and after paying the vendor's
+    unpaid invoices, which the vendor rule requires before it can ship).
+    """
+    r = a["request"]
+    vendor = next((v for v in (db.get("vendors") or {}).get("vendors", []) if v["id"] == r.get("vendor_id")), None)
+    est = float(r.get("estimated_cost") or 0)
+    reasons: list[str] = []
+    if vendor and not vendor["can_ship_additional_products"]:
+        ids = ", ".join(str(i["id"]) for i in vendor["unpaid_invoices"])
+        reasons.append(f"{vendor['name']} can't ship until its unpaid invoice(s) {ids} ({money(vendor['unpaid_total'])}) "
+                       "are paid (vendors with unpaid invoices cannot ship additional products).")
+        after = round(balance - vendor["unpaid_total"], 2)
+        if est > after:
+            reasons.append(f"Insufficient funds: paying that invoice first would leave {money(after)} in checking, "
+                           f"less than the estimated {money(est)} for this purchase.")
+    if est > balance:
+        reasons.append(f"Insufficient funds: the estimated {money(est)} is more than the {money(balance)} in checking.")
+    return {"executed": False, "order_placed": False, "vendor_contacted": False, "money_moved": False,
+            "status": "on hold" if reasons else "approved, not executed",
+            "hold_reasons": reasons,
+            "note": "Approval only records the decision. The system never places orders, contacts vendors or moves "
+                    "money for a purchase; a person would place the order outside the system."}
 
 
 # ---------------------------------------------------------------- building everything
@@ -244,12 +273,19 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
                              f"during ticket {agents_saw['ticket_id']} at {agents_saw['timestamp']}, before any payment")
 
     result_tickets = []
+    balance_now = float(checking["balance"])
     for tid in (101, 102, 103):
         t_runs = [r for r in runs.values() if r["ticket_id"] == tid]
         latest = t_runs[-1] if t_runs else None
         run_ids = {r["run_id"] for r in t_runs}
         approvals = approvals_for(events, run_ids)
+        for a in approvals:
+            if a["type"] == "purchase" and a["status"] == "approved":
+                a["execution"] = purchase_execution(a, db, balance_now)
         state, label = ticket_state(latest, approvals)
+        held = [a for a in approvals if a.get("execution", {}).get("status") == "on hold"]
+        if held:
+            label += f" · {len(held)} approved purchase{'s' if len(held) > 1 else ''} on hold, not executed"
         contrib = contributions(latest["events"]) if latest else {}
         res = (latest or {}).get("resolution") or {}
         first = next((x["to"] for x in (latest or {}).get("events", []) if x["event"] == "delegation" and x.get("agent") == "boss"), None)
@@ -260,6 +296,8 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
                  if a["status"] == "pending" and a["run_id"] == (latest or {}).get("run_id")]
         if latest and latest["status"] in {"error", "stopped"}:
             still.insert(0, f"The run didn't finish ({latest['status']}): {latest.get('error') or latest['outcome']}. Run it again.")
+        still += [f"Approved purchase on hold, not executed: {describe_request(a)}. " + " ".join(a["execution"]["hold_reasons"])
+                  for a in held]
         follow_ups = [f.get("action") for f in res.get("human_follow_ups", [])]
         follow_ups += [f"Review and send the draft to {m.get('to')} (not sent by the agents)" for m in res.get("draft_messages", [])]
         result_tickets.append({
@@ -324,7 +362,9 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
         "starting_balance_matches_what_the_agents_saw": agents_saw is None or abs(agents_saw["cash"] - start) < 0.005,
         "database_reset_recorded": reset is not None,
     }
-    non_money = [{"ticket_id": t["ticket_id"], "type": a["type"], "status": a["status"], "what": describe_request(a)}
+    non_money = [{"ticket_id": t["ticket_id"], "type": a["type"],
+                  "status": a["status"] + (f", {a['execution']['status']} (not executed)" if a.get("execution") else ""),
+                  "what": describe_request(a)}
                  for t in result_tickets for a in t["human_approvals"] if a["type"] != "payment" or a["status"] != "approved"]
     cash = {"shop_date": db["cash"]["today"], "starting_balance": start, "starting_balance_source": start_source,
             "cash_the_agents_saw_before_any_payment": agents_saw,
@@ -356,7 +396,7 @@ STYLE = """
   .actual-filled .cmp.same { color: var(--ok); background: var(--ok-soft); }
   .actual-filled .cmp.diff { color: var(--warn); background: var(--warn-soft); }
   .actual-filled .agentdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-  .actual-filled .shot { max-width: 100%; border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; }
+  .actual-filled .shot, .shot { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; margin-top: 6px; }
 </style>
 """
 
@@ -430,6 +470,10 @@ def actual_section(t: dict[str, Any], shot_prefix: str, shots: bool = True) -> s
             detail = f'Payment {a["payment_recorded"].get("payment_id")} recorded; balance after {money(a["payment_recorded"].get("balance_after"))}'
         elif a["type"] == "discount" and d.get("discount_percent") is not None:
             detail = f'{d["discount_percent"]}% decided (recorded only)'
+        elif a["type"] == "purchase" and a.get("execution"):
+            x = a["execution"]
+            detail = (f'Approved, not executed: no order placed, no vendor contacted, no money moved. '
+                      f'Status: {x["status"]}. ' + " ".join(x["hold_reasons"]))
         elif a["type"] == "purchase" and d:
             detail = "Decision recorded only; no order placed, no money moved"
         warns = a["request"].get("warnings") or []
@@ -453,7 +497,8 @@ def actual_section(t: dict[str, Any], shot_prefix: str, shots: bool = True) -> s
 
 def cash_section(cash: dict[str, Any]) -> str:
     v = cash["verification"]
-    rows = f'<tr><td>Start</td><td>Working database reset ({e(cash["starting_balance_source"])})</td><td></td><td><b>{money(cash["starting_balance"])}</b></td></tr>'
+    start_what = ("Working database reset" if cash["starting_balance_source"] == "recorded at reset" else "Starting balance")
+    rows = f'<tr><td>Start</td><td>{start_what} ({e(cash["starting_balance_source"])})</td><td></td><td><b>{money(cash["starting_balance"])}</b></td></tr>'
     for c in cash["changes"]:
         rows += (f'<tr><td>Ticket {c["ticket_id"]}</td><td>Paid {e(c["payee"] or "")} ({"invoice " if c["kind"] == "invoice" else "rent, lease "}{c["ref_id"]}), '
                  f'approved by {e(c["approved_by"] or "")}. {e(c["why"] or "")}</td><td>−{money(c["amount"])}</td><td>{money(c["balance_after"])}</td></tr>')
@@ -502,9 +547,10 @@ def fill_desk(page: str, data: dict[str, Any]) -> str:
     return page
 
 
-def board_page(desk: str, data: dict[str, Any]) -> str:
+def board_page(desk: str, data: dict[str, Any], others: list[str] | tuple[str, ...] = ()) -> str:
     """resolved_board.html: same look as desk_tickets.html, one panel per ticket, plus cash."""
     head = desk.split("<body>")[0].replace("<title>Campus Customs Desk Tickets</title>", "<title>Campus Customs Resolved Board</title>")
+    head = re.sub(r'<style id="actual-styles">.*?</style>\s*', "", head, flags=re.S).replace("</head>", STYLE + "</head>", 1)
     cards = ""
     for t in data["tickets"]:
         tone = {"resolved": "ok", "needs_action": "warn"}.get(t["status"], "bad")
@@ -524,9 +570,26 @@ def board_page(desk: str, data: dict[str, Any]) -> str:
     return (head + '<body><div class="wrap"><header><h1>Campus Customs Resolved Board</h1>'
             f'<p>Problem 9: the real runs of the three tickets on <code>{e(", ".join(data["source"]["model"]) or "—")}</code>, '
             f'from the audit trail and the working database. Built {e(data["generated_at"])}.</p></header>'
-            f'{summary}{cards}<section class="card"><h2>Cash</h2>{cash_section(cash)}</section>'
+            f'{summary}{overall_section(others)}{cards}<section class="card"><h2>Cash</h2>{cash_section(cash)}</section>'
             '<footer>Built by <code>backend/build_results.py</code> from <code>output/audit_trail.json</code> and the working '
             'database. Screenshots are from the dashboard during the real runs.</footer></div></body></html>\n')
+
+
+def overall_section(others: list[str] | tuple[str, ...]) -> str:
+    if not others:
+        return ""
+    shots = "".join(f'<figure style="margin:12px 0"><img class="shot" src="resolved_screenshots/{e(n)}" '
+                    f'alt="{e(Path(n).stem.replace("-", " "))}"><figcaption class="lede">{e(Path(n).stem.replace("-", " ").capitalize())}'
+                    '</figcaption></figure>' for n in others)
+    return f'<section class="card"><h2>Other screenshots</h2><div class="actual-filled">{shots}</div></section>'
+
+
+def other_screenshots(folder: Path) -> list[str]:
+    """Screenshots that aren't for one ticket (for example the whole dashboard or the cash panel)."""
+    if not folder.is_dir():
+        return []
+    return [p.name for p in sorted(folder.iterdir())
+            if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"} and not re.match(r"ticket[-_ ]?10[123]", p.name, re.I)]
 
 
 def find_screenshots(folder: Path) -> dict[int, list[str]]:
@@ -567,7 +630,7 @@ async def main() -> int:
     desk_path = out / "desk_tickets.html"
     desk = fill_desk(desk_path.read_text(encoding="utf-8"), data)
     desk_path.write_text(desk, encoding="utf-8")
-    (out / "resolved_board.html").write_text(board_page(desk, data), encoding="utf-8")
+    (out / "resolved_board.html").write_text(board_page(desk, data, other_screenshots(out / "resolved_screenshots")), encoding="utf-8")
 
     print(f"Built from {len(entries)} audit entries.")
     for t in data["tickets"]:

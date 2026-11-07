@@ -528,5 +528,26 @@ Gaps found:
 
 *What was done:* The reflection was added to the Reflection tab of `output/desk_tickets.html` exactly as written, with its title and four sections. The Expected plans, Actual sections and Cash tab weren't changed. A test now confirms that `build_results.py` never changes the Reflection tab, so re-running it to add the dashboard screenshots keeps the reflection. `harness.md` no longer describes the Reflection tab as blank.
 
+**Follow-up 13**
+
+> I noticed that I approved the purchase of 12 hoodies for Ticket 103, even though the estimated cost is $264 and the remaining checking balance is only $160.
+>
+> Please check whether the application supports reversing or amending that approval through an audited action. If it does, explain the safe way to do so without resetting the database or altering the original audit history.
+>
+> If it does not, preserve the original approval and clearly document that the purchase is on hold because funds are insufficient. No purchase order was placed, no vendor was contacted, and no money was deducted.
+>
+> Please make sure the final report accurately distinguishes approval from execution. Do not fabricate a rejection, alter the audit trail, or rerun the agents.
+
+*What was found and done:*
+- **No approval in the records:** none of the pushed records show the 12-hoodie purchase as approved. The audit trail in commit `ddfd304` has no decision on `apr_3456414c3059`, the results built from it show it as pending, and the user's own screenshots show it waiting. So no approval was documented and no rejection was invented. If it was approved on the Mac after that push, it appears once the Mac's audit trail is pushed.
+- **The balance:** checking is $1,000. $160 is what would be left after also paying invoice 501, and invoice 501 must be paid before Bulldog Print Co can ship, so the $264 purchase couldn't be carried out without running short.
+- **Reversing an approval:** the application **can't reverse or amend** a decision. A decided request is closed, and the audit trail can only be added to.
+- **Approval versus execution:** `build_results.py` now reports any approved purchase as **"Approved, not executed"** (no order placed, no vendor contacted, no money moved). It shows the status as **on hold**, with the reasons worked out from the database: the vendor can't ship, and the funds are insufficient after paying the vendor's invoice. The approval itself is never changed.
+- **Other fixes:**
+  - The Cash tab no longer says "Working database reset" when no reset happened.
+  - The two non-ticket screenshots now appear under "Other screenshots" on the board.
+  - The ticket screenshots no longer overflow the board.
+- **What was rebuilt:** the board and the Actual and Cash sections were rebuilt from the Mac-generated `resolved_tickets.json` only. The Expected plans and the Reflection were unchanged. Six tests cover these behaviors. The audit trail wasn't altered, no agents were run, and the database wasn't reset.
+
 ---
 

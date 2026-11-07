@@ -114,8 +114,12 @@ async def test_builds_every_file_from_the_audit_trail_and_database(setup):
     assert reflection(page) == reflection(desk_before)                         # the Reflection tab isn't touched
     assert "Resolved — every request decided" in page and "Needs action" in page
     assert build_results.fill_desk(page, data) == page                        # rebuilding is stable
-    board = build_results.board_page(page, data)
+    (out / "resolved_screenshots" / "final-dashboard.png").write_bytes(b"\x89PNG")
+    others = build_results.other_screenshots(out / "resolved_screenshots")
+    assert others == ["final-dashboard.png"]
+    board = build_results.board_page(page, data, others)
     assert 'src="resolved_screenshots/ticket-102-summary.png"' in board
+    assert "Other screenshots" in board and 'src="resolved_screenshots/final-dashboard.png"' in board
     assert "No dashboard screenshot was provided" in board                     # 101 and 103 had none
 
 
@@ -150,4 +154,43 @@ async def test_no_reset_is_flagged_and_the_start_is_backed_by_what_the_agents_sa
     assert "not recorded by a reset" in data["cash"]["starting_balance_source"]
     assert v["starting_balance_matches_what_the_agents_saw"] is True
     assert accounting_seen is (data["cash"]["cash_the_agents_saw_before_any_payment"] is not None)
+
+
+
+async def test_an_approved_purchase_is_reported_as_not_executed_and_on_hold(setup):
+    import sqlite3
+    trail = setup["audit"]
+    await run_all(trail)
+    rent = next(a for a in approvals.pending(trail) if a["request"].get("kind") == "rent")
+    await approvals.approve_payment(trail, rent, "Pat", [])                      # $3,400 -> $1,000
+    hoodies = next(a for a in approvals.pending(trail) if a["approval_type"] == "purchase")
+    review = await approvals.review_purchase(hoodies)
+    await approvals.approve_purchase(trail, hoodies, "Pat", review["warnings"])   # approval only
+    with sqlite3.connect(setup["db"]) as conn:
+        before = conn.execute("SELECT balance FROM cash_accounts").fetchall(), conn.execute("SELECT COUNT(*) FROM payments").fetchall()
+
+    data = build_results.build(trail.entries(), await build_results.read_database(), {})
+    t103 = next(t for t in data["tickets"] if t["ticket_id"] == 103)
+    purchase = next(a for a in t103["human_approvals"] if a["type"] == "purchase")
+    x = purchase["execution"]
+    assert purchase["status"] == "approved"                       # the approval itself is kept as recorded
+    assert (x["executed"], x["order_placed"], x["vendor_contacted"], x["money_moved"]) == (False, False, False, False)
+    assert x["status"] == "on hold"
+    assert any("can't ship until its unpaid invoice(s) 501 ($840.00)" in r for r in x["hold_reasons"])
+    assert any("would leave $160.00 in checking, less than the estimated $264.00" in r for r in x["hold_reasons"])
+    assert "on hold, not executed" in t103["status_label"]
+    assert any(s.startswith("Approved purchase on hold, not executed") for s in t103["still_needs_action"])
+    assert data["cash"]["final_balance"] == 1000.0 and data["cash"]["total_moved"] == 2400.0
+    page = build_results.fill_desk((setup["out"] / "desk_tickets.html").read_text(), data)
+    assert "Approved, not executed: no order placed, no vendor contacted, no money moved. Status: on hold." in page
+    with sqlite3.connect(setup["db"]) as conn:                    # nothing in the database changed
+        assert (conn.execute("SELECT balance FROM cash_accounts").fetchall(), conn.execute("SELECT COUNT(*) FROM payments").fetchall()) == before
+
+
+async def test_without_a_reset_the_cash_tab_doesnt_claim_one(setup):
+    trail = build_results.AuditTrail(setup["out"] / "no_reset_cash.json")
+    await run_all(trail)
+    data = build_results.build(trail.entries(), await build_results.read_database(), {})
+    html_cash = build_results.cash_section(data["cash"])
+    assert "Working database reset" not in html_cash and "<td>Starting balance (not recorded by a reset" in html_cash
 
