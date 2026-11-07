@@ -409,5 +409,22 @@ The run itself, the approvals, the Actual and Cash sections, `resolved_tickets.j
 - **Model name:** gpt-5.6-luna (semester notes) and gpt-6-luna (Homework 5) conflict, and the professor should confirm.
 - **Still needed:** Portkey access and a key from the professor, the exact model name, running locally with `hw5/.env` per the professor's rule, the `OPENAI_MODEL` change, and the connection check. No API keys were displayed, and nothing was run, reset or changed.
 
----
+**Follow-up 7**
 
+> Good news! I found an existing PORTKEY_API_KEY in a .env file from my MGT 409 coursework on my Mac.
+>
+> Can we use this for Homework 5 instead of creating a new key? Please walk me through how to use it securely without displaying the key or uploading it to GitHub.
+>
+> I'd like to test whether it works with gpt-6-luna before we run the agents or reset the database.
+
+*What happened:* The assistant explained that the key can be reused if it's meant for this coursework (check with the professor if MGT 409 is a different course). It gave Mac steps that:
+1. check out the Homework 5 branch
+2. install the backend's packages
+3. copy only the `PORTKEY_API_KEY` line into `hw5/.env` without printing it, and restrict the file to the user
+4. confirm Git ignores `hw5/.env`
+5. run `check_portkey.py`, which makes three tiny calls (a reply, a tool call and structured output) and never prints the key
+
+The connection test is run by the user on their Mac. No key was displayed or committed, and the database, agents and audit trail weren't touched.
+
+
+---
