@@ -1,0 +1,24 @@
+# Local secrets / envs
+.env
+**/.env
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+**/dist/
+.DS_Store
+*.log
+
+# Do not commit source PDFs or joke scratch files
+*.pdf
+*.PDF
+harrypotter.pdf
+books/
+folder_joke.txt
+folder_joke_2.txt
+folder_joke*.txt
+build_harrypotter_db.py
+
+# Keep the SQLite DB under data/; ignore any stray copies at root
+/harrypotter.db

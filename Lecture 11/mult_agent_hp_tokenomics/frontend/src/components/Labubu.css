@@ -1,0 +1,259 @@
+.labubu {
+  --accent: #c9a227;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 118px;
+  transition: transform 0.25s ease, filter 0.25s ease;
+  filter: grayscale(0.35) brightness(0.85);
+  outline: none;
+}
+
+.labubu.clickable {
+  cursor: pointer;
+}
+
+.labubu.clickable:focus-visible .labubu-stage {
+  outline: 2px solid #ff4da6;
+  outline-offset: 4px;
+  border-radius: 16px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.labubu.thinking,
+.labubu.done {
+  filter: none;
+}
+
+.labubu.thinking {
+  transform: translateY(-4px);
+}
+
+.labubu-stage {
+  position: relative;
+  width: 100px;
+  height: 124px;
+  z-index: 1;
+}
+
+.labubu:hover,
+.labubu.tip-pinned {
+  z-index: 20;
+}
+
+.labubu-tip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: min(280px, 70vw);
+  max-height: 220px;
+  overflow: auto;
+  padding: 0.65rem 0.75rem;
+  background: #1a1422;
+  border: 1px solid #5a3d66;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+  text-align: left;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.labubu:hover .labubu-tip,
+.labubu.tip-pinned .labubu-tip,
+.labubu-tip.open {
+  display: block;
+  pointer-events: auto;
+}
+
+.labubu-tip-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+  color: #f5e6c8;
+  font-size: 0.78rem;
+}
+
+.labubu-tip p {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #d2c2a8;
+  white-space: pre-wrap;
+}
+
+.labubu-tip em {
+  display: block;
+  font-style: normal;
+  font-weight: 700;
+  color: #ff4da6;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.15rem;
+}
+
+.tip-status {
+  text-transform: uppercase;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: #b9a48a;
+}
+
+.tip-status.running {
+  color: #ffb347;
+}
+
+.tip-status.done {
+  color: #5fd89a;
+}
+
+.tip-status.error {
+  color: #ff6b6b;
+}
+
+.labubu-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+}
+
+.labubu.thinking .labubu-svg {
+  animation: hover-bounce 1.1s ease-in-out infinite;
+}
+
+.labubu.thinking .star-glints {
+  animation: star-pulse 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.labubu.thinking .ears {
+  animation: ear-twitch 1.4s ease-in-out infinite;
+  transform-origin: 80px 40px;
+}
+
+.labubu.done {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 16px;
+}
+
+.labubu.boss.thinking,
+.labubu.boss.done {
+  outline-color: #ff4da6;
+}
+
+.labubu-label {
+  font-family: var(--font-ui, 'Source Sans 3', sans-serif);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f5e6c8;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.labubu-sub {
+  font-size: 0.62rem;
+  color: #b9a48a;
+  text-align: center;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.labubu-prop {
+  position: absolute;
+  right: -2px;
+  top: 8px;
+  font-size: 1rem;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+
+.think-dots {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  transform: translateX(-50%);
+  color: #ff4da6;
+  font-weight: 900;
+  letter-spacing: 2px;
+  animation: blink 0.8s step-end infinite;
+}
+
+.status-pip {
+  position: absolute;
+  right: 2px;
+  bottom: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: #1a1a1a;
+  color: #7dffb3;
+  border: 1px solid #7dffb3;
+}
+
+.status-pip.err {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+}
+
+@keyframes hover-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes star-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes ear-twitch {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-2deg);
+  }
+  60% {
+    transform: rotate(2deg);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

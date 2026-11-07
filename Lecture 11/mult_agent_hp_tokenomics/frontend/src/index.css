@@ -1,0 +1,38 @@
+:root {
+  color-scheme: dark;
+  --font-ui: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  --font-prose: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  font-family: var(--font-ui);
+  line-height: 1.45;
+  font-weight: 400;
+  background: #07070a;
+  color: #f2e8d5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-ui);
+  background:
+    radial-gradient(ellipse at 20% -10%, rgba(255, 77, 166, 0.18), transparent 40%),
+    radial-gradient(ellipse at 90% 10%, rgba(196, 30, 58, 0.12), transparent 35%),
+    #07070a;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
