@@ -68,7 +68,7 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ---
 
-## Problem 3
+## Problem 3: Build the MCP Server
 
 ### Original prompt
 
@@ -84,6 +84,17 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ### Follow-up prompts
 
-None.
+**Follow-up 1**
+
+> Thank you. The official title is Problem 3: Build the MCP Server, so please correct that in AI_prompts.md.
+>
+> I also noticed that the bulk order tool calculates a maximum discount of 62.07%. Can you explain how that number was determined and whether it means we should actually offer that discount? I want to make sure I understand what the tool is telling us.
+>
+> Please update AI_prompts.md with this follow-up and push the changes to GitHub.
+
+*What needed to be fixed:*
+
+- **Problem title:** the section was labeled only "Problem 3" because no title had been given. It now uses the official title, "Build the MCP Server".
+- **Explaining the 62.07% figure:** nothing in the code changed, but the meaning of `max_discount_percent_without_loss` needed explaining. It's the break-even discount: ($58.00 list price − $22.00 unit cost) ÷ $58.00 = 62.07%, the discount at which the hoodie sells for exactly what it costs the shop, so the profit is $0. It's a limit, not a recommendation. It only counts the item's cost, not rent or other expenses, so the shop would actually lose money at that discount.
 
 ---
