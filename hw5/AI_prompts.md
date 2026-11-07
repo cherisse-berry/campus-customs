@@ -98,3 +98,21 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 - **Explaining the 62.07% figure:** nothing in the code changed, but the meaning of `max_discount_percent_without_loss` needed explaining. It's the break-even discount: ($58.00 list price − $22.00 unit cost) ÷ $58.00 = 62.07%, the discount at which the hoodie sells for exactly what it costs the shop, so the profit is $0. It's a limit, not a recommendation. It only counts the item's cost, not rent or other expenses, so the shop would actually lose money at that discount.
 
 ---
+
+## Problem 4
+
+### Original prompt
+
+> Let's move on to Problem 4. I want to connect the MCP server we built to our coding assistant so we can actually use the three tools.
+>
+> Please set up the connection for this project and then test each tool using the information from the Campus Customs database. I want to make sure all three tools work correctly and that the results match what's actually in our working database.
+>
+> Please save the connection settings and document the tests, including what you asked, which tool was used, and what it returned.
+>
+> Also, update AI_prompts.md with this prompt and push the changes to GitHub.
+
+### Follow-up prompts
+
+None.
+
+---

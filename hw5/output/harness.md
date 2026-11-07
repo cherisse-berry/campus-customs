@@ -398,6 +398,10 @@ It only calculates. It marks any discount as needing a person's approval and nev
 
 **Why it's needed:** The database has no discount rules, so an agent shouldn't decide on a discount by itself. This tool gives the person deciding the facts: what each discount would bring in, the point where the shop would lose money, and the fact that only 8 of the 20 hoodies are in stock. All of that has to be settled before anyone agrees to the deal.
 
+### Connection to Claude Code (Problem 4)
+
+The server is connected to Claude Code through `.mcp.json` at the repository root, under the name `campus-customs`. Claude Code starts the server itself with the Python in `mcp_server/.venv`. All three tools were tested through Claude Code using the three tickets, and their results matched the working database. The tests are documented in `output/mcp_tests.md`, and `mcp_server/test_tools.py` repeats the check automatically.
+
 ### What the tools don't do yet
 
 - **No ticket lookup.** An agent can't yet read the `tickets` table through the server, so the ticket details (SKU, size, quantity) have to be given to the tools.

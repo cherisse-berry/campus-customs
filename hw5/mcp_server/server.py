@@ -274,4 +274,4 @@ def price_bulk_order(sku: str, size: str, qty: int, discount_percent: float = 0)
 
 
 if __name__ == "__main__":
-    mcp.run()
+    mcp.run(show_banner=False)
