@@ -58,4 +58,12 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 - **Problem title:** the section was labeled "Analyze the Database" because no title had been given. It now uses the official title, "Study the Campus Customs Database".
 - **Setup instructions:** the database files aren't in the repository, and the only setup note was one sentence in `harness.md`. A reviewer of the public repository had no clear way to recreate them. `hw5/README.md` now has step-by-step setup instructions, and `hw5/setup_db.py` creates both files from `data_2.zip`.
 
+**Follow-up 2**
+
+> Yes, please make sure the script stops if the database doesn't match the original assignment file. I don't want it replacing the original with the wrong data.
+>
+> Please test this without changing our existing files, update AI_prompts.md with this follow-up, and push the changes to GitHub.
+
+*What needed to be fixed:* When `setup_db.py` was given a database that didn't match the one in `data_2.zip`, it replaced the original anyway and only printed a warning. It now checks the file's fingerprint before replacing anything, and stops without changing any files if it doesn't match. It also stops instead of creating or resetting the working copy if the original on disk has been altered. The changes were tested in a separate scratch folder with mismatched files, and the real database files were confirmed unchanged. `hw5/README.md` now describes this behavior.
+
 ---

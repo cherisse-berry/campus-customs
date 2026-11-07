@@ -14,6 +14,8 @@ Usage (run from the hw5 folder):
   python3 setup_db.py --reset     # replace the working copy with a fresh copy of the original
 
 An existing working copy is never overwritten unless --reset is given.
+If a file doesn't match the database delivered in data_2.zip, the script stops
+without changing anything.
 """
 
 import argparse
@@ -52,17 +54,29 @@ def make_writable(path: Path) -> None:
 
 
 def install_original(source: Path) -> None:
-    if ORIGINAL.exists():
-        make_writable(ORIGINAL)
-    if zipfile.is_zipfile(source):
-        with zipfile.ZipFile(source) as z:
-            if ZIP_MEMBER not in z.namelist():
-                sys.exit(f"{source} does not contain {ZIP_MEMBER}.")
-            with z.open(ZIP_MEMBER) as src, open(ORIGINAL, "wb") as dst:
-                shutil.copyfileobj(src, dst)
-    else:
-        shutil.copyfile(source, ORIGINAL)
-    make_read_only(ORIGINAL)
+    """Check the source first; only replace the original if it matches."""
+    temp = DATA / "campus_customs.db.incoming"
+    try:
+        if zipfile.is_zipfile(source):
+            with zipfile.ZipFile(source) as z:
+                if ZIP_MEMBER not in z.namelist():
+                    sys.exit(f"Stopped: {source} does not contain {ZIP_MEMBER}. Nothing was changed.")
+                with z.open(ZIP_MEMBER) as src, open(temp, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        else:
+            shutil.copyfile(source, temp)
+
+        if sha256(temp) != EXPECTED_SHA256:
+            sys.exit(f"Stopped: {source} does not match the database delivered in data_2.zip. "
+                     "Nothing was changed.")
+
+        if ORIGINAL.exists():
+            make_writable(ORIGINAL)
+        os.replace(temp, ORIGINAL)
+        make_read_only(ORIGINAL)
+    finally:
+        if temp.exists():
+            temp.unlink()
 
 
 def main() -> None:
@@ -85,9 +99,9 @@ def main() -> None:
     elif not ORIGINAL.exists():
         sys.exit("No original database yet. Run: python3 setup_db.py path/to/data_2.zip")
 
-    digest = sha256(ORIGINAL)
-    if digest != EXPECTED_SHA256:
-        print("Warning: data/campus_customs.db does not match the database delivered in data_2.zip.")
+    if sha256(ORIGINAL) != EXPECTED_SHA256:
+        sys.exit("Stopped: data/campus_customs.db does not match the database delivered in "
+                 "data_2.zip. Nothing was changed. Run the script again with data_2.zip to restore it.")
     print(f"Original:     {ORIGINAL.relative_to(HERE)} (read-only)")
 
     if WORKING.exists() and not args.reset:

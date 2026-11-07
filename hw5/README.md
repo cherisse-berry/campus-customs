@@ -27,7 +27,7 @@ This creates two files in `hw5/data/`:
 | `campus_customs.db` | The **original** database, exactly as delivered. It is set to read-only so it isn't changed by accident. |
 | `campus_customs_new.db` | The **working copy**. This is the file the agents read and change. |
 
-The script checks the original against the SHA-256 fingerprint of the delivered database (`23686a90d698f7fa6f901a3f0a9774db9cbb31e13151c9e5717275f3321f360a`) and prints a warning if they don't match.
+The script checks the database against the SHA-256 fingerprint of the one delivered in `data_2.zip` (`23686a90d698f7fa6f901a3f0a9774db9cbb31e13151c9e5717275f3321f360a`). **If it doesn't match, the script stops and changes nothing.** It never replaces the original with the wrong data, and it won't create or reset the working copy from an original that has been altered. If that happens, run the script again with `data_2.zip` to restore the original.
 
 If you've already unzipped the file, you can pass the database directly instead:
 
