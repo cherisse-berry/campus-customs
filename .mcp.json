@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "campus-customs": {
+      "type": "stdio",
+      "command": "hw5/mcp_server/.venv/bin/python",
+      "args": [
+        "hw5/mcp_server/server.py"
+      ],
+      "env": {}
+    }
+  }
+}
