@@ -394,5 +394,20 @@ The run itself, the approvals, the Actual and Cash sections, `resolved_tickets.j
 
 *What was found:* Homework 4 didn't use Portkey. It used Anthropic's API directly (`ANTHROPIC_API_KEY`, a Claude model), run on the user's Mac with the key in a local `.env` that was never committed. Portkey doesn't appear anywhere in Homework 4 or the repository's history, and no model keys are set in this session. No key values were displayed. The "choose an organization" page suggests course-managed Portkey access, so the user likely needs the professor for organization access, a key, and confirmation of the exact model name. Nothing was run, reset or changed.
 
+**Follow-up 6**
+
+> I found an earlier Slack message from our professor with the semester project rules. He says we're supposed to use PORTKEY_API_KEY from a local .env file and keep the model configurable through OPENAI_MODEL.
+>
+> Can you check whether we already have a Portkey setup or .env file in any of our course project folders? Please don't display any API keys.
+>
+> Also, the semester instructions mention gpt-5.6-luna, while Homework 5 requires gpt-6-luna. Can you check whether our current setup follows the Homework 5 requirements and explain what we still need to get the agents running?
+
+*What was found and what still needs fixing:*
+- **Existing setup:** none. Every Portkey mention on the machine is Homework 5 code from this assignment. There's no real `.env` file, only blank `.env.example` templates. `OPENAI_MODEL` appears nowhere in the repository or its history.
+- **Other repositories:** GitHub's code search returned nothing but failed a known check, so it wasn't reliable. Opening the other repositories (`emba`, `equitas-intelligence`) was blocked by the session's safety controls and wasn't worked around. The user was given a command to list `.env` setting names (not values) on their own Mac.
+- **Requirements check:** `PORTKEY_API_KEY` from a local `.env` and keeping the key out of GitHub are already met. Making the model configurable through `OPENAI_MODEL` is **not** met (the name is fixed in code). A change was proposed (`OPENAI_MODEL` with `gpt-6-luna` as the default) but not made, pending the user's choice of whether another model should be refused or allowed with a warning.
+- **Model name:** gpt-5.6-luna (semester notes) and gpt-6-luna (Homework 5) conflict, and the professor should confirm.
+- **Still needed:** Portkey access and a key from the professor, the exact model name, running locally with `hw5/.env` per the professor's rule, the `OPENAI_MODEL` change, and the connection check. No API keys were displayed, and nothing was run, reset or changed.
+
 ---
 
