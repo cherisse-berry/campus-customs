@@ -472,5 +472,29 @@ The connection test is run by the user on their Mac. No key was displayed or com
 
 It never approves, pays or resets anything. Its three tests use temporary copies only. The minimum steps given to the user: save dashboard screenshots, `git pull`, run `python build_results.py`, then commit and push the output files. The results, harness and requirements check are completed after that push.
 
+**Follow-up 11**
+
+> I successfully pushed commit 44a51f8 to GitHub with my actual Problem 9 results.
+>
+> Please review the uploaded files and complete the remaining Homework 5 deliverables. Update harness.md and AI_prompts.md, and perform a final gap analysis against all nine assignment problems.
+>
+> Do not fabricate results or change the financial decisions I made. The rent payment was approved, leaving $1,000. The other four requests remain pending.
+>
+> Identify anything I must still do before submitting, especially the required dashboard screenshots and whether unresolved approvals affect Problem 9 completion. Please prioritize the minimum steps needed to submit a complete assignment.
+
+*What was reviewed and fixed:* The pushed results were checked against the raw audit trail:
+- **Runs:** 94 real entries, all on gpt-6-luna.
+- **Decisions:** the rent was approved by Cherisse Berry, the cash went from $3,400 to $1,000, and four requests are pending.
+- **Files:** the Expected plans are intact, the Actual and Cash sections are filled, and no key-like strings were found.
+
+Gaps found:
+- **No database reset in the audit trail:** the starting balance comes from the final balance plus payments. It's backed up by the $3,400 the agents saw before any payment.
+- **No dashboard screenshots** in `resolved_board.html`.
+- **Tickets 101 and 103 show Needs action** while their requests are pending.
+- **Homework 5 isn't on `main`:** it's only on the working branch.
+- **Ticket 102's "still needs action" was stale:** it repeated the Boss's own follow-up to approve the rent, which was already approved.
+
+`build_results.py` was fixed to list pending requests separately from the Boss's pre-decision follow-ups, and to cite the agents' view of the cash when no reset is recorded; its tests pass. `harness.md` now has the actual Problem 9 results, the comparison with the plan, the verified cash, the safety rules in the real runs and the open items. No results were invented, no decision was changed, and the database wasn't reset.
+
 ---
 

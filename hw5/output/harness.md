@@ -828,25 +828,76 @@ In this order (each README has the details):
 
 ## Problem 9: Resolving the tickets
 
-**Status: not run yet.** The tickets haven't been run with gpt-6-luna.
+All three tickets were run with the real agents on **gpt-6-luna** through Portkey, from the dashboard on the user's Mac, on 2026-11-07 (commit `44a51f8`). Everything below comes from `output/audit_trail.json` (94 entries from those runs) and from the working database on the Mac, read by `backend/build_results.py`. The detailed results are in `output/desk_tickets.html` (Actual sections and Cash tab), `output/resolved_tickets.json` and `output/resolved_board.html`.
 
-**Connection progress:** the user is running the project on their Mac with an existing course Portkey key in `hw5/.env`.
-- **First connection check:** the plain reply **passed**. The tool call and structured output **failed**, because the chat-completions endpoint doesn't allow function tools while a reasoning model reasons.
-- **The fix:** the agents now use the Responses endpoint (`/v1/responses`) with low reasoning effort, with chat completions plus reasoning off as a fallback setting.
-- **Offline check of the fix:** the requests every agent would send were captured without contacting Portkey. Each goes to `/v1/responses` with its MCP tools, `delegate` and the structured-output tool.
-- **Still to confirm:** the connection check needs to be run again on the Mac. The working database is still identical to the original (same fingerprint), the real audit trail is empty, and no payment, purchase or discount has been approved.
+### Connection
 
-Once the key is in place, the plan is:
-1. Run `check_portkey.py`, and stop if any check fails.
-2. Reset the working database (`POST /api/reset`) and record the starting checking balance.
-3. Run Tickets 101, 102 and 103 from the dashboard, one at a time.
-4. Bring every payment, purchase and discount request to a person, who approves or rejects it in the dashboard. Nothing is approved automatically.
-5. Fill in the Actual sections and Cash tab of `output/desk_tickets.html` from the real runs, keeping the Expected plans. Only money that actually moved counts, checked against the working database.
-6. Create `output/resolved_tickets.json` and `output/resolved_board.html` (with screenshots of the real dashboard runs) from the audit trail.
+`backend/check_portkey.py` (a plain reply, a tool call and structured output) first failed the tool-call and structured-output checks. The cause was that gpt-6-luna doesn't allow function tools on the chat-completions endpoint while it reasons. After the agents moved to the Responses endpoint with low reasoning effort, all three checks passed on the Mac.
 
-**Where things stand:**
-- **Runs:** the user ran all three tickets with gpt-6-luna on their Mac.
-- **Approvals:** the user approved the $2,400 rent payment, leaving $1,000 in checking. Four other requests are still pending; the user decides those, not the agents or the assistant.
-- **Building the files:** the results are built by `backend/build_results.py`, run on the Mac. It needs the Mac because it checks the ending balance against the working database, which isn't in GitHub. It reads only the real audit trail and the working database, and never approves, pays or resets anything. Its checks are listed in `backend/README.md`.
-- **Still to come:** this section will be completed with the actual results once the Mac's audit trail, screenshots and generated files are pushed.
+### Results
 
+| | Ticket 101 — white tee | Ticket 102 — rent | Ticket 103 — hoodies and discount |
+|---|---|---|---|
+| Run | `run_ef7b73a0f445` | `run_3e67de5ec54a` | `run_332782f5368f` |
+| Boss contacted first | Inventory (as planned) | Facilities (as planned) | **Accounting** (plan: Inventory) |
+| Delegations | Boss → Inventory, Accounting, Customer Service | Boss → Facilities, Accounting | Boss → Accounting, Inventory, Customer Service |
+| Agents not involved | Facilities (as planned) | Inventory, Customer Service (as planned) | Facilities (as planned) |
+| Usage | 11 model calls, 11 tool calls, 41,451 tokens | 7 model calls, 7 tool calls, 26,109 tokens | 9 model calls, 13 tool calls, 35,442 tokens |
+| Requests | Pay invoice 501 ($840); buy 1 × CC-TEE-WHITE S | Pay rent, lease 1 ($2,400) | Discount (agents recommend 5%); buy 12 × CC-HOOD-NAVY M |
+| Human decisions | None yet: **2 pending** | Rent **approved by Cherisse Berry** | None yet: **2 pending** |
+| Status | **Needs action** | **Resolved** | **Needs action** |
+
+**What each agent contributed:**
+- **Ticket 101:**
+  - Inventory found 0 in size S and that Bulldog Print Co can't ship while invoice 501 is unpaid, and it prepared a 1-unit purchase request.
+  - Accounting confirmed paying invoice 501 is allowed (leaving $2,560 then).
+  - Customer Service drafted a short holding reply to Tauhid Zaman (not sent).
+- **Ticket 102:**
+  - Facilities confirmed the notice matches lease 1 (landlord, due date). It noted the notice gives no amount, so the $2,400 on file applies.
+  - Accounting checked the payment (allowed, no warnings, $1,000 left).
+- **Ticket 103:**
+  - Accounting evaluated 0%, 5%, 10% and 15% with `price_bulk_order` and recommended **5% for this request only** ($1,102 total, $662 profit, well below the 62.07% break-even). A person decides.
+  - Inventory found 8 in M (12 short) and the vendor block, and prepared the 12-unit purchase request.
+  - Customer Service drafted a reply saying the discount request is under review (not sent, no discount mentioned).
+
+**Compared with the Problem 6 plan:**
+- **Ticket 102:** matched completely.
+- **Ticket 103:** the Boss asked Accounting before Inventory.
+- **Ticket 101:** Inventory requested a purchase of the tee, although invoice 501 is already the rush reprint of that exact item. The plan expected no new purchase. The code attached a warning that invoice 501 "may already cover this item", for the person deciding.
+- **Customer Service:** in Tickets 101 and 103 it used `get_ticket` but not `check_stock`. So the Ticket 101 draft doesn't offer the M, L and XL sizes that are in stock.
+- **Extra `get_ticket` calls:** several agents also called `get_ticket` themselves, beyond the planned tools.
+- **No failures:** no answer was sent back by a rule check, and no tool failed.
+
+### Cash
+
+| | Change | Balance |
+|---|---|---|
+| Start | | **$3,400.00** |
+| Ticket 102: rent to Elm City Properties (lease 1), approved by Cherisse Berry | −$2,400.00 | $1,000.00 |
+| Tickets 101 and 103 | No money moved (all requests pending; a purchase or discount approval never moves money) | $1,000.00 |
+| **Final, from the working database** | | **$1,000.00** |
+
+- **The final balance matches the database:** starting balance minus recorded payments equals the working database's balance. Payment 1 is recorded on lease 1, and the lease's next due date moved to 2026-10-02.
+- **Still owed:** invoice 501 ($840, overdue) and October's rent ($2,400, due 2026-10-02).
+- **Starting balance:** **no database reset was recorded** before these runs, so the reset didn't record the starting balance. The $3,400 is the final balance plus recorded payments. It also matches the cash the agents themselves saw through `get_payments_due` and `check_payment` during Ticket 101 (11:52 UTC), before any payment.
+
+### Safety rules in the real runs
+
+- **Payments:** the only payment was made by a person (approved by Cherisse Berry) through `record_payment` in the approver role. No agent called `record_payment`.
+- **Cash:** the payment fitted in the cash, and the balance never went below $1,000.
+- **Vendor rule:** Bulldog Print Co's block was reported in both purchase requests.
+- **Discounts:** the discount was recommended for one request only and left to a person, and neither draft mentions it.
+- **Drafts:** both were addressed to the customer requesters and are unsent. No message was sent to anyone.
+- **Revenue:** none was counted. The hoodie order didn't add to cash.
+- **Date:** every date came from `desk.date_today` (2026-08-31).
+- **Key:** no Portkey key appears in the audit trail or the output files (checked by `build_results.py` on the Mac, and by a pattern scan).
+
+### Submission status
+
+Done: all nine problems' files are in place (see `README.md`). The real runs, the human rent approval, the audit trail, the Actual and Cash sections, `resolved_tickets.json` and `resolved_board.html` are complete, with the money verified against the database.
+
+Still open, for the user to decide or do:
+1. **Dashboard screenshots:** none were included with the results, so `resolved_board.html` has none. They go in `output/resolved_screenshots/` (`ticket-101-….png` and so on); then `build_results.py` is run again and the files pushed.
+2. **Four pending requests:** invoice 501 ($840), the 1-tee purchase, the 12-hoodie purchase and the discount. Until each is approved or rejected, Tickets 101 and 103 show **Needs action**, not Resolved. Problem 9 asks to run the tickets "until each is resolved". These are the user's decisions; nothing here approves or rejects them.
+3. **The missing reset:** the database reset isn't recorded in the audit trail. The starting balance is backed up by the agents' own tool results, and this is disclosed in the Cash tab. Resetting now would undo the approved rent payment, so it wasn't done.
+4. **Optional:** the professor's semester rule to make the model configurable through `OPENAI_MODEL` hasn't been added; it's waiting for a decision. The Problem 6 page's Reflection tab is blank, since none of the nine problems asked for it to be filled in.

@@ -229,9 +229,19 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
     start = reset.get("starting_checking_balance") if reset else None
     start_source = "recorded at reset" if start is not None else None
     moved = round(sum(p["payment"]["amount"] for p in payments), 2)
+    first_payment_at = payments[0]["timestamp"] if payments else "9999"
+    seen = next(((x["timestamp"], x["ticket_id"], x["tool"],
+                  x["result"].get("total_cash", x["result"].get("cash_available")))
+                 for x in events if x["event"] == "tool_result" and x.get("tool") in {"get_payments_due", "check_payment"}
+                 and isinstance(x.get("result"), dict) and x["timestamp"] < first_payment_at), None)
+    agents_saw = None if seen is None else {"timestamp": seen[0], "ticket_id": seen[1], "tool": seen[2], "cash": seen[3]}
     if start is None:
         start = round(checking["balance"] + moved, 2)
-        start_source = "worked out from the final balance plus recorded payments (the reset didn't record it)"
+        start_source = ("not recorded by a reset (no reset is in the audit trail): worked out as the final balance plus "
+                        "recorded payments")
+        if agents_saw:
+            start_source += (f", and it matches the {money(agents_saw['cash'])} the agents saw in {agents_saw['tool']} "
+                             f"during ticket {agents_saw['ticket_id']} at {agents_saw['timestamp']}, before any payment")
 
     result_tickets = []
     for tid in (101, 102, 103):
@@ -250,8 +260,8 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
                  if a["status"] == "pending" and a["run_id"] == (latest or {}).get("run_id")]
         if latest and latest["status"] in {"error", "stopped"}:
             still.insert(0, f"The run didn't finish ({latest['status']}): {latest.get('error') or latest['outcome']}. Run it again.")
-        still += [f"For a person: {f.get('action')}" for f in res.get("human_follow_ups", [])]
-        still += [f"Review and send the draft to {m.get('to')} (not sent by the agents)" for m in res.get("draft_messages", [])]
+        follow_ups = [f.get("action") for f in res.get("human_follow_ups", [])]
+        follow_ups += [f"Review and send the draft to {m.get('to')} (not sent by the agents)" for m in res.get("draft_messages", [])]
         result_tickets.append({
             "ticket_id": tid,
             "subject": tickets_db[tid]["subject"], "type": tickets_db[tid]["type"], "requester": tickets_db[tid]["requester"],
@@ -275,6 +285,7 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
                         "unknowns": res.get("unknowns", [])},
             "human_approvals": approvals,
             "still_needs_action": still,
+            "boss_follow_ups_for_a_person": follow_ups,
             "compared_with_expected": {
                 "boss_contacted_first": {"expected": exp["first"], "actual": first, "matches": first == exp["first"]},
                 "agents_involved": {"expected": sorted(exp["involved"]), "actual": sorted(involved),
@@ -310,10 +321,13 @@ def build(entries: list[dict[str, Any]], db: dict[str, Any], screenshots: dict[i
         "no_agent_called_record_payment": not any(x["event"] == "tool_call" and x.get("tool") == "record_payment" for x in events),
         "all_drafts_unsent": all(m.get("sent") is False for x in events if x["event"] == "draft_message" for m in [x.get("message", {})]),
         "every_payment_has_a_named_approver": all(c["approved_by"] for c in changes),
+        "starting_balance_matches_what_the_agents_saw": agents_saw is None or abs(agents_saw["cash"] - start) < 0.005,
+        "database_reset_recorded": reset is not None,
     }
     non_money = [{"ticket_id": t["ticket_id"], "type": a["type"], "status": a["status"], "what": describe_request(a)}
                  for t in result_tickets for a in t["human_approvals"] if a["type"] != "payment" or a["status"] != "approved"]
     cash = {"shop_date": db["cash"]["today"], "starting_balance": start, "starting_balance_source": start_source,
+            "cash_the_agents_saw_before_any_payment": agents_saw,
             "changes": changes, "total_moved": moved, "final_balance": checking["balance"], "as_of": checking["as_of"],
             "still_owed": db["cash"]["payments_due"], "no_money_moved_for": non_money, "verification": checks}
     return {
@@ -426,7 +440,11 @@ def actual_section(t: dict[str, Any], shot_prefix: str, shots: bool = True) -> s
                  f'<th>Decision</th></tr></thead><tbody>{arows or "<tr><td colspan=3>No requests.</td></tr>"}</tbody></table></div>'
                  f'<p class="lede">Expected requests: {e("; ".join(c["expected_requests"]))}.</p>')
     still = "".join(f"<li>{e(s)}</li>" for s in t["still_needs_action"])
-    parts.append(f'<h3>Still needs action</h3><ul class="tight">{still or "<li>Nothing.</li>"}</ul>')
+    parts.append(f'<h3>Still needs action</h3><ul class="tight">{still or "<li>Nothing: every request has been decided.</li>"}</ul>')
+    if t.get("boss_follow_ups_for_a_person"):
+        fu = "".join(f"<li>{e(x)}</li>" for x in t["boss_follow_ups_for_a_person"])
+        parts.append('<h3>Follow-ups the Boss listed for a person</h3><p class="lede">Written by the Boss when the run '
+                     f'finished, before any approval decisions.</p><ul class="tight">{fu}</ul>')
     if shots and t["screenshots"]:
         parts.append("<h3>Dashboard screenshots</h3>" + "".join(
             f'<img class="shot" src="{e(shot_prefix + s)}" alt="Dashboard screenshot for ticket {t["ticket_id"]}">' for s in t["screenshots"]))
@@ -453,7 +471,9 @@ def cash_section(cash: dict[str, Any]) -> str:
               f'<li>{ok(v["rent_payments_in_database_match_audit"])} Rent payments in the audit trail are recorded on the lease in the database</li>'
               f'<li>{ok(v["every_payment_has_a_named_approver"])} Every payment has a named human approver</li>'
               f'<li>{ok(v["no_agent_called_record_payment"])} No agent called <code>record_payment</code></li>'
-              f'<li>{ok(v["all_drafts_unsent"])} Every customer draft is unsent</li>')
+              f'<li>{ok(v["all_drafts_unsent"])} Every customer draft is unsent</li>'
+              f'<li>{ok(v["starting_balance_matches_what_the_agents_saw"])} The starting balance matches the cash the agents saw before any payment</li>'
+              f'<li>{"✅" if v["database_reset_recorded"] else "⚠️"} {"A database reset is recorded in the audit trail" if v["database_reset_recorded"] else "No database reset is recorded in the audit trail before these runs"}</li>')
     return (f'<div class="actual-filled" id="cash-content"><p class="lede">Shop date {e(cash["shop_date"])}. Only money that actually '
             f'moved is counted: payments recorded after the reset.</p><div class="table-wrap"><table><thead><tr><th></th><th>What happened</th>'
             f'<th>Change</th><th>Balance</th></tr></thead><tbody>{rows}</tbody></table></div>'
@@ -557,7 +577,9 @@ async def main() -> int:
           f"final {money(c['final_balance'])}")
     ok = True
     for name, passed in c["verification"].items():
-        if isinstance(passed, bool):
+        if name == "database_reset_recorded":
+            print(f"{'PASS' if passed else 'NOTE'}  {name}" + ("" if passed else " (the starting balance is backed up by what the agents saw)"))
+        elif isinstance(passed, bool):
             print(f"{'PASS' if passed else 'FAIL'}  {name}")
             ok &= passed
     ok &= secret_check([args.audit, out / "resolved_tickets.json", desk_path, out / "resolved_board.html"])

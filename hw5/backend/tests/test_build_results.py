@@ -101,6 +101,8 @@ async def test_builds_every_file_from_the_audit_trail_and_database(setup):
     assert cash["starting_balance_source"] == "recorded at reset"
     assert [c["payee"] for c in cash["changes"]] == ["Elm City Properties"]
     assert all(v for v in cash["verification"].values() if isinstance(v, bool))
+    assert cash["cash_the_agents_saw_before_any_payment"] is None   # these scripted agents never called a cash tool
+    assert t[102]["still_needs_action"] == [] and t[102]["boss_follow_ups_for_a_person"] == []
     assert {n["type"] for n in cash["no_money_moved_for"]} == {"payment", "purchase"}
 
     page = build_results.fill_desk(desk_before, data)
@@ -133,3 +135,17 @@ def test_the_secret_check_finds_a_leaked_key(tmp_path, monkeypatch, capsys):
     assert build_results.secret_check([clean]) is True
     assert build_results.secret_check([clean, leaky]) is False
     assert "pk-test-secret" not in capsys.readouterr().out      # it never prints the key
+
+
+async def test_no_reset_is_flagged_and_the_start_is_backed_by_what_the_agents_saw(setup):
+    trail = build_results.AuditTrail(setup["out"] / "no_reset.json")
+    await run_all(trail)
+    accounting_seen = any(x["event"] == "tool_result" and x["tool"] in {"get_payments_due", "check_payment"}
+                          for x in trail.entries())
+    data = build_results.build(trail.entries(), await build_results.read_database(), {})
+    v = data["cash"]["verification"]
+    assert v["database_reset_recorded"] is False and data["cash"]["starting_balance"] == 3400.0
+    assert "not recorded by a reset" in data["cash"]["starting_balance_source"]
+    assert v["starting_balance_matches_what_the_agents_saw"] is True
+    assert accounting_seen is (data["cash"]["cash_the_agents_saw_before_any_payment"] is not None)
+
