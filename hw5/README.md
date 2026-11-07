@@ -3,8 +3,9 @@
 | File | What it is |
 |---|---|
 | `AI_prompts.md` | The prompts given to the AI assistant for each problem, with follow-ups and what they fixed |
-| `output/harness.md` | Plain-language guide to the database, the three open tickets and what the agents need |
+| `output/harness.md` | Plain-language guide to the database, the three open tickets, the MCP server tools and what the agents need |
 | `setup_db.py` | Sets up the database files (see below) |
+| `mcp_server/` | The FastMCP server with three read-only tools for the agents (see `mcp_server/README.md`) |
 | `data/` | The database files. They are not in the repository; create them with the steps below. |
 
 ## Setting up the database

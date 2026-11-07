@@ -316,3 +316,89 @@ So the order the shop handles things in matters. Paying rent on time protects th
 - **No incoming money.** There's no record of expected sales or deposits, only the current balance.
 - **No vendor contact details.**
 - **No product details** beyond name, size, stock, shelf, cost and price (no descriptions, colors or images).
+
+---
+
+## MCP server tools (Problem 3)
+
+The MCP server in `mcp_server/server.py` gives the agents three tools for looking things up in the database. It's built with FastMCP. The server isn't running or connected to an agent yet. See `mcp_server/README.md` for setup.
+
+### Ground rules for all three tools
+
+- **Working copy only.** The tools read `data/campus_customs_new.db`. The server refuses to open the original, `data/campus_customs.db`.
+- **Read-only.** The database is opened in read-only mode, so the tools can't change any data. None of them pays a bill, changes a price or changes stock. Those actions need a person's approval and will come later.
+- **Database facts only.** Every number comes from the database or is calculated from it. "Today" is the shop's date in `desk` (August 31, 2026), and amounts owed come from the records, not from emails or tickets.
+
+### Summary
+
+| Tool | Tables it reads | Ticket |
+|---|---|---|
+| `check_stock` | `inventory`, `pricing` | 101 (also useful for 103) |
+| `get_payments_due` | `desk`, `cash_accounts`, `invoices`, `vendors`, `leases` | 102 (also covers invoice 501 behind 101) |
+| `price_bulk_order` | `pricing`, `inventory` | 103 |
+
+### `check_stock(sku, size=None)`
+
+**What it does:** It shows how many of a product are in stock in each size, where the product is shelved and its list price. If you give a size, it also says whether that size is in stock and lists the other sizes that are.
+
+**Tables it uses:** `inventory` (name, size, quantity, shelf) and `pricing` (list price).
+
+**Ticket:** **101.** Tauhid Zaman wants a Classic Bulldog Tee (`CC-TEE-WHITE`) in size S. Calling `check_stock("CC-TEE-WHITE", "S")` returns:
+
+| Result | Value |
+|---|---|
+| Size S | 0, not in stock |
+| Other sizes in stock | M (5), L (3), XL (2) |
+| Shelf | Aisle B |
+| Price | $28.00 |
+
+**Why it's needed:** An agent must never promise a customer something that isn't on the shelf. This tool gives the honest answer (size S is sold out) and suggests alternatives the agent could offer. It also shows the stock problem in Ticket 103: `check_stock("CC-HOOD-NAVY", "M")` shows only 8 hoodies in M.
+
+### `get_payments_due()`
+
+**What it does:** It lists every unpaid vendor bill and the next rent payment. For each one it shows who's owed, how much, the due date and the number of days left (negative means overdue). It also shows the cash in the bank and how much would be left after paying everything. It takes no inputs.
+
+**Tables it uses:** `desk` (today's date), `cash_accounts` (balance), `invoices` and `vendors` (open bills and who sent them) and `leases` (rent).
+
+**Ticket:** **102.** The landlord emailed that rent is due in 2 days, without giving an amount. The tool returns:
+
+| Payee | For | Amount | Due | Days left |
+|---|---|---|---|---|
+| Bulldog Print Co | Invoice 501: rush reprint of CC-TEE-WHITE S | $840.00 | Aug 28 | **−3 (overdue)** |
+| Elm City Properties | Rent, Chapel Street shop (lease 1) | $2,400.00 | Sep 2 | 2 |
+
+Cash is $3,400.00, the total due is $3,240.00, and **$160.00** would be left after paying both.
+
+**Why it's needed:** Emails asking for money are a common scam. This tool lets an agent check the request against the records: the landlord on file is Elm City Properties, the rent on file is $2,400 and the due date is 2 days away, so the email matches. It also shows that paying the rent leaves very little cash, and that invoice 501 (the restock behind Ticket 101) is still unpaid and overdue. A person can then decide what to pay, and in what order, with all the facts in one place.
+
+### `price_bulk_order(sku, size, qty, discount_percent=0)`
+
+**What it does:** It works out what a bulk order would cost the customer and earn the shop at a given discount. It reports:
+- the price per item and the total
+- the profit
+- whether the price is below cost
+- the largest discount that still avoids a loss
+- how many are in stock in that size, and how many short the order would be
+
+It only calculates. It marks any discount as needing a person's approval and never changes a price.
+
+**Tables it uses:** `pricing` (cost and list price) and `inventory` (stock in that size).
+
+**Ticket:** **103.** Yale AI Club wants 20 Basic Hoodie Big Yale (`CC-HOOD-NAVY`) in size M at a bulk discount. For example, `price_bulk_order("CC-HOOD-NAVY", "M", 20, 10)` returns:
+
+| Result | Value |
+|---|---|
+| Price per hoodie at 10% off | $52.20 (list $58.00) |
+| Total | $1,044.00 (vs. $1,160.00 at list price) |
+| Profit | $604.00 |
+| Below cost? | No |
+| Largest discount without a loss | 62.07% (the cost is $22.00) |
+| In stock in M | 8, so **12 short** |
+| Needs a person's approval | Yes |
+
+**Why it's needed:** The database has no discount rules, so an agent shouldn't decide on a discount by itself. This tool gives the person deciding the facts: what each discount would bring in, the point where the shop would lose money, and the fact that only 8 of the 20 hoodies are in stock. All of that has to be settled before anyone agrees to the deal.
+
+### What the tools don't do yet
+
+- **No ticket lookup.** An agent can't yet read the `tickets` table through the server, so the ticket details (SKU, size, quantity) have to be given to the tools.
+- **No changes.** Recording a payment, updating ticket status or changing stock aren't possible yet. Those tools would write to the working copy and should require a person's approval (the `payments.approved_by` field already expects a name).

@@ -67,3 +67,23 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 *What needed to be fixed:* When `setup_db.py` was given a database that didn't match the one in `data_2.zip`, it replaced the original anyway and only printed a warning. It now checks the file's fingerprint before replacing anything, and stops without changing any files if it doesn't match. It also stops instead of creating or resetting the working copy if the original on disk has been altered. The changes were tested in a separate scratch folder with mismatched files, and the real database files were confirmed unchanged. `hw5/README.md` now describes this behavior.
 
 ---
+
+## Problem 3
+
+### Original prompt
+
+> Let's move on to Problem 3. I want to build the MCP server so our AI agents can access the information they need from the Campus Customs database.
+>
+> Please use FastMCP and make sure we're working with the copy of the database, not the original.
+>
+> Let's start with three tools that will help address the open tickets we reviewed in Problem 2. Each tool should have a clear purpose and only use information that's actually in the database.
+>
+> Please update harness.md to explain what each tool does, which tables it uses, how it relates to a specific ticket, and why it's needed. Also, create a README in the MCP server folder explaining what we've built.
+>
+> We don't need to run or connect the server yet. Please update AI_prompts.md with this prompt and push everything to GitHub.
+
+### Follow-up prompts
+
+None.
+
+---
