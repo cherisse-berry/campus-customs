@@ -315,3 +315,50 @@ None.
 
 ---
 
+## Problem 9: Resolve the Tickets
+
+### Original prompt
+
+> Let's move on to Problem 9. I want to run all three Campus Customs tickets using our actual AI agents and dashboard, then compare the results with what we expected in Problem 6.
+>
+> First, please confirm that gpt-6-luna is working through Portkey. Once that's verified, reset the working database and record the starting checking balance.
+>
+> Run Tickets 101, 102, and 103 through the dashboard until each is resolved. I want to see which agents were involved, how they delegated work, which MCP tools they used, and what each agent contributed.
+>
+> Please bring any payment, purchase, or discount requests to me for approval rather than approving them automatically. Make sure we follow the shop's rules and clearly identify anything that still needs action.
+>
+> Update the Actual sections in output/desk_tickets.html while preserving our original Expected plans. On the Cash tab, show the starting balance, any changes for each ticket and why, and the final balance. Only count money that actually moved, and verify that the ending balance matches the working database.
+>
+> Please create output/resolved_tickets.json with each ticket's status, outcome, agent contributions, and human approvals. Also create output/resolved_board.html with screenshots from the actual dashboard runs for all three tickets.
+>
+> Make sure the real agent activity is added to audit_trail.json without deleting previous entries, and finish harness.md so it covers the database tables, MCP tools, five agents, API routes, dashboard, and safety rules.
+>
+> Please update AI_prompts.md under Problem 9: Resolve the Tickets, verify everything against the assignment requirements above, and push the changes to GitHub.
+
+### Follow-up prompts
+
+**Follow-up 1**
+
+> Thank you. I want to continue with Problem 9, but I'm not familiar with how these environments work or why the Portkey key isn't available.
+>
+> Can you explain what I need to do to get the connection working and walk me through it?
+>
+> In the meantime, please finish harness.md and update AI_prompts.md. I don't want to reset the database or start the full run until we know everything is working correctly.
+>
+> Once we're ready, I want to review any payment or purchase approvals myself, and I want the final results to reflect what the agents actually did.
+
+*What was missing:* The first step of the original prompt, confirming gpt-6-luna through Portkey, couldn't be done:
+- **No key:** this cloud session had no Portkey key.
+- **Blocked network:** its network didn't allow `api.portkey.ai`.
+- **Declined form:** a secure form for the key was offered, but declined.
+
+So nothing else in Problem 9 was started. The database wasn't reset, no agents were run, and no results were made up. In response to this follow-up:
+- **Explanation:** the assistant explained how the environment and key work, and how to add the key.
+- **Key header:** the code now sends the Portkey key in a single header (`Authorization: Bearer`), which is where the environment adds a stored key.
+- **Connection check:** `backend/check_portkey.py` checks gpt-6-luna with three tiny calls (a reply, a tool call and structured output) before any run, without touching the database.
+- **`harness.md`:** it now opens with how the pieces fit together and a contents list. It ends with all the safety rules in one place, the setup order, and a Problem 9 status section that says plainly the tickets haven't been run yet.
+
+The run itself, the approvals, the Actual and Cash sections, `resolved_tickets.json` and `resolved_board.html` wait until the connection check passes.
+
+---
+

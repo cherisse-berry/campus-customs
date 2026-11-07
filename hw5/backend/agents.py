@@ -86,10 +86,12 @@ def create_portkey_model() -> OpenAIChatModel:
         raise AgentsNotConfigured(
             f"{config.PORTKEY_API_KEY_VAR} is not set. Add it to hw5/.env "
             "(see hw5/.env.example); never commit it.")
+    # The key is sent once, as "Authorization: Bearer <key>", which Portkey's
+    # OpenAI-compatible API accepts. (In a cloud session the environment's network
+    # secret for api.portkey.ai is added to this same header.)
     client = AsyncOpenAI(
         base_url=config.PORTKEY_BASE_URL,
         api_key=key,
-        default_headers={"x-portkey-api-key": key},
         timeout=config.MODEL_TIMEOUT_SECONDS,
         max_retries=1,
     )

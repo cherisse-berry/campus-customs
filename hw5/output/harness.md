@@ -1,8 +1,48 @@
 # Campus Customs Harness — Homework 5
 
-This file explains the Campus Customs back-office database: what each table holds, how the tables connect, and what the agents need from it. It also explains the three open tickets and how each one connects to the data.
+This is the reference for the whole Campus Customs system: the database, the MCP server and its tools, the five agents, the backend API, the dashboard and the safety rules that tie them together. The sections were written problem by problem, so each says which problem it comes from.
 
 File paths in this document are relative to the `hw5` folder.
+
+## How the pieces fit together
+
+```
+  Person (browser)
+       │
+       ▼
+  Dashboard  frontend/  ── React + Vite + TypeScript, http://localhost:5173
+       │  HTTP (JSON)
+       ▼
+  Backend API  backend/main.py  ── FastAPI, http://localhost:8000
+       │                    │
+       │ runs               │ approvals, cash, tickets
+       ▼                    │
+  Agent team  backend/agents.py  ── Boss, Inventory, Accounting, Facilities, Customer Service
+       │  model calls: gpt-6-luna through Portkey (api.portkey.ai)
+       │  shop information: MCP tool calls
+       ▼                    ▼
+  MCP server  mcp_server/server.py  ── FastMCP; "agent" role (look-ups) or "approver" role (+ record_payment)
+       │
+       ▼
+  Working database  data/campus_customs_new.db   (the original data/campus_customs.db is only read, by setup and reset)
+
+  Everything that happens is added to output/audit_trail.json (never overwritten).
+```
+
+- **One way in to the data:** the agents, the API and Claude Code all get shop information only through the MCP server. Payments can only be written through its approver-only `record_payment` tool, which a person triggers.
+- **One set of approval rules:** payments, purchases and discounts are approved through `backend/approvals.py`, used by both the dashboard (through the API) and the command-line `approve.py`.
+
+## Contents
+
+| Part | Sections |
+|---|---|
+| **The data** (Problem 2) | [Database files](#the-database-files), [today's date](#what-today-is), [tables and how they connect](#overview), one section per table, [the three open tickets](#the-three-open-tickets), [what the database doesn't say](#things-the-database-doesnt-tell-us) |
+| **MCP server** (Problems 3, 5, 7) | [The first three tools](#mcp-server-tools-problem-3), [Claude Code connection](#connection-to-claude-code-problem-4), [all tools after Problem 5](#mcp-server-tools-after-problem-5) |
+| **Agents** (Problem 5) | [The agent team](#the-agent-team-problem-5): rules, the five agents and their tools and tables, delegation, outputs, code checks, human approval, usage limits, audit trail, [what's been verified](#what-has-been-verified-and-what-still-needs-testing) |
+| **Backend API** (Problem 7) | [Routes](#the-backend-api-problem-7), [approving payments](#approving-a-payment) and [purchases](#approving-a-purchase), [reset](#resetting-the-database) |
+| **Dashboard** (Problem 8) | [The dashboard](#the-dashboard-problem-8) (the design is in `output/design.md`) |
+| **Safety rules** | [All the safety rules in one place](#safety-rules-all-in-one-place) |
+| **Running it** | [Setting everything up](#setting-everything-up), [Problem 9 status](#problem-9-resolving-the-tickets) |
 
 ## The database files
 
@@ -177,7 +217,7 @@ The one invoice:
 | `next_due` | TEXT, required | **September 2, 2026**, 2 days from today. |
 | `notes` | TEXT, optional | Empty. |
 
-## `payments`: money paid out (empty)
+## `payments`: money paid out (empty as delivered)
 
 Nothing has been paid yet. This table is where payments get recorded once they are made, so it serves as the shop's payment log.
 
@@ -549,7 +589,7 @@ The agents have **not yet been run with the real model**. This session had no Po
 | Agent wiring | Each agent sees only its own MCP tools. Delegation works and is recorded. Delegating to yourself, looping back, going too deep or exceeding the count is refused. A runaway run stops at the usage limit and is recorded. |
 | Output checks | Payment requests are re-checked against the records (including cash for all requests together), and warnings are attached, including when the same bill appears twice in one plan. Discount options and facts are replaced with the records' values. A recommendation must be an evaluated option with a reason. Customer drafts can't mention a discount, quote another price, or go to a vendor, the landlord or anyone but the customer requester. |
 | Audit trail | New entries are added and earlier ones kept. The file stays valid JSON, and a damaged file is never overwritten. |
-| Model setup | The model object is `gpt-6-luna`, at Portkey's address, with the key in the Portkey header. Any other model name is refused. A missing key gives a clear error. The key isn't passed to the MCP server. No request was sent to Portkey. |
+| Model setup | The model object is `gpt-6-luna`, at Portkey's address, with the key sent once, in the `Authorization: Bearer` header. Any other model name is refused. A missing key gives a clear error. The key isn't passed to the MCP server. No request was sent to Portkey. |
 | Databases | Both real database files are unchanged after every test run. |
 
 **Still needs testing with the real model and a Portkey key:**
@@ -740,4 +780,60 @@ The real server was also started with `uvicorn main:app --reload --port 8000` fr
 - **End-to-end:** `npm run e2e` makes 32 checks in Chromium. It uses `backend/tests/scripted_server.py`, which is the real backend and MCP server on temporary copies of the data, with scripted agents instead of gpt-6-luna (no AI calls, no real money).
 
 The dashboard was also opened against the real backend and working database. It showed the tickets and the $3,400.00 balance, and correctly reported that a run needs `PORTKEY_API_KEY`. Nothing was changed.
+
+---
+
+## Safety rules (all in one place)
+
+These are every safeguard in the system, and where each is enforced. Most are enforced in code, so they don't depend on the agents following their instructions. The agents' instructions (`backend/prompts/shop_rules.md`) repeat them so the agents plan within them in the first place.
+
+### The shop's rules
+
+| Rule (as given by the shop) | Enforced by |
+|---|---|
+| All payments require human approval and must be recorded in the database. | **MCP server:** `record_payment` exists only in the approver role, which agents, the API's look-ups and Claude Code never use. It needs the approver's name and writes a `payments` row. **Approvals:** only `approvals.py` starts the approver role, after a person approves in the dashboard or `approve.py`. |
+| Payments cannot exceed available cash or result in a negative balance. | **MCP server:** `check_payment` and `record_payment` refuse an amount over the cash. `record_payment` re-checks inside one database transaction and only lowers the balance if it stays at $0 or more. **Agent output check:** all the payment requests in a plan together must fit in the cash. |
+| Vendors with unpaid invoices cannot ship additional products. | **MCP server:** `get_vendor_status` sets `can_ship_additional_products: false` while any invoice is unpaid (fully paid only when payments cover it). **Purchases:** a purchase request from such a vendor carries a warning the approver must confirm. |
+| Revenue is only received when customers pick up their orders. | **MCP server and API:** available cash is only the `cash_accounts` balance. No tool or route counts expected sales. |
+| Discounts require human approval; there is no discount policy, so don't invent one. | **Data types:** agents can recommend a discount for one request, but only inside a discount approval request. **Agent output check:** the options' figures are re-checked, the recommendation must be one of them with a reason, and customer drafts can't mention a discount or discounted price. **Approvals:** only a person sets a discount. Nothing changes in the database and nothing is sent. |
+| Agents can draft customer messages but cannot send them or contact vendors. | **No sending tool exists anywhere.** Drafts have `sent: false`, which can't be changed. **Agent output check:** drafts are only accepted when addressed to the requester of a customer ticket, never to a vendor or the landlord. Purchase approval doesn't contact a vendor either. |
+| Use `desk.date_today` as the shop's date. | **MCP server:** every date calculation uses it, and payments are recorded with it. |
+| All five agents use gpt-6-luna through Portkey with `PORTKEY_API_KEY`; keep the key private and out of GitHub. | **Agents:** one function builds the model, and the team refuses any other model name. **Key:** it's read from `hw5/.env` (ignored by Git) or provided by the cloud environment's network secret for `api.portkey.ai`. It's sent only to Portkey, never passed to the MCP server, written to the audit trail or shown by the API (`/api/health` only says whether it's set). |
+
+### Safeguards added along the way
+
+| Safeguard | Where |
+|---|---|
+| **Paying a bill twice.** Each payment is checked again live when a person reviews it. A bill already paid, more than is owed, a partial payment and another pending request for the same bill are all warnings. The person must confirm each one (tick each box in the dashboard, or type `PAY ANYWAY` in `approve.py`), and `record_payment` refuses unless exactly those warnings were confirmed. A refused payment stays pending. | `approvals.py`, `record_payment`, dashboard |
+| **Facts in requests come from the records.** Payee, amounts, cash, stock, costs and vendor status in approval requests are replaced with the MCP server's values before an agent's answer is accepted. | `check_output` in `agents.py` |
+| **Purchases only for what a ticket needs.** A purchase request must be for the ticket's own item and exactly its shortfall. Approving it records the decision only: no order, no vendor contact, no money. | `check_output`, `approvals.py` |
+| **Agents only see the tools their job needs.** No agent can see `record_payment`. | `TOOLS_BY_AGENT` in `agents.py` |
+| **Limits on AI usage.** Per ticket: 30 model calls, 40 tool calls, 150,000 tokens; 2,000 tokens per response; delegation at most 2 levels deep and 8 times; one run or reset at a time. | `config.py`, `agents.py`, `main.py` |
+| **Only the working copy changes.** The original database is only read (by setup and reset). The MCP server refuses to open it. Reset checks the original's fingerprint first, and only replaces the working copy. Requests pending from before a reset expire. | `mcp_server/server.py`, `setup_db.py`, `POST /api/reset` |
+| **Nothing is overwritten in the audit trail.** New entries replace only the closing `]`. A damaged file is never written to. | `audit.py` |
+| **Honest status.** A run that errors or hits a usage limit is never shown as resolved. | `frontend/src/status.ts` |
+
+## Setting everything up
+
+In this order (each README has the details):
+
+1. **Database:** `python3 setup_db.py path/to/data_2.zip` (in `hw5`). This creates the original and the working copy. See `README.md`.
+2. **MCP server environment:** create `mcp_server/.venv` and `pip install -r requirements.txt`. See `mcp_server/README.md`.
+3. **Backend environment:** create `backend/.venv` and `pip install -r requirements.txt`. See `backend/README.md`.
+4. **Portkey key:** either copy `.env.example` to `.env` and set `PORTKEY_API_KEY` (on your own computer), or add a network secret for `api.portkey.ai` (header `Authorization`, Bearer) to the cloud environment.
+5. **Check the model:** `python check_portkey.py` (in `backend`). It makes three tiny calls (a plain reply, a tool call and structured output) without touching the database or the agents. Don't continue until all three pass.
+6. **Backend:** `uvicorn main:app --reload --port 8000` (in `backend`).
+7. **Dashboard:** `npm install` once, then `npm run dev` (in `frontend`), and open `http://localhost:5173`.
+
+## Problem 9: Resolving the tickets
+
+**Status: not run yet.** The agents haven't been run with gpt-6-luna. This session has no Portkey key, and its network doesn't allow `api.portkey.ai` yet. The working database is still identical to the original (same fingerprint), the real audit trail is empty, and no payment, purchase or discount has been approved.
+
+Once the key is in place, the plan is:
+1. Run `check_portkey.py`, and stop if any check fails.
+2. Reset the working database (`POST /api/reset`) and record the starting checking balance.
+3. Run Tickets 101, 102 and 103 from the dashboard, one at a time.
+4. Bring every payment, purchase and discount request to a person, who approves or rejects it in the dashboard. Nothing is approved automatically.
+5. Fill in the Actual sections and Cash tab of `output/desk_tickets.html` from the real runs, keeping the Expected plans. Only money that actually moved counts, checked against the working database.
+6. Create `output/resolved_tickets.json` and `output/resolved_board.html` (with screenshots of the real dashboard runs) from the audit trail.
 

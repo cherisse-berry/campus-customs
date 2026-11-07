@@ -125,7 +125,8 @@ def test_every_agent_uses_gpt_6_luna_through_portkey(monkeypatch, temp_db, audit
     assert model.model_name == "gpt-6-luna"
     client = model.client
     assert str(client.base_url).rstrip("/") == "https://api.portkey.ai/v1"
-    assert client.default_headers["x-portkey-api-key"] == "test-key-not-real"
+    assert client.api_key == "test-key-not-real"                 # sent as Authorization: Bearer
+    assert "x-portkey-api-key" not in client.default_headers    # only one header carries the key
     team = Team(model, audit)
     assert {name: a.model for name, a in team.agents.items()} == {n: model for n in AGENT_NAMES}
 

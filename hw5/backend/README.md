@@ -12,6 +12,7 @@ Five PydanticAI agents that work the shop's open tickets: **Boss, Inventory, Acc
 | `config.py` | Model, Portkey, paths and usage limits |
 | `audit.py` | The audit trail (`python audit.py` shows recent entries) |
 | `run.py` | Runs the team on tickets |
+| `check_portkey.py` | Checks that gpt-6-luna works through Portkey before any run |
 | `approve.py` | Where a person approves or rejects payment and discount requests at a terminal |
 | `approvals.py` | The approval safeguards, shared by `approve.py` and the API |
 | `main.py` | The FastAPI backend for the dashboard (Problem 7) |
@@ -31,6 +32,16 @@ Five PydanticAI agents that work the shop's open tickets: **Boss, Inventory, Acc
    ```
 
 4. Add the Portkey key. Copy `hw5/.env.example` to `hw5/.env` and set `PORTKEY_API_KEY`. `.env` is kept out of GitHub by `.gitignore`. Never commit it or paste the key anywhere else.
+
+## Checking the model first
+
+Before running the agents, check that gpt-6-luna works through Portkey:
+
+```bash
+python check_portkey.py
+```
+
+It makes three tiny calls (a plain reply, a tool call and structured output) and prints PASS or FAIL for each. It doesn't touch the database, the MCP server, the agents or the audit trail.
 
 ## Running
 
