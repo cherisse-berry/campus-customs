@@ -25,20 +25,24 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
 from typing import Any
 
-from fastmcp import Client
-
-from agents import mcp_transport
+from approvals import (
+    PAY_ANYWAY,
+    ApprovalError,
+    approve_discount,
+    approve_payment,
+    check_now,  # noqa: F401  (used by the tests)
+    pending,
+    record_payment,  # noqa: F401  (used by the tests)
+    reject,
+    review_payment,
+    same_bill_pending,  # noqa: F401
+)
 from audit import AuditTrail
 
-
-def pending(audit: AuditTrail) -> list[dict[str, Any]]:
-    entries = audit.entries()
-    decided = {e["approval_id"] for e in entries if e["event"] == "approval_decision"}
-    return [e for e in entries if e["event"] == "approval_requested" and e["approval_id"] not in decided]
+CONFIRM_WORDS = PAY_ANYWAY
 
 
 def describe(e: dict[str, Any]) -> str:
@@ -46,8 +50,7 @@ def describe(e: dict[str, Any]) -> str:
     if e["approval_type"] == "payment":
         return (f"[{e['approval_id']}] Ticket {e['ticket_id']}: PAY {r['payee']} ${r['amount']:,.2f} "
                 f"({r['kind']} {r['ref_id']}, due {r['due_date']}) from {r['account']}.\n"
-                f"    Reason: {r['reason']}"
-                + "".join(f"\n    WARNING: {w}" for w in r.get("warnings", [])))
+                f"    Reason: {r['reason']}")
     facts = "\n".join(f"      - {f}" for f in r.get("facts_for_decision", []))
     options = "\n".join(
         f"      - {o['discount_percent']}% off: ${o['unit_price']:,.2f} each, total ${o['total_price']:,.2f}, "
@@ -67,107 +70,71 @@ def describe(e: dict[str, Any]) -> str:
             + (f"\n    Options evaluated:\n{options}" if options else "") + f"\n{recommendation}")
 
 
-CONFIRM_WORDS = "PAY ANYWAY"
-
-
-async def check_now(request: dict[str, Any]) -> dict[str, Any]:
-    """Check the payment against the database as it is right now."""
-    async with Client(mcp_transport("agent")) as client:
-        return (await client.call_tool("check_payment", {
-            "kind": request["kind"], "ref_id": request["ref_id"], "amount": request["amount"],
-            "account": request["account"]})).data
-
-
-def same_bill_pending(audit: AuditTrail, e: dict[str, Any]) -> list[dict[str, Any]]:
-    r = e["request"]
-    return [o for o in pending(audit) if o["approval_type"] == "payment" and o["approval_id"] != e["approval_id"]
-            and (o["request"]["kind"], o["request"]["ref_id"]) == (r["kind"], r["ref_id"])]
-
-
-def describe_now(check: dict[str, Any], others: list[dict[str, Any]]) -> str:
-    owed = check.get("still_owed", check.get("still_owed_for_next_due"))
-    lines = [f"    Checked just now: ${owed:,.2f} still owed (of ${check['amount_on_file']:,.2f} on file); "
-             f"cash ${check['cash_available']:,.2f}, after this payment ${check['cash_after_payment']:,.2f}."]
+def describe_review(review: dict[str, Any]) -> str:
+    check = review["check"]
+    lines = [f"    Checked just now: ${review['still_owed']:,.2f} still owed (of ${check['amount_on_file']:,.2f} "
+             f"on file); cash ${check['cash_available']:,.2f}, after this payment ${check['cash_after_payment']:,.2f}."]
     lines += [f"    !! WARNING: {w}" for w in check["warnings"]]
-    lines += [f"    !! NOT ALLOWED: {p}" for p in check["problems"]]
-    lines += [f"    !! ALSO PENDING for this bill: [{o['approval_id']}] ticket {o['ticket_id']}, "
-              f"${o['request']['amount']:,.2f}. Approving both would pay it twice." for o in others]
+    lines += [f"    !! NOT ALLOWED: {p}" for p in review["problems"]]
+    lines += [f"    !! ALSO PENDING for this bill: [{a}]. Approving both would pay it twice."
+              for a in review["also_pending"]]
     return "\n".join(lines)
-
-
-async def record_payment(request: dict[str, Any], approved_by: str,
-                         confirmed_warnings: list[str] | None = None) -> dict[str, Any]:
-    async with Client(mcp_transport("approver")) as client:
-        result = await client.call_tool("record_payment", {
-            "kind": request["kind"], "ref_id": request["ref_id"], "amount": request["amount"],
-            "account": request["account"], "approved_by": approved_by,
-            "confirmed_warnings": confirmed_warnings or []}, raise_on_error=False)
-    if result.is_error:
-        return {"recorded": False, "error": result.content[0].text}
-    return result.data
 
 
 def ask(prompt: str) -> str:
     return input(prompt).strip()
 
 
+def ask_name() -> str:
+    name = ""
+    while not name:
+        name = ask("Your name (recorded as the approver): ")
+    return name
+
+
 async def decide(audit: AuditTrail, e: dict[str, Any]) -> None:
-    base = {"run_id": e["run_id"], "ticket_id": e["ticket_id"], "agent": "human"}
     print("\n" + describe(e))
-    check: dict[str, Any] | None = None
+    review = None
     if e["approval_type"] == "payment":
-        check = await check_now(e["request"])
-        others = same_bill_pending(audit, e)
-        print(describe_now(check, others))
-        if not check["allowed"]:
+        review = await review_payment(audit, e)
+        print(describe_review(review))
+        if not review["can_approve"]:
             print("This payment can't be approved now (shop payment rules). Reject or skip it.")
     answer = ask("Approve? [y = approve / n = reject / s = skip]: ").lower()
     if answer not in {"y", "n"}:
         print("Skipped.")
         return
-    if answer == "y" and check is not None:
-        if not check["allowed"]:
-            print("Not allowed; nothing recorded.")
-            return
-        if check["warnings"] or same_bill_pending(audit, e):
-            typed = ask(f"This payment has warnings. Type {CONFIRM_WORDS} to pay it anyway, or press Enter to stop: ")
-            if typed != CONFIRM_WORDS:
-                print("Not confirmed; nothing paid. The request is still pending.")
-                return
-    name = ""
-    while not name:
-        name = ask("Your name (recorded as the approver): ")
-    if answer == "n":
-        note = ask("Reason (optional): ")
-        audit.record("approval_decision", approval_id=e["approval_id"], approval_type=e["approval_type"],
-                     approved=False, decided_by=name, note=note, **base)
-        print("Rejected and recorded.")
-        return
-
-    if e["approval_type"] == "payment":
-        result = await record_payment(e["request"], name, check["warnings"])
-        if result.get("recorded"):
-            audit.record("approval_decision", approval_id=e["approval_id"], approval_type="payment",
-                         approved=True, decided_by=name, warnings_confirmed=check["warnings"], **base)
-            audit.record("payment_recorded", payment=result, **base)
-            print(f"Payment {result['payment_id']} recorded. Balance now ${result['balance_after']:,.2f}.")
-        else:
-            # Not decided: the request stays pending so the person can review it again.
-            audit.record("payment_refused", approval_id=e["approval_id"], decided_by=name,
-                         error=result["error"], request=e["request"], **base)
-            print(f"Not recorded: {result['error']} The request is still pending.")
-        return
-
-    discount = ask("Discount you are approving, in percent (your decision, whatever the agents recommended): ")
     try:
-        pct = float(discount)
-    except ValueError:
-        print("Not a number; nothing recorded.")
-        return
-    note = ask("Note (optional): ")
-    audit.record("approval_decision", approval_id=e["approval_id"], approval_type="discount",
-                 approved=True, decided_by=name, discount_percent=pct, note=note, **base)
-    print("Discount decision recorded. Nothing has been sent to the customer.")
+        if answer == "n":
+            name = ask_name()
+            reject(audit, e, name, ask("Reason (optional): "))
+            print("Rejected and recorded.")
+            return
+        if review is not None:
+            if not review["can_approve"]:
+                print("Not allowed; nothing recorded.")
+                return
+            if review["needs_confirmation"]:
+                typed = ask(f"This payment has warnings. Type {CONFIRM_WORDS} to pay it anyway, "
+                            "or press Enter to stop: ")
+                if typed != CONFIRM_WORDS:
+                    print("Not confirmed; nothing paid. The request is still pending.")
+                    return
+            name = ask_name()
+            result = await approve_payment(audit, e, name, review["warnings"])
+            print(f"Payment {result['payment_id']} recorded. Balance now ${result['balance_after']:,.2f}.")
+            return
+        name = ask_name()
+        discount = ask("Discount you are approving, in percent (your decision, whatever the agents recommended): ")
+        try:
+            pct = float(discount)
+        except ValueError:
+            print("Not a number; nothing recorded.")
+            return
+        approve_discount(audit, e, name, pct, ask("Note (optional): "))
+        print("Discount decision recorded. Nothing has been sent to the customer.")
+    except ApprovalError as err:
+        print(f"Not recorded: {err.message}")
 
 
 async def main() -> int:

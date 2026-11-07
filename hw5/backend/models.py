@@ -171,3 +171,31 @@ class TicketResolution(BaseModel):
     draft_messages: list[DraftMessage] = []
     human_follow_ups: list[HumanFollowUp] = []
     unknowns: list[str] = []
+
+
+# ---------------------------------------------------------------- API request bodies (main.py)
+
+class RunRequest(BaseModel):
+    """Optional body for POST /api/tickets/{ticket_id}/run."""
+
+    requested_by: str | None = Field(None, description="Who started the run, for the audit trail.")
+
+
+class ApprovalDecisionRequest(BaseModel):
+    """Body for POST /api/approvals/{approval_id}."""
+
+    decision: Literal["approve", "reject"]
+    decided_by: str = Field(description="The person deciding. Recorded as the approver.")
+    confirmed_warnings: list[str] = Field(
+        [], description="For a payment: every warning the person saw and confirms, exactly as "
+                        "GET /api/approvals returned them. Required whenever there are warnings.")
+    discount_percent: float | None = Field(
+        None, ge=0, lt=100, description="For a discount approval: the discount the person chose.")
+    note: str = ""
+
+
+class ResetRequest(BaseModel):
+    """Body for POST /api/reset."""
+
+    confirm: Literal["RESET"] = Field(description='Must be "RESET".')
+    requested_by: str = Field(min_length=1, description="Who reset the database, for the audit trail.")

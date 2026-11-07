@@ -10,10 +10,11 @@ This folder holds an MCP server built with [FastMCP](https://gofastmcp.com). MCP
 
 ## The tools
 
-The server started with three tools in Problem 3 and grew to nine in Problem 5, so the agents can handle the three open tickets.
+The server started with three tools in Problem 3 and grew to nine in Problem 5, so the agents can handle the three open tickets. Problem 7 added `list_tickets` for the backend API.
 
 | Tool | What it does | Tables | Ticket |
 |---|---|---|---|
+| `list_tickets()` | Lists every ticket with its status (added in Problem 7 for the API) | `tickets`, `desk` | All |
 | `list_open_tickets()` | Lists the open tickets with the shop's date | `tickets`, `desk` | All |
 | `get_ticket(ticket_id)` | One ticket with the invoice (and vendor) or lease it links to, and whether the requester is a customer | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `desk` | All |
 | `check_stock(sku, size=None)` | Stock in each size, the shelf and the list price. With a size, says whether it's in stock and which other sizes are. | `inventory`, `pricing` | **101**, 103 |
@@ -34,8 +35,8 @@ The server starts in one of two roles, set by the `CAMPUS_MCP_ROLE` environment 
 
 | Role | Who uses it | Tools |
 |---|---|---|
-| `agent` (the default) | The five agents, Claude Code (`.mcp.json`) and the tests | The eight look-up tools. `record_payment` doesn't exist. |
-| `approver` | Only `backend/approve.py`, after a person approves a payment and types their name | The eight look-up tools plus `record_payment` |
+| `agent` (the default) | The five agents, the backend API, Claude Code (`.mcp.json`) and the tests | The nine look-up tools. `record_payment` doesn't exist. |
+| `approver` | Only the approval step (`backend/approvals.py`, used by `approve.py` and `POST /api/approvals/{id}`), after a person approves a payment | The nine look-up tools plus `record_payment` |
 
 This is how the rule "all payments require human approval" is enforced: an agent can't call a tool that doesn't exist for it.
 

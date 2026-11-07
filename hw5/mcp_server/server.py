@@ -5,11 +5,12 @@ information the agents use comes through these tools.
 
 Look-up tools (read-only, available to every client):
 
+  list_tickets        every ticket with its status (for the dashboard)
   list_open_tickets   the open tickets
   get_ticket          one ticket, with the invoice or lease it links to
   check_stock         stock by size, shelf and list price (Ticket 101)
   get_vendor_status   vendors, their unpaid invoices, and whether they may ship
-  get_lease           the shop's lease and whether the next rent is paid (Ticket 102)
+  get_lease           the shop's lease and what's still owed for the next rent (Ticket 102)
   get_payments_due    unpaid invoices, upcoming rent and the cash available (Ticket 102)
   check_payment       checks a proposed payment against the shop's payment rules
   price_bulk_order    price, cost and stock facts for a bulk order (Ticket 103)
@@ -271,6 +272,18 @@ def list_open_tickets() -> dict[str, Any]:
             """SELECT id, type, requester, subject, created_at FROM tickets
                WHERE status = 'open' ORDER BY created_at""").fetchall()
     return {"today": today.isoformat(), "open_tickets": [dict(r) for r in rows]}
+
+
+@mcp.tool(annotations=READ_ONLY)
+def list_tickets() -> dict[str, Any]:
+    """List every ticket (open or not) with its status, with the shop's date for today."""
+    with closing(connect()) as conn:
+        today = shop_today(conn)
+        rows = conn.execute(
+            """SELECT id, type, requester, subject, sku, size, qty, status, created_at
+               FROM tickets ORDER BY id""").fetchall()
+    return {"today": today.isoformat(),
+            "tickets": [{**dict(r), "requester_is_customer": r["type"] in CUSTOMER_TICKET_TYPES} for r in rows]}
 
 
 @mcp.tool(annotations=READ_ONLY)

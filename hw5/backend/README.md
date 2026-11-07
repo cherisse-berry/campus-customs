@@ -12,7 +12,9 @@ Five PydanticAI agents that work the shop's open tickets: **Boss, Inventory, Acc
 | `config.py` | Model, Portkey, paths and usage limits |
 | `audit.py` | The audit trail (`python audit.py` shows recent entries) |
 | `run.py` | Runs the team on tickets |
-| `approve.py` | Where a person approves or rejects payment and discount requests |
+| `approve.py` | Where a person approves or rejects payment and discount requests at a terminal |
+| `approvals.py` | The approval safeguards, shared by `approve.py` and the API |
+| `main.py` | The FastAPI backend for the dashboard (Problem 7) |
 | `tests/` | Offline tests: no AI calls, no Portkey key, and a temporary copy of the database |
 
 ## Setting up
@@ -43,6 +45,16 @@ python audit.py --last 50      # recent audit trail entries
 ```
 
 `run.py` prints the Boss's plan for each ticket. Nothing is paid and no message is sent. Payment and discount requests wait in the audit trail until a person decides them with `approve.py`. An approved payment is recorded in the working database through the MCP server's `record_payment` tool, which re-checks the shop's payment rules first.
+
+## The API (Problem 7)
+
+From `hw5/backend`, with the virtual environment active:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+It's then at http://localhost:8000, with interactive docs at http://localhost:8000/docs. The routes are listed in `hw5/output/harness.md` under "The backend API".
 
 ## Testing
 

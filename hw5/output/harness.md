@@ -567,10 +567,11 @@ The agents have **not yet been run with the real model**. This session had no Po
 
 ## MCP server tools after Problem 5
 
-The MCP server grew from three tools to eight read-only tools plus one approver-only write tool. All of them use the working copy only.
+The MCP server grew from three tools to eight read-only tools plus one approver-only write tool. Problem 7 added a ninth read-only tool, `list_tickets`, for the API. All of them use the working copy only.
 
 | Tool | What it does | Tables it uses | Ticket(s) | Used by |
 |---|---|---|---|---|
+| `list_tickets()` | Lists every ticket with its status (added in Problem 7 for the API) | `tickets`, `desk` | All | The API (`GET /api/tickets`); no agent |
 | `list_open_tickets()` | Lists open tickets, oldest first, with the shop's date | `tickets`, `desk` | All | Boss |
 | `get_ticket(ticket_id)` | One ticket with its linked invoice (and vendor) or lease, and whether the requester is a customer | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `desk` | All | All five agents |
 | `check_stock(sku, size=None)` | Stock by size, shelf and list price | `inventory`, `pricing` | 101, 103 | Inventory, Customer Service |
@@ -602,3 +603,95 @@ The MCP server grew from three tools to eight read-only tools plus one approver-
   - Agents are still told to base amounts on what the records say is owed, never on an email or ticket.
 - **Which tickets are customer tickets:** `customer_order` and `price_override` tickets count as customer tickets, because their requesters are buying from the shop. `rent_notice` doesn't, because the landlord isn't a customer.
 - **Testing the server:** `mcp_server/test_tools.py` (Problem 4) was updated for the new tool list. It still passes against the working database. The new tools, including `record_payment`, are tested on a temporary copy of the database in `backend/tests/test_agents.py`.
+
+---
+
+## The backend API (Problem 7)
+
+`backend/main.py` is a FastAPI app that lets the dashboard reach the agents and the shop database. Start it from `hw5/backend`:
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+It's then at `http://localhost:8000`, with interactive docs at `http://localhost:8000/docs`. The dashboard's development server (`http://localhost:5173`) is allowed to call it. Other addresses can be set with `CORS_ORIGINS`.
+
+### Ground rules
+
+- **Shop information comes from the MCP server.** Tickets, stock, bills, rent and cash are read through the Campus Customs MCP server (agent role), which reads the working database. Payments are recorded only through the MCP server's approver-only `record_payment` tool. The API never reads or writes shop data in the database directly. The only exception is the reset route, which copies the database file (see below).
+- **Same safeguards as `approve.py`.** Approvals use the shared `backend/approvals.py`, so the command-line script and the API apply exactly the same checks.
+- **Everything is recorded.** Every run, tool call, delegation, approval decision, payment and reset is added to `output/audit_trail.json`. Nothing in it is overwritten.
+- **One thing at a time.** Only one agent run or reset can happen at a time. This keeps AI costs and the database under control; a second request gets `409`.
+
+### Routes
+
+| Method and path | Purpose | Where the data comes from |
+|---|---|---|
+| `GET /api/health` | Is the API up? Shows the model (`gpt-6-luna`), whether `PORTKEY_API_KEY` is set (never its value), whether the working database exists, and whether a run or reset is in progress. | Settings |
+| `GET /api/tickets` | The three tickets with their status, whether the requester is a customer, the agents' status for each (`not_run`, `running`, `needs_human_approval`, `ready_for_review`, `stopped_by_usage_limit`, `error`), the latest run and how many approvals are waiting | MCP `list_tickets` + audit trail |
+| `GET /api/tickets/{ticket_id}` | One ticket with its linked invoice or lease (including what's still owed), its runs and its pending approvals | MCP `get_ticket` + audit trail |
+| `POST /api/tickets/{ticket_id}/run` | Starts the agent team on a ticket in the background and returns `202` with a `run_id` right away. Returns `503` if `PORTKEY_API_KEY` isn't set, `404` for an unknown ticket, and `409` if a run or reset is already in progress. | Agents (through the MCP server) |
+| `GET /api/runs` | Every agent run (optionally `?ticket_id=`), newest first | Audit trail |
+| `GET /api/runs/{run_id}` | One run: `running`, `finished`, `stopped` or `error`; its outcome, usage (model calls, tool calls, tokens), number of delegations and the Boss's final plan | Audit trail |
+| `GET /api/activity` | Agent activity for the dashboard to poll. Each event has `categories` and a one-line `summary`, for example `inventory called check_stock(sku='CC-TEE-WHITE', size='S')`. See the details below. | Audit trail |
+| `GET /api/approvals` | Approval requests (`?status=pending` by default, or `decided`, `expired`, `all`; optional `?ticket_id=`). Each pending payment includes a live `review`: what's still owed, cash before and after, `warnings`, `problems`, `also_pending` and whether it `can_approve`. | Audit trail + MCP `check_payment` |
+| `GET /api/approvals/{approval_id}` | One pending request, with the live review | Audit trail + MCP `check_payment` |
+| `POST /api/approvals/{approval_id}` | Approve or reject a payment or discount request. See the details below. | MCP `record_payment` (approver role) for payments |
+| `GET /api/cash` | The current checking balance (and as-of date), the bills and rent still owed, and the cash left if everything is paid. Order revenue isn't counted until pickup. | MCP `get_payments_due` |
+| `POST /api/reset` | Resets the **working** database for a fresh run by copying the original over it. See the details below. | Database files |
+
+### Activity
+
+`GET /api/activity` filters:
+- `?run_id=`
+- `?ticket_id=`
+- `?category=`, one of:
+  - `messages`: delegation tasks, replies and customer drafts
+  - `delegations`
+  - `tools`: tool calls, results and errors
+  - `decisions`
+  - `approvals`
+  - `runs`
+  - `system`
+- `?limit=`
+
+It returns `next`. To refresh, the dashboard calls again with `?since=<next>` and gets only what's new. `running` says whether a run is still going.
+
+### Approving a payment
+
+The approval route (`POST /api/approvals/{approval_id}`) follows the safeguards from Problem 5. The body is:
+
+```json
+{"decision": "approve", "decided_by": "Pat", "confirmed_warnings": [...], "discount_percent": null, "note": ""}
+```
+
+1. **Live check:** the payment is checked again against the database as it is now.
+2. **Shop rules:** if it would exceed the available cash or make the balance negative, the response is `409 not_allowed` and nothing is paid.
+3. **Warnings:** the warnings include a bill already paid in full, more than is still owed, a partial payment, or another pending request for the same bill ("Approving both would pay it twice"). The person must confirm every one, by sending them back exactly in `confirmed_warnings`. Otherwise the response is `409 confirmation_required`, with the unconfirmed warnings listed, and nothing is paid.
+4. **Recording:** `record_payment` re-checks the rules and the warnings inside one database transaction. If the bill changed in the meantime, it refuses (`409 refused`) and the request stays pending.
+5. **Name required:** a name in `decided_by` is required (`422` without one).
+
+For a **discount**, the person sends the `discount_percent` they chose. It's recorded in the audit trail only: nothing is sent to the customer and no price changes. `"decision": "reject"` closes any request. A request that isn't pending gets `409`, and an unknown ID gets `404`.
+
+"Purchases" have no separate approval: in this shop, the requests that need a person are payments (vendor invoices and rent) and discounts on a customer's purchase (Ticket 103). Agents can't order from vendors.
+
+### Resetting the database
+
+`POST /api/reset` needs the body `{"confirm": "RESET", "requested_by": "Pat"}`. It:
+1. checks that the original (`data/campus_customs.db`) matches the database delivered in `data_2.zip`, and refuses otherwise without changing anything
+2. copies it to a temporary file and checks the copy
+3. puts the copy in place of the working database (`data/campus_customs_new.db`)
+
+The original is only read, never written. The audit trail is kept, and a `database_reset` entry is added with the fingerprints before and after. Approval requests still pending from before the reset are marked **expired**: they referred to the old database, so they can no longer be approved. They're still listed with `?status=expired`. A reset is refused while an agent run is in progress.
+
+### Testing
+
+`backend/tests/test_api.py` has 12 tests (39 in the backend suite in total). They:
+- run the API against a temporary copy of the working database and a temporary audit trail, and confirm both real database files are unchanged afterwards
+- cover every route
+- run the agent team on Ticket 101 with the scripted stand-in model (no AI calls), checking the run status and the activity in each category, and that polling with `since` returns only new events
+- run through every payment safeguard (duplicate warning, confirmation required, already paid, cash limit) and the discount and reject paths
+- cover reset, including refusing an original that doesn't match
+
+The real server was also started with `uvicorn main:app --reload --port 8000` from `hw5/backend`. The read-only routes were called against the working database. `POST /api/tickets/101/run` correctly answered `503` because no Portkey key is set. No payment, reset or agent run was made against the working database, and the real audit trail is still empty.
+

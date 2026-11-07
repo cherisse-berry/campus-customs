@@ -40,3 +40,13 @@ MAX_OUTPUT_TOKENS = 2_000     # per model response
 MAX_DELEGATION_DEPTH = 2      # Boss -> specialist -> specialist, no deeper
 MAX_DELEGATIONS = 8           # delegations per ticket
 MODEL_TIMEOUT_SECONDS = 120
+
+# ---- Database files (the working copy is the only one the app changes; reset copies the original over it).
+DATA_DIR = HW5 / "data"
+ORIGINAL_DB = DATA_DIR / "campus_customs.db"
+WORKING_DB = Path(os.environ.get("CAMPUS_CUSTOMS_DB") or DATA_DIR / "campus_customs_new.db")
+SETUP_DB_SCRIPT = HW5 / "setup_db.py"
+
+# ---- API: website addresses allowed to call it (the dashboard's dev server by default).
+CORS_ORIGINS = [o.strip() for o in os.environ.get(
+    "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]

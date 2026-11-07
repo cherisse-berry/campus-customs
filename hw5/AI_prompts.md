@@ -233,3 +233,29 @@ None.
 
 ---
 
+## Problem 7: Backend Routes
+
+### Original prompt
+
+> Let's move on to Problem 7. I want to build the FastAPI backend so our dashboard can communicate with the Campus Customs agents and database.
+>
+> Please create backend/main.py with routes to view the three tickets and their status, run the agents on a selected ticket, and see their activity, including messages, delegations, and tools used, so the dashboard can refresh as they work.
+>
+> We also need routes to approve payments or purchases, check the current checking balance, and reset the database for a fresh run.
+>
+> Please make sure the payment approval process follows the safeguards we already established, including checking available cash and warning about duplicate payments. Only the working database should reset, and previous audit records should be preserved.
+>
+> All shop information should continue to come through our existing MCP server.
+>
+> The backend should start from the backend folder using `uvicorn main:app --reload --port 8000` and be available at `http://localhost:8000`.
+>
+> Please update harness.md with each route and its purpose, add this prompt to AI_prompts.md under Problem 7: Backend Routes, and test the routes without making actual payments or running the full agent team yet.
+>
+> Please test everything, update AI_prompts.md, and push the changes to GitHub.
+
+### Follow-up prompts
+
+None.
+
+---
+

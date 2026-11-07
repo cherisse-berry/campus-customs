@@ -348,9 +348,9 @@ class Team:
             raise PermissionError("record_payment is only available to approve.py.")
         return (await self._lookup_client.call_tool(tool, args)).data
 
-    async def handle_ticket(self, ticket_id: int) -> tuple[str, TicketResolution]:
+    async def handle_ticket(self, ticket_id: int, run_id: str | None = None) -> tuple[str, TicketResolution]:
         """Run the Boss (and whoever it delegates to) on one ticket."""
-        run_id = new_run_id()
+        run_id = run_id or new_run_id()
         ticket = await self.lookup("get_ticket", {"ticket_id": ticket_id})
         self.audit.shop_date = ticket["today"]
         vendors = await self.lookup("get_vendor_status", {})

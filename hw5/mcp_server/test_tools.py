@@ -60,7 +60,7 @@ async def main() -> None:
         tools = sorted(t.name for t in await client.list_tools())
         print("Tools listed by the server")
         check("tool names", tools, ["check_payment", "check_stock", "get_lease", "get_payments_due",
-                                    "get_ticket", "get_vendor_status", "list_open_tickets",
+                                    "get_ticket", "get_vendor_status", "list_open_tickets", "list_tickets",
                                     "price_bulk_order"])
         check("record_payment hidden from agents", "record_payment" in tools, False)
 
