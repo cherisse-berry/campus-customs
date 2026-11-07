@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus Customs Desk Tickets</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --text: #1d1f23;
+    --muted: #5d6470;
+    --border: #dfe1e5;
+    --accent: #1f5fbf;
+    --accent-soft: #e8f0fc;
+    --warn: #8a5300;
+    --warn-soft: #fff4e0;
+    --ok: #1d6b3a;
+    --ok-soft: #e6f4ea;
+    --stop: #a12a2a;
+    --stop-soft: #fbeaea;
+    --code-bg: #f1f2f4;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171b;
+      --surface: #1d2025;
+      --text: #e7e9ec;
+      --muted: #a3aab5;
+      --border: #333842;
+      --accent: #7fb0ff;
+      --accent-soft: #1d2a40;
+      --warn: #f2bd6b;
+      --warn-soft: #3a2e17;
+      --ok: #7fd39a;
+      --ok-soft: #173223;
+      --stop: #f09a9a;
+      --stop-soft: #3d1d1d;
+      --code-bg: #262a31;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171b; --surface: #1d2025; --text: #e7e9ec; --muted: #a3aab5; --border: #333842;
+    --accent: #7fb0ff; --accent-soft: #1d2a40; --warn: #f2bd6b; --warn-soft: #3a2e17;
+    --ok: #7fd39a; --ok-soft: #173223; --stop: #f09a9a; --stop-soft: #3d1d1d; --code-bg: #262a31;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  header p { margin: 0; color: var(--muted); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em;
+         background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 0 4px; margin: 20px 0 0; border-bottom: 1px solid var(--border); }
+  .tabs button {
+    font: inherit; font-weight: 600; color: var(--muted); background: none; border: 0;
+    border-bottom: 3px solid transparent; padding: 10px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .tabs button:hover { color: var(--text); }
+  .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  section[role="tabpanel"] { padding-top: 20px; }
+  section[hidden] { display: none; }
+  h2 { font-size: 1.35rem; margin: 0 0 6px; }
+  h3 { font-size: 1.08rem; margin: 28px 0 10px; }
+  .lede { color: var(--muted); margin: 0 0 16px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+          padding: 16px 18px; margin: 12px 0; }
+  .label { display: inline-block; font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+           text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+  .label.expected { background: var(--accent-soft); color: var(--accent); }
+  .label.actual { background: var(--code-bg); color: var(--muted); }
+
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin: 12px 0; }
+  .fact { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+  .fact b { display: block; font-size: 1.15rem; }
+  .fact span { color: var(--muted); font-size: .9rem; }
+  .fact.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .fact.stop { border-color: var(--stop); background: var(--stop-soft); }
+
+  .first { border-left: 4px solid var(--accent); }
+  .first h4 { margin: 0 0 6px; font-size: 1rem; }
+
+  ol.flow { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  ol.flow > li { position: relative; padding: 12px 14px 12px 52px; margin: 0 0 10px;
+                 background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  ol.flow > li::before { counter-increment: step; content: counter(step); position: absolute; left: 14px; top: 12px;
+                         width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--surface);
+                         font-weight: 700; font-size: .9rem; display: grid; place-items: center; }
+  .route { font-weight: 700; }
+  .route .arrow { color: var(--muted); padding: 0 4px; }
+  .why { color: var(--muted); margin-top: 4px; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); background: var(--code-bg); }
+  tr:last-child td { border-bottom: 0; }
+
+  .agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+  .agent { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
+  .agent strong { display: block; }
+  .agent .tag { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .agent.in { border-color: var(--ok); }
+  .agent.in .tag { color: var(--ok); }
+  .agent.out { opacity: .85; border-style: dashed; }
+  .agent.out .tag { color: var(--muted); }
+  .agent p { margin: 4px 0 0; font-size: .9rem; color: var(--muted); }
+
+  ul.tight { margin: 6px 0; padding-left: 20px; }
+  ul.tight li { margin: 3px 0; }
+  .rules li::marker { color: var(--accent); }
+
+  .actual-box { min-height: 140px; border: 2px dashed var(--border); border-radius: var(--radius);
+                display: grid; place-items: center; color: var(--muted); background: transparent; margin-top: 10px; }
+  .blank-tab { min-height: 260px; }
+  hr.split { border: 0; border-top: 1px solid var(--border); margin: 36px 0 8px; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .88rem; }
+
+  @media print {
+    .tabs { display: none; }
+    section[role="tabpanel"][hidden] { display: block; }
+    section[role="tabpanel"] { break-before: page; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Campus Customs Desk Tickets</h1>
+    <p>Problem 6: how we expect the agent team to handle the three open tickets, before running it.
+       Shop date (<code>desk.date_today</code>): <strong>Monday, August 31, 2026</strong>.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Tickets">
+    <button role="tab" id="tab-101" aria-controls="t101" aria-selected="true">Ticket 101</button>
+    <button role="tab" id="tab-102" aria-controls="t102" aria-selected="false" tabindex="-1">Ticket 102</button>
+    <button role="tab" id="tab-103" aria-controls="t103" aria-selected="false" tabindex="-1">Ticket 103</button>
+    <button role="tab" id="tab-cash" aria-controls="cash" aria-selected="false" tabindex="-1">Cash</button>
+    <button role="tab" id="tab-reflection" aria-controls="reflection" aria-selected="false" tabindex="-1">Reflection</button>
+  </nav>
+
+  <!-- ===================================================== TICKET 101 -->
+  <section role="tabpanel" id="t101" aria-labelledby="tab-101">
+    <h2>Ticket 101 — White tee shortage and an overdue vendor invoice</h2>
+    <p class="lede"><code>customer_order</code> from <strong>Tauhid Zaman</strong>, 9:15 AM: “Needs a tee in size S.”
+      One Classic Bulldog Tee (<code>CC-TEE-WHITE</code>), size S. Linked to invoice 501.</p>
+
+    <div class="facts">
+      <div class="fact stop"><b>0 in size S</b><span>Classic Bulldog Tee (M 5, L 3, XL 2), Aisle B, $28.00</span></div>
+      <div class="fact warn"><b>Invoice 501: $840.00</b><span>Bulldog Print Co, rush reprint of this tee in S. Due Aug 28, 3 days overdue, unpaid</span></div>
+      <div class="fact stop"><b>Vendor can't ship</b><span>Bulldog Print Co has an unpaid invoice (shop rule). Lead time 5 days</span></div>
+      <div class="fact"><b>$3,400.00 cash</b><span>Checking. Rent of $2,400 is also due Sep 2 (Ticket 102)</span></div>
+    </div>
+
+    <span class="label expected">Expected</span>
+
+    <h3>Who the Boss contacts first, and why</h3>
+    <div class="card first">
+      <h4>Inventory, first</h4>
+      <p>This is a customer order, so the first question is whether we can fill it from the shelf. If the tee were in stock,
+        nothing else would matter. Inventory is the only agent that can see stock and vendor status together, so it can
+        confirm the shortage <em>and</em> say why a restock is blocked: the only apparel vendor has an unpaid invoice.
+        That answer decides whether Accounting is needed at all.</p>
+    </div>
+
+    <h3>How the work is delegated</h3>
+    <ol class="flow">
+      <li><div class="route">Boss reads the ticket</div>
+        <div>Calls <code>get_ticket(101)</code>: customer order, requester is a customer, linked invoice 501 (open, $840.00 still owed, 3 days overdue).</div>
+        <div class="why">Why: the linked invoice is the clue that this order depends on a bill.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Inventory</div>
+        <div>“Ticket 101: is CC-TEE-WHITE in stock in size S? If not, which sizes are, and can it be restocked?”
+          Expected answer: 0 in S; M, L and XL in stock. Bulldog Print Co (apparel reprint, 5 days) can't ship additional
+          products while invoice 501 is unpaid, so no arrival date can be given.</div>
+        <div class="why">Why Inventory: stock and vendor-shipping facts belong to it, and only it has <code>check_stock</code> and <code>get_vendor_status</code> together.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Accounting</div>
+        <div>“Ticket 101: invoice 501 ($840, Bulldog Print Co) is overdue and blocks the restock. Check the payment against the cash and the other bills due.”
+          Expected answer: <code>check_payment</code> allows $840 with no warnings, leaving $2,560. With rent ($2,400, Ticket 102)
+          also due, both together leave $160, so both fit in the cash. Accounting prepares a payment approval request.</div>
+        <div class="why">Why Accounting: only it can check a payment against the cash and the payment rules. Payments need a person's approval, so its output is a request, not a payment.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Customer Service</div>
+        <div>“Ticket 101: draft a reply to Tauhid Zaman. Size S is out of stock; M, L and XL are in stock; a restock depends on a
+          bill that hasn't been approved yet.” Expected: a short draft to Tauhid Zaman (<code>sent: false</code>) offering
+          the in-stock sizes at $28.00, with no restock date promised.</div>
+        <div class="why">Why Customer Service: the requester is a customer, and only this agent drafts customer messages. It goes last so the draft uses confirmed facts.</div></li>
+      <li><div class="route">Boss combines the answers</div>
+        <div>Status <code>needs_human_approval</code>, with:
+          <ul class="tight">
+            <li>a payment approval for invoice 501, $840.00</li>
+            <li>the customer draft</li>
+            <li>follow-ups for a person: once 501 is paid, contact Bulldog Print Co about the reprint (agents can't contact vendors), and review and send the draft</li>
+          </ul></div>
+        <div class="why">Why this check: the draft must not promise anything that depends on the unapproved payment.</div></li>
+    </ol>
+    <p class="lede">Expected delegations: 3 of the 8 allowed, all one level deep. The Inventory → Accounting route is allowed but shouldn't be needed, because the Boss sequences the work.</p>
+
+    <h3>Who is involved, and who isn't</h3>
+    <div class="agents">
+      <div class="agent in"><span class="tag">Involved</span><strong>Boss</strong><p>Reads the ticket, sequences the work and combines the plan.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Inventory</strong><p>Confirms the shortage and the vendor block.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Accounting</strong><p>Checks invoice 501 against the cash and prepares the approval request.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Customer Service</strong><p>Drafts the reply to Tauhid Zaman.</p></div>
+      <div class="agent out"><span class="tag">Not involved</span><strong>Facilities</strong><p>No lease or rent is linked to this ticket.</p></div>
+    </div>
+
+    <h3>MCP tools we expect them to use</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Tool call</th><th>Expected result</th></tr></thead>
+      <tbody>
+        <tr><td>Boss</td><td><code>get_ticket(101)</code></td><td>Customer order for CC-TEE-WHITE S × 1; requester is a customer; invoice 501 linked, $840.00 still owed, 3 days overdue</td></tr>
+        <tr><td>Inventory</td><td><code>check_stock("CC-TEE-WHITE", "S")</code></td><td>S: 0, not in stock. Other sizes: M 5, L 3, XL 2. Aisle B, $28.00</td></tr>
+        <tr><td>Inventory</td><td><code>get_vendor_status(1)</code></td><td>Bulldog Print Co, apparel reprint, 5 days; unpaid invoice 501; <code>can_ship_additional_products: false</code></td></tr>
+        <tr><td>Accounting</td><td><code>get_payments_due()</code></td><td>Invoice 501 $840 (−3 days), rent $2,400 (2 days); cash $3,400; $160 left if both are paid</td></tr>
+        <tr><td>Accounting</td><td><code>check_payment("invoice", 501, 840)</code></td><td><code>allowed: true</code>, no warnings, cash after $2,560</td></tr>
+        <tr><td>Customer Service</td><td><code>get_ticket(101)</code>, <code>check_stock("CC-TEE-WHITE", "S")</code></td><td>Requester name and the sizes and price to put in the draft</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Shop rules this ticket tests</h3>
+    <ul class="tight rules">
+      <li>Vendors with unpaid invoices can't ship additional products, so no restock date can be promised.</li>
+      <li>The $840 payment needs a person's approval and must fit in the available cash.</li>
+      <li>Agents draft the customer message but don't send it, and they don't contact Bulldog Print Co.</li>
+    </ul>
+
+    <hr class="split">
+    <span class="label actual">Actual</span>
+    <div class="actual-box" id="t101-actual" aria-label="Ticket 101 actual results">Not run yet.</div>
+  </section>
+
+  <!-- ===================================================== TICKET 102 -->
+  <section role="tabpanel" id="t102" aria-labelledby="tab-102" hidden>
+    <h2>Ticket 102 — Rent payment and available cash</h2>
+    <p class="lede"><code>rent_notice</code> from <strong>Elm City Properties</strong>, 11:05 AM: “Email: shop rent due in 2 days.”
+      Linked to lease 1. The notice gives no amount.</p>
+
+    <div class="facts">
+      <div class="fact warn"><b>$2,400.00 rent</b><span>Lease 1, Chapel Street shop, landlord Elm City Properties. Due Sep 2, in 2 days</span></div>
+      <div class="fact"><b>$3,400.00 cash</b><span>Checking, the only account. Order revenue isn't counted until customers pick up</span></div>
+      <div class="fact warn"><b>$840.00 also owed</b><span>Invoice 501, Bulldog Print Co, 3 days overdue (belongs to Ticket 101)</span></div>
+      <div class="fact stop"><b>$160.00 left</b><span>if both the rent and invoice 501 are paid</span></div>
+    </div>
+
+    <span class="label expected">Expected</span>
+
+    <h3>Who the Boss contacts first, and why</h3>
+    <div class="card first">
+      <h4>Facilities, first</h4>
+      <p>This is an email asking for money, so it has to be checked against the records before anyone talks about paying.
+        Facilities owns the lease and can confirm three things: the sender is the landlord on file, the due date matches
+        <code>next_due</code>, and the amount owed comes from the lease ($2,400), since the email gives none. Only once the
+        notice is verified does it make sense to ask Accounting whether the cash covers it.</p>
+    </div>
+
+    <h3>How the work is delegated</h3>
+    <ol class="flow">
+      <li><div class="route">Boss reads the ticket</div>
+        <div>Calls <code>get_ticket(102)</code>: rent notice, requester isn't a customer, lease 1 linked ($2,400, next due 2026-09-02, $2,400 still owed).</div>
+        <div class="why">Why: the ticket type and linked lease point to Facilities and Accounting, not the customer-facing agents.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Facilities</div>
+        <div>“Ticket 102: check the landlord's rent notice against lease 1.” Expected answer: the sender matches the landlord on
+          file and the due date matches (Sep 2, 2 days away). The notice states no amount, so the $2,400 on file applies; nothing
+          has been paid toward it. A person should still confirm the email is genuine before paying.</div>
+        <div class="why">Why Facilities: verifying a rent notice against the lease is its job, and only it has <code>get_lease</code>.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Accounting</div>
+        <div>“Ticket 102: verified rent of $2,400 for lease 1 is due Sep 2. Check it against the cash and the other bills due.”
+          Expected answer: <code>check_payment</code> allows $2,400 with no warnings, leaving $1,000. Invoice 501 ($840, overdue)
+          is also owed. Paying both leaves $160, which fits, but only just. Accounting prepares a payment approval request for
+          the rent and mentions invoice 501 as context only, because its approval belongs to Ticket 101.</div>
+        <div class="why">Why Accounting: the cash position across all bills is the real question here, and only Accounting can check a payment against the cash.</div></li>
+      <li><div class="route">Boss combines the answers</div>
+        <div>Status <code>needs_human_approval</code>, with a payment approval for the rent ($2,400.00, lease 1), a decision explaining the cash
+          position ($1,000 left after rent, $160 after the invoice too), and a follow-up for a person to confirm the email is genuine. There's no draft message.</div>
+        <div class="why">Why no draft: the requester isn't a customer, and agents may only draft messages to customers.</div></li>
+    </ol>
+    <p class="lede">Expected delegations: 2. An acceptable alternative is Facilities → Accounting (two levels deep), which the Facilities prompt allows. Either way, the payment request should appear only once.</p>
+
+    <h3>Who is involved, and who isn't</h3>
+    <div class="agents">
+      <div class="agent in"><span class="tag">Involved</span><strong>Boss</strong><p>Reads the ticket and combines the plan.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Facilities</strong><p>Verifies the notice against lease 1.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Accounting</strong><p>Checks the rent against the cash and all bills due, and prepares the approval request.</p></div>
+      <div class="agent out"><span class="tag">Not involved</span><strong>Inventory</strong><p>No product or stock is involved.</p></div>
+      <div class="agent out"><span class="tag">Not involved</span><strong>Customer Service</strong><p>The landlord isn't a customer, so there's nothing to draft.</p></div>
+    </div>
+
+    <h3>MCP tools we expect them to use</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Tool call</th><th>Expected result</th></tr></thead>
+      <tbody>
+        <tr><td>Boss</td><td><code>get_ticket(102)</code></td><td>Rent notice; requester isn't a customer; lease 1: $2,400, next due 2026-09-02, $2,400 still owed</td></tr>
+        <tr><td>Facilities</td><td><code>get_lease(1)</code></td><td>Elm City Properties, $2,400, due 2026-09-02 (2 days), $0 paid toward it, no rent payments recorded</td></tr>
+        <tr><td>Accounting</td><td><code>get_payments_due()</code></td><td>Invoice 501 $840 (−3 days), rent $2,400 (2 days); cash $3,400; $160 left if both are paid</td></tr>
+        <tr><td>Accounting</td><td><code>check_payment("rent", 1, 2400)</code></td><td><code>allowed: true</code>, no warnings, cash after $1,000</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Shop rules this ticket tests</h3>
+    <ul class="tight rules">
+      <li>The rent payment needs a person's approval and must not exceed the cash or make the balance negative.</li>
+      <li>Revenue is only received when customers pick up their orders, so the hoodie order in Ticket 103 can't count as cash.</li>
+      <li>The amount comes from the lease record, not from the email.</li>
+    </ul>
+
+    <hr class="split">
+    <span class="label actual">Actual</span>
+    <div class="actual-box" id="t102-actual" aria-label="Ticket 102 actual results">Not run yet.</div>
+  </section>
+
+  <!-- ===================================================== TICKET 103 -->
+  <section role="tabpanel" id="t103" aria-labelledby="tab-103" hidden>
+    <h2>Ticket 103 — Hoodie shortage and a bulk discount request</h2>
+    <p class="lede"><code>price_override</code> from <strong>Yale AI Club</strong>, 4:55 PM: “Student org wants 20 hoodies, size M, asking for a bulk discount.”
+      Basic Hoodie Big Yale (<code>CC-HOOD-NAVY</code>), size M × 20.</p>
+
+    <div class="facts">
+      <div class="fact stop"><b>8 in size M</b><span>12 short of 20. All sizes: S 4, M 8, L 14, XL 6 (32 total), Aisle A</span></div>
+      <div class="fact"><b>$58.00 list, $22.00 cost</b><span>$1,160.00 for 20 at list price, $720.00 profit</span></div>
+      <div class="fact warn"><b>Break-even 62.07%</b><span>The discount where profit reaches $0. A limit, not a target</span></div>
+      <div class="fact stop"><b>Restock blocked</b><span>Bulldog Print Co can't ship more while invoice 501 is unpaid</span></div>
+    </div>
+
+    <span class="label expected">Expected</span>
+
+    <h3>Who the Boss contacts first, and why</h3>
+    <div class="card first">
+      <h4>Inventory, first</h4>
+      <p>The club asked about price, but stock is the bigger problem: only 8 of the 20 hoodies in M are on the shelf, and
+        the vendor that could reprint them can't ship while invoice 501 is unpaid. Any discount Accounting evaluates should
+        be for an order we can actually fill, or a clearly stated partial one. Inventory goes first so the price evaluation
+        starts from the real stock picture. (The Boss prompt lists Accounting and Inventory for this route without a fixed
+        order; we expect Inventory first for this reason.)</p>
+    </div>
+
+    <h3>How the work is delegated</h3>
+    <ol class="flow">
+      <li><div class="route">Boss reads the ticket</div>
+        <div>Calls <code>get_ticket(103)</code>: price override, requester is a customer, CC-HOOD-NAVY M × 20, nothing linked.</div>
+        <div class="why">Why: a discount request means Accounting; a quantity this large means Inventory; a customer requester means Customer Service.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Inventory</div>
+        <div>“Ticket 103: stock of CC-HOOD-NAVY across sizes, the shortfall for 20 in M, and restock options.” Expected answer:
+          8 in M (12 short); S 4, L 14, XL 6. Bulldog Print Co (apparel reprint, 5 days) can't ship additional products while
+          invoice 501 is unpaid, so no restock date.</div>
+        <div class="why">Why Inventory: the shortage and the vendor block shape what can be offered at all.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Accounting</div>
+        <div>“Ticket 103: evaluate a few discount levels for 20 × CC-HOOD-NAVY in M, and recommend one or none for this request.
+          Only 8 are in stock.” Expected: <code>price_bulk_order</code> at 0% (list price), then at two or three levels Accounting chooses.
+          The recommendation goes in a discount approval request, with reasons based on profit, break-even, the shortfall and the cash.
+          It's for this request only, not a policy.</div>
+        <div class="why">Why Accounting: pricing and profit are its job, and the shop has no discount policy, so a person needs the numbers to decide.</div></li>
+      <li><div class="route">Boss <span class="arrow">→</span> Customer Service</div>
+        <div>“Ticket 103: draft a reply to Yale AI Club. Only 8 in M are in stock now (L 14, S 4, XL 6); the discount request is being
+          reviewed.” Expected: a draft (<code>sent: false</code>) that may give the $58.00 list price but no discount, percentage or discounted
+          price, and no restock date.</div>
+        <div class="why">Why Customer Service: the club is a customer. The draft must not get ahead of the person's discount decision.</div></li>
+      <li><div class="route">Boss combines the answers</div>
+        <div>Status <code>needs_human_approval</code>, with:
+          <ul class="tight">
+            <li>a discount approval request: the facts, the options evaluated and the agents' recommendation</li>
+            <li>the customer draft</li>
+            <li>follow-ups for a person: decide the discount, review and send the draft, and resolve the restock once invoice 501 is handled (Ticket 101)</li>
+          </ul></div>
+        <div class="why">Why no payment here: this ticket brings money in only when the club picks up, so it doesn't change today's cash.</div></li>
+    </ol>
+    <p class="lede">Expected delegations: 3, all one level deep. We don't set which discount Accounting should recommend: that's what we'll compare in the Actual section.</p>
+
+    <h3>Who is involved, and who isn't</h3>
+    <div class="agents">
+      <div class="agent in"><span class="tag">Involved</span><strong>Boss</strong><p>Reads the ticket, sequences the work and combines the plan.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Inventory</strong><p>Confirms the 12-hoodie shortfall and the restock block.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Accounting</strong><p>Compares discount levels and recommends one or none for a person to decide.</p></div>
+      <div class="agent in"><span class="tag">Involved</span><strong>Customer Service</strong><p>Drafts an honest, discount-free reply to the club.</p></div>
+      <div class="agent out"><span class="tag">Not involved</span><strong>Facilities</strong><p>No lease or rent is involved.</p></div>
+    </div>
+
+    <h3>MCP tools we expect them to use</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th>Tool call</th><th>Expected result</th></tr></thead>
+      <tbody>
+        <tr><td>Boss</td><td><code>get_ticket(103)</code></td><td>Price override for CC-HOOD-NAVY M × 20; requester is a customer</td></tr>
+        <tr><td>Inventory</td><td><code>check_stock("CC-HOOD-NAVY", "M")</code></td><td>M: 8 in stock. S 4, L 14, XL 6. Aisle A, $58.00</td></tr>
+        <tr><td>Inventory</td><td><code>get_vendor_status(1)</code> (or all vendors)</td><td>Bulldog Print Co can't ship additional products (invoice 501 unpaid). 5-day lead time</td></tr>
+        <tr><td>Accounting</td><td><code>price_bulk_order("CC-HOOD-NAVY", "M", 20, 0)</code></td><td>$1,160.00 total, $720.00 profit, break-even 62.07%, 8 in stock, 12 short</td></tr>
+        <tr><td>Accounting</td><td><code>price_bulk_order(…, discount_percent=X)</code> for a few levels</td><td>For example, 5% gives $1,102.00 and $662.00 profit, and 10% gives $1,044.00 and $604.00 profit. The levels are Accounting's choice.</td></tr>
+        <tr><td>Customer Service</td><td><code>get_ticket(103)</code>, <code>check_stock("CC-HOOD-NAVY", "M")</code></td><td>Requester name and the stock and list price for the draft</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Shop rules this ticket tests</h3>
+    <ul class="tight rules">
+      <li>Discounts need a person's approval, and there's no discount policy: agents may recommend for this request but not decide, offer or invent a policy.</li>
+      <li>Vendors with unpaid invoices can't ship additional products, so the 12 missing hoodies can't be promised.</li>
+      <li>Revenue is only received at pickup, so this order doesn't add to the cash available for Tickets 101 and 102.</li>
+      <li>The draft to Yale AI Club isn't sent and mentions no discount.</li>
+    </ul>
+
+    <hr class="split">
+    <span class="label actual">Actual</span>
+    <div class="actual-box" id="t103-actual" aria-label="Ticket 103 actual results">Not run yet.</div>
+  </section>
+
+  <!-- ===================================================== CASH -->
+  <section role="tabpanel" id="cash" aria-labelledby="tab-cash" hidden>
+    <h2>Cash</h2>
+    <div class="actual-box blank-tab" id="cash-content" aria-label="Cash">Blank for now.</div>
+  </section>
+
+  <!-- ===================================================== REFLECTION -->
+  <section role="tabpanel" id="reflection" aria-labelledby="tab-reflection" hidden>
+    <h2>Reflection</h2>
+    <div class="actual-box blank-tab" id="reflection-content" aria-label="Reflection">Blank for now.</div>
+  </section>
+
+  <footer>
+    All figures come from the working database (<code>hw5/data/campus_customs_new.db</code>) as of the shop date.
+    The plans follow the Boss's routes in <code>backend/prompts/boss.md</code> and each agent's tools in
+    <code>TOOLS_BY_AGENT</code> (<code>backend/agents.py</code>). Expected sections were written before running the agents.
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+    function show(tab, focus) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+      if (focus) tab.focus();
+      try { history.replaceState(null, '', '#' + tab.getAttribute('aria-controls')); } catch (e) {}
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { show(t, false); });
+      t.addEventListener('keydown', function (e) {
+        var n = null;
+        if (e.key === 'ArrowRight') n = tabs[(i + 1) % tabs.length];
+        if (e.key === 'ArrowLeft') n = tabs[(i - 1 + tabs.length) % tabs.length];
+        if (e.key === 'Home') n = tabs[0];
+        if (e.key === 'End') n = tabs[tabs.length - 1];
+        if (n) { e.preventDefault(); show(n, true); }
+      });
+    });
+    var start = tabs.filter(function (t) { return '#' + t.getAttribute('aria-controls') === location.hash; })[0];
+    if (start) show(start, false);
+  })();
+</script>
+</body>
+</html>

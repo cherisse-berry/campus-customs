@@ -211,3 +211,25 @@ No business rule was added: the person approving can still pay, after seeing and
 
 ---
 
+## Problem 6: Plan the Three Tickets
+
+### Original prompt
+
+> Let's move on to Problem 6. Before running the agents, I want to document how we expect them to handle each of the three open tickets.
+>
+> Please create output/desk_tickets.html with separate tabs for Tickets 101, 102, and 103, along with Cash and Reflection tabs for later. The page should open directly on my computer.
+>
+> For each ticket, include an Expected section showing who the Boss should contact first and why, how the agents should delegate tasks to each other, and which MCP tools they should use.
+>
+> Make the plans specific to each situation: the white tee shortage and overdue vendor invoice for Ticket 101, the rent payment and available cash for Ticket 102, and the hoodie inventory shortage and discount request for Ticket 103. I want to understand why each agent is involved rather than having everyone work on every ticket.
+>
+> Leave the Actual sections empty so we can compare the plans with what happens later. The Cash and Reflection tabs should also remain blank for now.
+>
+> Please don't run the agents yet. Update AI_prompts.md under Problem 6: Plan the Three Tickets, then commit and push the changes to GitHub.
+
+### Follow-up prompts
+
+None.
+
+---
+

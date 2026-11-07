@@ -7,6 +7,7 @@
 | `setup_db.py` | Sets up the database files (see below) |
 | `mcp_server/` | The FastMCP server the agents use for all shop information (see `mcp_server/README.md`) |
 | `backend/` | Problem 5: the five PydanticAI agents (Boss, Inventory, Accounting, Facilities, Customer Service), their prompts and data types (see `backend/README.md`) |
+| `output/desk_tickets.html` | Problem 6: the expected plan for each open ticket (tabs for Tickets 101–103, plus Cash and Reflection). Open it in any browser; it needs no internet connection. |
 | `output/audit_trail.json` | Problem 5: every agent action, delegation, decision and human approval, added to and never overwritten |
 | `.env.example` | Where `PORTKEY_API_KEY` goes. Copy it to `.env`, which is never committed. |
 | `output/mcp_smoke.json` | Problem 4: the required smoke-test results in JSON (question asked, tool used, arguments, what it returned, database check) |
