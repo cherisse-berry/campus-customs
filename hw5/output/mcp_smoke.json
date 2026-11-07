@@ -1,0 +1,341 @@
+{
+  "description": "Smoke test of the Campus Customs MCP server connected to Claude Code (Problem 4). Each test asked Claude Code a question about an open ticket and recorded which tool it called, the arguments, what the tool returned and whether the result matched the working database.",
+  "test_date": "2026-11-07",
+  "database_today": "2026-08-31",
+  "client": "Claude Code",
+  "how_run": "claude -p \"<question>\" --mcp-config .mcp.json --strict-mcp-config --allowedTools mcp__campus-customs --disallowedTools Bash Read Grep Glob Write Edit WebFetch WebSearch Agent",
+  "server": {
+    "name": "campus-customs",
+    "config_file": ".mcp.json",
+    "transport": "stdio",
+    "command": "hw5/mcp_server/.venv/bin/python",
+    "args": [
+      "hw5/mcp_server/server.py"
+    ],
+    "framework": "FastMCP 4.1.6",
+    "tools": [
+      "check_stock",
+      "get_payments_due",
+      "price_bulk_order"
+    ]
+  },
+  "database": {
+    "file": "hw5/data/campus_customs_new.db",
+    "opened": "read-only",
+    "sha256_before": "23686a90d698f7fa6f901a3f0a9774db9cbb31e13151c9e5717275f3321f360a",
+    "sha256_after": "23686a90d698f7fa6f901a3f0a9774db9cbb31e13151c9e5717275f3321f360a",
+    "original_unchanged": true,
+    "working_copy_unchanged": true
+  },
+  "tests": [
+    {
+      "id": 1,
+      "ticket": 101,
+      "purpose": "Check whether the Classic Bulldog Tee is in stock in size S",
+      "asked": "Ticket 101: a customer wants a Classic Bulldog Tee, SKU CC-TEE-WHITE, in size S. Using the campus-customs tools, is size S in stock? If not, which sizes are, and where is it shelved?",
+      "server_status": "connected",
+      "tool_calls": [
+        {
+          "tool": "check_stock",
+          "mcp_name": "mcp__campus-customs__check_stock",
+          "arguments": {
+            "sku": "CC-TEE-WHITE",
+            "size": "S"
+          },
+          "is_error": false,
+          "result": {
+            "sku": "CC-TEE-WHITE",
+            "name": "Classic Bulldog Tee",
+            "location": "Aisle B",
+            "list_price": 28,
+            "total_qty": 10,
+            "sizes": [
+              {
+                "size": "S",
+                "qty": 0,
+                "in_stock": false
+              },
+              {
+                "size": "M",
+                "qty": 5,
+                "in_stock": true
+              },
+              {
+                "size": "L",
+                "qty": 3,
+                "in_stock": true
+              },
+              {
+                "size": "XL",
+                "qty": 2,
+                "in_stock": true
+              }
+            ],
+            "requested_size": {
+              "size": "S",
+              "qty": 0,
+              "in_stock": false
+            },
+            "other_sizes_in_stock": [
+              "M",
+              "L",
+              "XL"
+            ]
+          }
+        }
+      ],
+      "assistant_answer": "No, we're out of size S for the Classic Bulldog Tee (CC-TEE-WHITE). There are 0 in stock.\n\nThese sizes are in stock:\n- **M**: 5\n- **L**: 3\n- **XL**: 2\n\nIt's shelved in **Aisle B**, and the list price is $28.",
+      "matches_database": true,
+      "database_values_checked": {
+        "inventory CC-TEE-WHITE qty by size": {
+          "S": 0,
+          "M": 5,
+          "L": 3,
+          "XL": 2
+        },
+        "inventory location": "Aisle B",
+        "pricing list_price": 28.0
+      },
+      "status": "pass"
+    },
+    {
+      "id": 2,
+      "ticket": 102,
+      "purpose": "Check the landlord's rent email against the lease, unpaid bills and cash",
+      "asked": "Ticket 102: our landlord emailed that the shop rent is due in 2 days. Using the campus-customs tools, check this against our records: who is the landlord, how much is owed and when? What other bills are unpaid, and how much cash would be left after paying everything?",
+      "server_status": "connected",
+      "tool_calls": [
+        {
+          "tool": "get_payments_due",
+          "mcp_name": "mcp__campus-customs__get_payments_due",
+          "arguments": {},
+          "is_error": false,
+          "result": {
+            "today": "2026-08-31",
+            "cash_accounts": [
+              {
+                "name": "checking",
+                "balance": 3400,
+                "as_of": "2026-08-31"
+              }
+            ],
+            "total_cash": 3400,
+            "payments_due": [
+              {
+                "kind": "invoice",
+                "id": 501,
+                "payee": "Bulldog Print Co",
+                "vendor_id": 1,
+                "description": "Rush reprint CC-TEE-WHITE S",
+                "amount": 840,
+                "due_date": "2026-08-28",
+                "days_until_due": -3,
+                "overdue": true,
+                "status": "open"
+              },
+              {
+                "kind": "rent",
+                "id": 1,
+                "payee": "Elm City Properties",
+                "description": "Monthly rent for Chapel Street shop",
+                "amount": 2400,
+                "due_date": "2026-09-02",
+                "days_until_due": 2,
+                "overdue": false
+              }
+            ],
+            "total_due": 3240,
+            "cash_left_if_all_paid": 160,
+            "enough_cash_for_all": true
+          }
+        }
+      ],
+      "assistant_answer": "Your records back up the landlord's email: rent is due in 2 days. Dates come from the shop database, where \"today\" is **2026-08-31**, not the real calendar date.\n\n**Rent (Ticket 102)**\n- **Landlord:** Elm City Properties\n- **What it's for:** Monthly rent for the Chapel Street shop\n- **Amount owed:** $2,400\n- **Due:** 2026-09-02, which is 2 days away\n\nI haven't seen the email itself, so I couldn't compare its amount or sender with the records. Before paying, check that it came from Elm City Properties, that it asks for $2,400, and that the payment details match the ones you already have for them.\n\n**Other unpaid bills**\n- **Invoice #501, Bulldog Print Co:** $840 for the rush reprint of CC-TEE-WHITE S. It was due 2026-08-28, so it is **3 days overdue** and still open. This is the reprint linked to Ticket 101.\n\n**Cash position**\n| | Amount |\n|---|---|\n| Checking balance | $3,400 |\n| Rent | −$2,400 |\n| Bulldog Print invoice | −$840 |\n| **Left after paying both** | **$160** |\n\nYou have enough to pay both, but only $160 would be left. Because the Bulldog invoice is already overdue, it's probably worth paying first. These tools can only look things up, so nothing has been paid.",
+      "matches_database": true,
+      "database_values_checked": {
+        "desk date_today": "2026-08-31",
+        "cash_accounts checking": 3400.0,
+        "leases 1 landlord": "Elm City Properties",
+        "leases 1 monthly_rent": 2400.0,
+        "leases 1 next_due": "2026-09-02",
+        "invoices 501": {
+          "vendor": "Bulldog Print Co",
+          "amount": 840.0,
+          "due_date": "2026-08-28",
+          "status": "open"
+        },
+        "cash left after both (3400 - 2400 - 840)": 160.0
+      },
+      "status": "pass"
+    },
+    {
+      "id": 3,
+      "ticket": 103,
+      "purpose": "Price 20 hoodies in size M at a 10% discount and check stock",
+      "asked": "Ticket 103: Yale AI Club wants 20 hoodies, SKU CC-HOOD-NAVY, size M, and asks for a bulk discount. Using the campus-customs tools, what would 20 cost at a 10% discount, what profit would we make, and can we fill the order from stock?",
+      "server_status": "connected",
+      "tool_calls": [
+        {
+          "tool": "price_bulk_order",
+          "mcp_name": "mcp__campus-customs__price_bulk_order",
+          "arguments": {
+            "sku": "CC-HOOD-NAVY",
+            "size": "M",
+            "qty": 20,
+            "discount_percent": 10
+          },
+          "is_error": false,
+          "result": {
+            "sku": "CC-HOOD-NAVY",
+            "name": "Basic Hoodie Big Yale",
+            "size": "M",
+            "qty_requested": 20,
+            "list_price": 58,
+            "unit_cost": 22,
+            "discount_percent": 10,
+            "unit_price": 52.2,
+            "total_at_list_price": 1160,
+            "total_price": 1044,
+            "total_cost": 440,
+            "total_profit": 604,
+            "below_cost": false,
+            "max_discount_percent_without_loss": 62.07,
+            "qty_in_stock": 8,
+            "can_fill_from_stock": false,
+            "shortfall": 12,
+            "needs_human_approval": true
+          }
+        },
+        {
+          "tool": "check_stock",
+          "mcp_name": "mcp__campus-customs__check_stock",
+          "arguments": {
+            "sku": "CC-HOOD-NAVY",
+            "size": "M"
+          },
+          "is_error": false,
+          "result": {
+            "sku": "CC-HOOD-NAVY",
+            "name": "Basic Hoodie Big Yale",
+            "location": "Aisle A",
+            "list_price": 58,
+            "total_qty": 32,
+            "sizes": [
+              {
+                "size": "S",
+                "qty": 4,
+                "in_stock": true
+              },
+              {
+                "size": "M",
+                "qty": 8,
+                "in_stock": true
+              },
+              {
+                "size": "L",
+                "qty": 14,
+                "in_stock": true
+              },
+              {
+                "size": "XL",
+                "qty": 6,
+                "in_stock": true
+              }
+            ],
+            "requested_size": {
+              "size": "M",
+              "qty": 8,
+              "in_stock": true
+            },
+            "other_sizes_in_stock": [
+              "S",
+              "L",
+              "XL"
+            ]
+          }
+        }
+      ],
+      "assistant_answer": "At a 10% discount, 20 hoodies would cost the club **$1,044** and we'd make **$604** profit. We can't fill it from stock, though: we only have **8 in size M**, so we're **12 short**.\n\n| | |\n|---|---|\n| List price | $58 each, so $1,160 for 20 |\n| Price at 10% off | **$52.20 each, so $1,044 for 20** |\n| Our cost | $22 each, so $440 for 20 |\n| **Profit** | **$604** |\n| Highest discount before we lose money | about 62% |\n\n**Stock:** The Basic Hoodie Big Yale is in Aisle A. We have 4 in S, 8 in M, 14 in L and 6 in XL.\n\n**Options for the order:**\n- Restock size M.\n- Ask the club whether some members would take size L, which has 14 in stock.\n- Send the 8 M's now and the other 12 later.\n\nThe tools only work out numbers. They don't approve discounts or change prices, and the system flagged this one as needing a person to approve it. A 10% discount still leaves a good margin, but whether to offer it is up to you or whoever approves pricing.",
+      "matches_database": true,
+      "database_values_checked": {
+        "pricing CC-HOOD-NAVY": {
+          "unit_cost": 22.0,
+          "list_price": 58.0
+        },
+        "inventory CC-HOOD-NAVY qty by size": {
+          "S": 4,
+          "M": 8,
+          "L": 14,
+          "XL": 6
+        },
+        "58 x 0.9": 52.2,
+        "52.20 x 20": 1044.0,
+        "(52.20 - 22) x 20": 604.0,
+        "(58 - 22) / 58 x 100": 62.07
+      },
+      "status": "pass"
+    },
+    {
+      "id": 4,
+      "ticket": null,
+      "purpose": "Re-check the connection after turning off FastMCP's startup banner",
+      "asked": "Call the campus-customs check_stock tool for SKU CC-MUG-CREST and tell me the quantity in stock in one sentence.",
+      "server_status": "connected",
+      "tool_calls": [
+        {
+          "tool": "check_stock",
+          "mcp_name": "mcp__campus-customs__check_stock",
+          "arguments": {
+            "sku": "CC-MUG-CREST"
+          },
+          "is_error": false,
+          "result": null,
+          "note": "The raw tool result was not saved for this run; only the tool call and the assistant's answer were recorded."
+        }
+      ],
+      "assistant_answer": "There are 0 Crest Mugs (CC-MUG-CREST) in stock, so the item is sold out in its one size; it's normally shelved in Aisle D.",
+      "matches_database": true,
+      "database_values_checked": {
+        "inventory CC-MUG-CREST OS qty": 0,
+        "inventory location": "Aisle D"
+      },
+      "status": "pass"
+    }
+  ],
+  "automated_check": {
+    "script": "hw5/mcp_server/test_tools.py",
+    "description": "Starts the server from .mcp.json, calls each tool over MCP and compares every value with a direct SQL query of the working database. Also checks that bad input is refused and that neither database file changes.",
+    "checks_run": 31,
+    "checks_passed": 31,
+    "error_cases": [
+      {
+        "tool": "check_stock",
+        "arguments": {
+          "sku": "NOT-A-SKU"
+        },
+        "is_error": true
+      },
+      {
+        "tool": "price_bulk_order",
+        "arguments": {
+          "sku": "CC-HOOD-NAVY",
+          "size": "M",
+          "qty": 20,
+          "discount_percent": 100
+        },
+        "is_error": true
+      }
+    ]
+  },
+  "summary": {
+    "tests_run": 4,
+    "tests_passed": 4,
+    "tools_tested": [
+      "check_stock",
+      "get_payments_due",
+      "price_bulk_order"
+    ],
+    "all_results_match_database": true
+  },
+  "details": "hw5/output/mcp_tests.md"
+}

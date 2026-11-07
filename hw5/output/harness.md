@@ -400,7 +400,7 @@ It only calculates. It marks any discount as needing a person's approval and nev
 
 ### Connection to Claude Code (Problem 4)
 
-The server is connected to Claude Code through `.mcp.json` at the repository root, under the name `campus-customs`. Claude Code starts the server itself with the Python in `mcp_server/.venv`. All three tools were tested through Claude Code using the three tickets, and their results matched the working database. The tests are documented in `output/mcp_tests.md`, and `mcp_server/test_tools.py` repeats the check automatically.
+The server is connected to Claude Code through `.mcp.json` at the repository root, under the name `campus-customs`. Claude Code starts the server itself with the Python in `mcp_server/.venv`. All three tools were tested through Claude Code using the three tickets, and their results matched the working database. The results are saved in `output/mcp_smoke.json` and explained in `output/mcp_tests.md`, and `mcp_server/test_tools.py` repeats the check automatically.
 
 ### What the tools don't do yet
 

@@ -74,7 +74,7 @@ To check every tool result against the working database, run this from the repos
 hw5/mcp_server/.venv/bin/python hw5/mcp_server/test_tools.py
 ```
 
-It starts the server from `.mcp.json` just as Claude Code does and calls each tool over MCP. It compares the results with direct database queries, checks that bad input is refused and confirms neither database file changes. It prints PASS or FAIL for each check. The Problem 4 test results, including the questions asked through Claude Code, are in `hw5/output/mcp_tests.md`.
+It starts the server from `.mcp.json` just as Claude Code does and calls each tool over MCP. It compares the results with direct database queries, checks that bad input is refused and confirms neither database file changes. It prints PASS or FAIL for each check. The Problem 4 test results, including the questions asked through Claude Code, are in `hw5/output/mcp_smoke.json` (JSON) and `hw5/output/mcp_tests.md` (plain language).
 
 ## Running it by hand
 

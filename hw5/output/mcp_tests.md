@@ -2,6 +2,8 @@
 
 This file records how the Campus Customs MCP server was connected to the coding assistant (Claude Code), and the tests run on each of its three tools. For each test it shows what was asked, which tool was used, what the tool returned and how the result was checked against the working database.
 
+The same results are saved in machine-readable form in **`output/mcp_smoke.json`**, the file the assignment requires.
+
 Tests were run on November 7, 2026. The database's own "today" is August 31, 2026, so all due dates and "days left" use that date.
 
 ## The connection

@@ -99,7 +99,7 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ---
 
-## Problem 4
+## Problem 4: Add the MCP Server to Vibe Coder and Test Each Tool
 
 ### Original prompt
 
@@ -113,6 +113,19 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ### Follow-up prompts
 
-None.
+**Follow-up 1**
+
+> Thank you. It looks like the three tools are working correctly.
+>
+> I noticed that the assignment asks for a file called output/mcp_smoke.json, but you mentioned creating mcp_tests.md instead. Can you check whether we have the required JSON file? If not, please create it using the results from the tests we already completed.
+>
+> Also, the official title is Problem 4: Add the MCP Server to Vibe Coder and Test Each Tool. Please correct that in AI_prompts.md.
+>
+> Please update the prompt log with this follow-up and push the changes to GitHub.
+
+*What needed to be fixed:*
+
+- **Missing required file:** the test results were only written up in `output/mcp_tests.md`; the required `output/mcp_smoke.json` didn't exist. It was created from the logs of the tests already run, without re-running them. For each test it records the question asked, the tool called, its arguments, the raw result, the assistant's answer and the database values it was checked against. It also includes the automated check (31 of 31 passed) and the database fingerprints before and after. For the fourth test (the connection re-check), the raw tool result hadn't been saved, so the file says so instead of filling it in.
+- **Problem title:** the section was labeled only "Problem 4" because no title had been given. It now uses the official title, "Add the MCP Server to Vibe Coder and Test Each Tool".
 
 ---

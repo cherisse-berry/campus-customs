@@ -6,7 +6,8 @@
 | `output/harness.md` | Plain-language guide to the database, the three open tickets, the MCP server tools and what the agents need |
 | `setup_db.py` | Sets up the database files (see below) |
 | `mcp_server/` | The FastMCP server with three read-only tools for the agents (see `mcp_server/README.md`) |
-| `output/mcp_tests.md` | Problem 4: how the server is connected to Claude Code, and the test results for each tool |
+| `output/mcp_smoke.json` | Problem 4: the required smoke-test results in JSON (question asked, tool used, arguments, what it returned, database check) |
+| `output/mcp_tests.md` | Problem 4: the same tests explained in plain language, plus how the server is connected to Claude Code |
 | `../.mcp.json` | The Claude Code connection settings for the MCP server (at the repository root) |
 | `data/` | The database files. They are not in the repository; create them with the steps below. |
 
