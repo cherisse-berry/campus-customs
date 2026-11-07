@@ -1,0 +1,40 @@
+:root {
+  --bg: #0b0a0d;
+  --panel: #15121a;
+  --panel-2: #1d1823;
+  --line: #2e2636;
+  --pink: #ff2d95;
+  --pink-soft: #ff7ab8;
+  --text: #f4eef6;
+  --muted: #a99bb3;
+  --frog: #22a35a;
+  --danger: #ff4d6d;
+  --font: 'Inter', system-ui, sans-serif;
+  --font-display: 'Fredoka', 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+}
+
+button,
+select,
+textarea {
+  font: inherit;
+}

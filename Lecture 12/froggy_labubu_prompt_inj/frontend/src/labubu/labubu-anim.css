@@ -1,0 +1,138 @@
+.twinkle,
+.pulse,
+.heart-beat,
+.float-up,
+.sweat,
+.tear,
+.bubble,
+.zzz {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.twinkle {
+  animation: twinkle 1.8s ease-in-out infinite;
+}
+.pulse {
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+.heart-beat {
+  animation: pulse 0.7s ease-in-out infinite alternate;
+}
+.float-up {
+  animation: floatUp 2.6s ease-in infinite;
+}
+.sweat {
+  animation: sweat 1.6s ease-in infinite;
+}
+.tear {
+  animation: tear 1.5s ease-in infinite;
+}
+.bubble {
+  animation: bubble 2.6s ease-in-out infinite alternate;
+}
+.zzz {
+  animation: floatUp 3s ease-in-out infinite;
+}
+.d2 {
+  animation-delay: 0.5s;
+}
+.d3 {
+  animation-delay: 1s;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    transform: scale(0.5) rotate(0deg);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.15) rotate(20deg);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  from {
+    transform: scale(0.92);
+  }
+  to {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+}
+
+@keyframes sweat {
+  0% {
+    transform: translateY(-4px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+
+@keyframes tear {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(4px) scale(1);
+  }
+  100% {
+    transform: translateY(30px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes bubble {
+  from {
+    transform: scale(0.45);
+  }
+  to {
+    transform: scale(1.1);
+  }
+}
+
+/* ---------- responsive / a11y ---------- */
+@media (max-width: 760px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .detail-art {
+    max-width: 380px;
+    margin: 0 auto;
+  }
+  .facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

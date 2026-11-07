@@ -1,0 +1,19 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# node / vite
+node_modules/
+dist/
+*.tsbuildinfo
+
+# local scratch
+backend/pages_archive/
+.DS_Store
+Thumbs.db
