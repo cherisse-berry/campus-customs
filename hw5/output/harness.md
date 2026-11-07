@@ -321,7 +321,7 @@ So the order the shop handles things in matters. Paying rent on time protects th
 
 ## MCP server tools (Problem 3)
 
-The MCP server in `mcp_server/server.py` gives the agents three tools for looking things up in the database. It's built with FastMCP. The server isn't running or connected to an agent yet. See `mcp_server/README.md` for setup.
+The MCP server in `mcp_server/server.py` gives the agents three tools for looking things up in the database. It's built with FastMCP. In Problem 4 it was connected to Claude Code (see [Connection to Claude Code](#connection-to-claude-code-problem-4) below). See `mcp_server/README.md` for setup.
 
 ### Ground rules for all three tools
 
