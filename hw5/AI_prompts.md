@@ -24,7 +24,7 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ---
 
-## Problem 2: Analyze the Database
+## Problem 2: Study the Campus Customs Database
 
 ### Original prompt
 
@@ -40,6 +40,22 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ### Follow-up prompts
 
-None.
+**Follow-up 1**
+
+> Thank you. Before we move on, I noticed a couple of things that need to be corrected.
+>
+> The assignment specifies that the original database should be named campus_customs.db and the working copy should be campus_customs_new.db. Please update the filenames so they match the assignment exactly.
+>
+> Also, the official title is Problem 2: Study the Campus Customs Database. Please correct that in AI_prompts.md.
+>
+> Since our final submission will be a public GitHub repository, please make sure there are clear instructions for how the database files can be set up when someone reviews the project.
+>
+> Please document this follow-up in AI_prompts.md, including what needed to be corrected, and commit and push the updates.
+
+*What needed to be fixed:*
+
+- **File names:** the first version named the original `campus_customs_original.db` and the working copy `campus_customs.db`. The assignment requires the original to be `campus_customs.db` and the working copy to be `campus_customs_new.db`. The files and `harness.md` now use those names.
+- **Problem title:** the section was labeled "Analyze the Database" because no title had been given. It now uses the official title, "Study the Campus Customs Database".
+- **Setup instructions:** the database files aren't in the repository, and the only setup note was one sentence in `harness.md`. A reviewer of the public repository had no clear way to recreate them. `hw5/README.md` now has step-by-step setup instructions, and `hw5/setup_db.py` creates both files from `data_2.zip`.
 
 ---

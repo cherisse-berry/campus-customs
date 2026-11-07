@@ -8,12 +8,12 @@ File paths in this document are relative to the `hw5` folder.
 
 | File | Purpose |
 |---|---|
-| `data/campus_customs_original.db` | The database exactly as delivered. It is set to read-only, so it can't be changed by accident. |
-| `data/campus_customs.db` | A working copy. This is the file we read and change while building the agents. |
+| `data/campus_customs.db` | The **original** database, exactly as delivered. It is set to read-only, so it can't be changed by accident. |
+| `data/campus_customs_new.db` | The **working copy**. This is the file we read and change while building the agents. |
 
-Both files were identical when copied (same SHA-256 fingerprint: `23686a90…f360a`). If the working copy gets into a bad state, we can restore it by copying the original again.
+Both files were identical when copied (same SHA-256 fingerprint: `23686a90…f360a`). If the working copy gets into a bad state, `python3 setup_db.py --reset` replaces it with a fresh copy of the original.
 
-The repository's `.gitignore` keeps database files out of GitHub (the same rule as Homework 4), so both copies stay on the local machine only. To rebuild them, unzip `data_2.zip` and copy `data/campus_customs.db` into `hw5/data/` under both names.
+The database files aren't in the GitHub repository: the `.gitignore` keeps them out, the same rule as Homework 4. To create them, follow [Setting up the database](../README.md#setting-up-the-database) in `hw5/README.md`. In short, from the `hw5` folder run `python3 setup_db.py path/to/data_2.zip`.
 
 For Problem 2 the database was only read, never changed.
 
