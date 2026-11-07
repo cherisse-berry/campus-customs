@@ -4,7 +4,7 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ---
 
-## Setup: Create the Prompt Log
+## Problem 1: Vibe Coder Prompts
 
 ### Original prompt
 
@@ -16,6 +16,10 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 ### Follow-up prompts
 
-None.
+**Follow-up 1**
+
+> Thank you. Please keep the file in the hw5 folder. Since this is Problem 1: Vibe Coder Prompts, please add a section for Problem 1 with my original instructions. We will add the remaining problem sections as we complete them. Please make sure the file stays updated throughout the assignment.
+
+*What needed to be fixed:* The first version put my original prompt under a generic "Setup" heading instead of a section labeled with the problem number and title. It is now under Problem 1: Vibe Coder Prompts, and the file stays in the `hw5/` folder.
 
 ---
