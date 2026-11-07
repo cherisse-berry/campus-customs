@@ -272,3 +272,87 @@ def test_reset_refuses_a_wrong_original(client, env):
     r = client.post("/api/reset", json={"confirm": "RESET", "requested_by": "Pat"})
     assert r.status_code == 409 and "doesn't match" in r.json()["detail"]
     assert fingerprint(env["working"]) == working_before and env["audit"].entries() == []
+
+
+# ---------------------------------------------------------------- purchase approvals
+
+def add_purchase(trail: AuditTrail, approval_id: str = "apr_buy"):
+    request = {"ticket_id": 103, "sku": "CC-HOOD-NAVY", "size": "M", "qty": 12, "vendor_id": 1,
+               "reason": "20 wanted, 8 in stock.", "product_name": "Basic Hoodie Big Yale", "qty_in_stock": 8,
+               "vendor_name": "Bulldog Print Co", "vendor_specialty": "apparel reprint", "lead_days": 5,
+               "vendor_can_ship": False, "unpaid_invoices": [501], "estimated_unit_cost": 22.0,
+               "estimated_cost": 264.0, "warnings": []}
+    return trail.record("approval_requested", approval_id=approval_id, approval_type="purchase",
+                        run_id="run_test", ticket_id=103, request=request)
+
+
+def snapshot(db: Path):
+    return (rows(db, "SELECT * FROM cash_accounts"), rows(db, "SELECT * FROM payments"),
+            rows(db, "SELECT * FROM inventory"), rows(db, "SELECT * FROM invoices"))
+
+
+def test_purchase_approval_records_the_decision_only(client, env):
+    add_purchase(env["audit"])
+    before = snapshot(env["working"])
+
+    review = client.get("/api/approvals/apr_buy").json()["review"]
+    assert (review["qty_in_stock"], review["estimated_cost"], review["vendor_can_ship"]) == (8, 264.0, False)
+    vendor_warning = review["warnings"]
+    assert vendor_warning == ["Bulldog Print Co can't ship until its unpaid invoice(s) 501 ($840.00) are paid: "
+                              "vendors with unpaid invoices cannot ship additional products."]
+    assert "No order is placed" in review["approval_effect"]
+
+    r = client.post("/api/approvals/apr_buy", json={"decision": "approve", "decided_by": "Pat"})
+    assert r.status_code == 409 and r.json()["unconfirmed"] == vendor_warning
+    r = client.post("/api/approvals/apr_buy", json={"decision": "approve", "decided_by": "Pat",
+                                                     "confirmed_warnings": vendor_warning, "note": "after 501 is paid"})
+    assert r.status_code == 200
+    d = r.json()["decision"]
+    assert (d["approved"], d["order_placed"], d["vendor_contacted"], d["money_moved"]) == (True, False, False, False)
+    assert "No order was placed" in r.json()["note"]
+
+    # Nothing in the database changed: no order, no payment, no stock or cash change.
+    assert snapshot(env["working"]) == before
+    assert client.get("/api/cash").json()["checking_balance"] == 3400.0
+    assert client.get("/api/approvals").json()["pending"] == []
+    decided = client.get("/api/approvals", params={"status": "decided"}).json()["decided"]
+    assert decided[0]["decision"]["approval_type"] == "purchase"
+    acts = client.get("/api/activity", params={"category": "approvals"}).json()["events"]
+    assert acts[0]["summary"] == "Waiting for a person: buy 12 x CC-HOOD-NAVY M from Bulldog Print Co"
+
+
+def test_purchase_can_be_rejected(client, env):
+    add_purchase(env["audit"])
+    r = client.post("/api/approvals/apr_buy", json={"decision": "reject", "decided_by": "Pat", "note": "not now"})
+    assert r.status_code == 200 and r.json()["decision"]["approved"] is False
+
+
+def test_purchase_warning_clears_once_the_vendor_is_paid(client, env):
+    add_purchase(env["audit"])
+    add_request(env["audit"], "apr_pay", 101, "invoice", 501, 840)
+    client.post("/api/approvals/apr_pay", json={"decision": "approve", "decided_by": "Pat"})  # temp copy only
+    review = client.get("/api/approvals/apr_buy").json()["review"]
+    assert review["vendor_can_ship"] is True and review["warnings"] == []
+    r = client.post("/api/approvals/apr_buy", json={"decision": "approve", "decided_by": "Pat"})
+    assert r.status_code == 200
+
+
+async def _decide_cli(trail, entry):
+    import approve
+    await approve.decide(trail, entry)
+
+
+def test_purchase_approval_from_the_command_line(env, monkeypatch, capfd):
+    import asyncio
+
+    import approve
+    e = add_purchase(env["audit"])
+    queue = ["y", ""]                    # approve, then don't type APPROVE ANYWAY
+    monkeypatch.setattr(approve, "ask", lambda prompt: queue.pop(0))
+    asyncio.run(_decide_cli(env["audit"], e))
+    out = capfd.readouterr().out
+    assert "WARNING: Bulldog Print Co can't ship until" in out and "nothing recorded" in out
+    queue[:] = ["y", "APPROVE ANYWAY", "Pat", ""]
+    asyncio.run(_decide_cli(env["audit"], e))
+    assert "No order was placed" in capfd.readouterr().out
+    assert [d["decision"]["decided_by"] for d in __import__("approvals").classify(env["audit"])["decided"]] == ["Pat"]

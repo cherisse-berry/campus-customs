@@ -575,3 +575,62 @@ async def test_same_bill_twice_in_one_plan_is_flagged(temp_db, audit):
     assert out.payment_approvals[0].warnings == []
     assert "requested more than once in this plan" in out.payment_approvals[1].warnings[0]
 
+
+
+# ---------------------------------------------------------------- purchase requests
+
+def purchase(ticket_id: int, sku: str, size: str, qty: int, vendor_id: int = 1) -> dict[str, Any]:
+    return {"ticket_id": ticket_id, "sku": sku, "size": size, "qty": qty, "vendor_id": vendor_id,
+            "reason": "Order can't be filled from stock."}
+
+
+async def test_purchase_request_for_ticket_103_shortfall(temp_db, audit):
+    script = Script({"boss": [("final", {**resolution(103, purchase_approvals=[purchase(103, "CC-HOOD-NAVY", "M", 12)]),
+                                         "status": "needs_human_approval"})]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(103)
+    p = out.purchase_approvals[0]
+    assert (p.product_name, p.qty, p.qty_in_stock, p.vendor_name, p.lead_days) == \
+        ("Basic Hoodie Big Yale", 12, 8, "Bulldog Print Co", 5)
+    assert (p.estimated_unit_cost, p.estimated_cost, p.vendor_can_ship, p.unpaid_invoices) == (22.0, 264.0, False, [501])
+    assert p.warnings == ["Bulldog Print Co can't ship until its unpaid invoice(s) 501 ($840.00) are paid: "
+                          "vendors with unpaid invoices cannot ship additional products."]
+    req = events(audit, "approval_requested")[0]
+    assert req["approval_type"] == "purchase" and req["request"]["qty"] == 12
+
+
+async def test_purchase_quantity_must_be_the_shortfall_for_the_ticket_item(temp_db, audit):
+    script = Script({"boss": [
+        ("final", {**resolution(103, purchase_approvals=[purchase(103, "CC-HOOD-NAVY", "M", 20),
+                                                         purchase(103, "CC-HOOD-NAVY", "L", 5)]),
+                   "status": "needs_human_approval"}),
+        ("final", {**resolution(103, purchase_approvals=[purchase(103, "cc-hood-navy", "m", 12)]),
+                   "status": "needs_human_approval"}),
+    ]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(103)
+    problems = events(audit, "output_rejected")[0]["problems"]
+    assert any("20 wanted - 8 in stock = 12" in p for p in problems)
+    assert any("must be for the ticket's item: CC-HOOD-NAVY size M" in p for p in problems)
+    assert out.purchase_approvals[0].qty == 12 and out.purchase_approvals[0].sku == "CC-HOOD-NAVY"
+
+
+async def test_purchase_for_ticket_101_warns_it_may_already_be_on_order(temp_db, audit):
+    script = Script({"boss": [("final", {**resolution(101, purchase_approvals=[purchase(101, "CC-TEE-WHITE", "S", 1)]),
+                                         "status": "needs_human_approval"})]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(101)
+    assert any('Invoice 501 linked to this ticket ("Rush reprint CC-TEE-WHITE S") may already cover this item.' == w
+               for w in out.purchase_approvals[0].warnings)
+
+
+async def test_no_purchase_for_a_ticket_without_a_product(temp_db, audit):
+    script = Script({"boss": [
+        ("final", {**resolution(102, purchase_approvals=[purchase(102, "CC-HOOD-NAVY", "M", 12)]),
+                   "status": "needs_human_approval"}),
+        ("final", resolution(102)),
+    ]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(102)
+    assert out.purchase_approvals == []
+    assert "isn't for a product" in events(audit, "output_rejected")[0]["problems"][0]

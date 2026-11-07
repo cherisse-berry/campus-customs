@@ -22,7 +22,7 @@ Routes
   GET  /api/activity                   agent activity to poll: messages, delegations, tools, decisions
   GET  /api/approvals                  approval requests; pending payments are checked live
   GET  /api/approvals/{approval_id}    one request, checked live
-  POST /api/approvals/{approval_id}    approve or reject a payment or discount request
+  POST /api/approvals/{approval_id}    approve or reject a payment, purchase or discount request
   GET  /api/cash                       the checking balance and what's due
   POST /api/reset                      reset the working database from the original
 """
@@ -51,10 +51,12 @@ from approvals import (
     ApprovalError,
     approve_discount,
     approve_payment,
+    approve_purchase,
     classify,
     find_pending,
     reject,
     review_payment,
+    review_purchase,
 )
 from audit import AuditTrail, new_run_id
 from models import ApprovalDecisionRequest, ResetRequest, RunRequest
@@ -308,8 +310,10 @@ def _summary(e: dict[str, Any]) -> str:
         return f"Decision: {e.get('decision')}"
     if ev == "approval_requested":
         r = e.get("request") or {}
-        what = (f"pay {r.get('payee')} ${r.get('amount', 0):,.2f}" if e.get("approval_type") == "payment"
-                else f"discount for {r.get('customer')}")
+        kind = e.get("approval_type")
+        what = (f"pay {r.get('payee')} ${r.get('amount', 0):,.2f}" if kind == "payment"
+                else f"buy {r.get('qty')} x {r.get('sku')} {r.get('size')} from {r.get('vendor_name')}"
+                if kind == "purchase" else f"discount for {r.get('customer')}")
         return f"Waiting for a person: {what}"
     if ev == "approval_decision":
         return f"{e.get('decided_by')} {'approved' if e.get('approved') else 'rejected'} {e.get('approval_id')}"
@@ -358,9 +362,11 @@ async def activity(
 # ---------------------------------------------------------------- approvals
 
 async def _with_review(e: dict[str, Any]) -> dict[str, Any]:
-    if e["approval_type"] != "payment":
-        return e
-    return {**e, "review": await review_payment(audit(), e)}
+    if e["approval_type"] == "payment":
+        return {**e, "review": await review_payment(audit(), e)}
+    if e["approval_type"] == "purchase":
+        return {**e, "review": await review_purchase(e)}
+    return e
 
 
 @app.get("/api/approvals", summary="Approval requests; pending payments are checked live")
@@ -380,7 +386,7 @@ async def get_approval(approval_id: str) -> dict[str, Any]:
     return await _with_review(find_pending(audit(), approval_id))
 
 
-@app.post("/api/approvals/{approval_id}", summary="Approve or reject a payment or discount request")
+@app.post("/api/approvals/{approval_id}", summary="Approve or reject a payment, purchase or discount request")
 async def decide(approval_id: str, body: ApprovalDecisionRequest) -> dict[str, Any]:
     if app.state.busy == "reset":
         raise HTTPException(409, "The database is being reset. Try again in a moment.")
@@ -390,6 +396,9 @@ async def decide(approval_id: str, body: ApprovalDecisionRequest) -> dict[str, A
     if e["approval_type"] == "payment":
         payment = await approve_payment(audit(), e, body.decided_by, body.confirmed_warnings)
         return {"payment": payment}
+    if e["approval_type"] == "purchase":
+        return {"decision": await approve_purchase(audit(), e, body.decided_by, body.confirmed_warnings, body.note),
+                "note": "Recorded only. No order was placed, no vendor was contacted and no money moved."}
     if body.discount_percent is None:
         raise ApprovalError("invalid", "discount_percent is required to approve a discount (the person decides it).")
     return {"decision": approve_discount(audit(), e, body.decided_by, body.discount_percent, body.note),

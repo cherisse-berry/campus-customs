@@ -12,6 +12,11 @@ apply exactly the same safeguards:
   those warnings. record_payment (approver role only) re-checks the shop's
   payment rules and the warnings inside one transaction.
 - A payment that isn't recorded stays pending, so it can be reviewed again.
+- Purchases are reviewed the same way: the facts and warnings (for example a
+  vendor that can't ship until its unpaid invoice is paid) are checked again
+  live, and every warning must be confirmed. Approving a purchase only records
+  the decision in the audit trail: no order is placed, no vendor is contacted,
+  no money moves and the database doesn't change.
 - Requests made before the last database reset are expired: they referred to
   the database as it was before the reset. They stay in the audit trail.
 """
@@ -22,7 +27,7 @@ from typing import Any
 
 from fastmcp import Client
 
-from agents import mcp_transport
+from agents import mcp_transport, purchase_review
 from audit import AuditTrail
 
 PAY_ANYWAY = "PAY ANYWAY"
@@ -155,6 +160,40 @@ async def approve_payment(audit: AuditTrail, e: dict[str, Any], approved_by: str
                  decided_by=approved_by, warnings_confirmed=review["warnings"], **base)
     audit.record("payment_recorded", payment=result, **base)
     return result
+
+
+# ---------------------------------------------------------------- purchases
+
+async def review_purchase(e: dict[str, Any]) -> dict[str, Any]:
+    """Everything the approver must see before deciding a purchase, checked live (read-only)."""
+    r = e["request"]
+    async with Client(mcp_transport("agent")) as client:
+        async def lookup(tool: str, args: dict[str, Any]) -> dict[str, Any]:
+            return (await client.call_tool(tool, args)).data
+        ticket = await lookup("get_ticket", {"ticket_id": e["ticket_id"]})
+        facts = await purchase_review(lookup, ticket, r["sku"], r["size"], r["qty"], r["vendor_id"])
+    return {**facts, "warnings": facts["warnings"], "needs_confirmation": bool(facts["warnings"]),
+            "can_approve": True,
+            "approval_effect": "Records the decision only. No order is placed, no vendor is contacted "
+                               "and no money moves."}
+
+
+async def approve_purchase(audit: AuditTrail, e: dict[str, Any], approved_by: str, confirmed_warnings: list[str],
+                           note: str = "") -> dict[str, Any]:
+    """Record a person's approval of a purchase request, once every current warning is confirmed."""
+    approved_by = approved_by.strip()
+    if not approved_by:
+        raise ApprovalError("name_required", "The approver's name is required.")
+    review = await review_purchase(e)
+    unconfirmed = [w for w in review["warnings"] if w not in confirmed_warnings]
+    if unconfirmed:
+        raise ApprovalError("confirmation_required",
+                            "This purchase has warnings. Confirm each one to approve it anyway; nothing was recorded.",
+                            unconfirmed=unconfirmed, review=review)
+    return audit.record("approval_decision", approval_id=e["approval_id"], approval_type="purchase", approved=True,
+                        decided_by=approved_by, warnings_confirmed=review["warnings"], note=note,
+                        order_placed=False, vendor_contacted=False, money_moved=False,
+                        run_id=e["run_id"], ticket_id=e["ticket_id"], agent="human")
 
 
 # ---------------------------------------------------------------- discounts and rejections

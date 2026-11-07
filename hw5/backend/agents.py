@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import replace
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
@@ -250,6 +250,35 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
             if not (r.recommendation_reason or "").strip():
                 problems.append("Give recommendation_reason: why this discount, based on facts from the tools.")
 
+    # Purchases: only the ticket's item, only its shortfall; facts and warnings come from the records.
+    for r in output.purchase_approvals:
+        t = d.ticket["ticket"]
+        if r.ticket_id != d.ticket_id:
+            problems.append(f"Purchase request ticket_id must be {d.ticket_id}.")
+        if not t.get("sku"):
+            problems.append(f"Ticket {d.ticket_id} isn't for a product, so it can't need a purchase.")
+            continue
+        r.sku, r.size = r.sku.strip().upper(), r.size.strip().upper()
+        if (r.sku, r.size) != (t["sku"], t["size"]):
+            problems.append(f"A purchase request must be for the ticket's item: {t['sku']} size {t['size']}.")
+            continue
+        try:
+            facts = await purchase_review(team.lookup, d.ticket, r.sku, r.size, r.qty, r.vendor_id)
+        except Exception as e:
+            problems.append(f"Purchase request: {e}")
+            continue
+        if facts["shortfall"] <= 0:
+            problems.append(f"No purchase is needed: {facts['qty_in_stock']} in stock covers the "
+                            f"{t['qty']} wanted. Remove the purchase request.")
+            continue
+        if r.qty != facts["shortfall"]:
+            problems.append(f"The purchase quantity must be the ticket's shortfall: {t['qty']} wanted - "
+                            f"{facts['qty_in_stock']} in stock = {facts['shortfall']}.")
+            continue
+        for k, v in facts.items():
+            if k != "shortfall":
+                setattr(r, k, v)
+
     # Customer drafts: only to the customer requester, never sent, no discount amounts or invented prices.
     allowed_amounts = await _list_price_amounts(d)
     for m in output.draft_messages:
@@ -274,7 +303,7 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
                                 "at list price for this ticket. Don't quote other prices.")
 
     if isinstance(output, TicketResolution):
-        needs_approval = bool(output.payment_approvals or output.discount_approvals)
+        needs_approval = bool(output.payment_approvals or output.discount_approvals or output.purchase_approvals)
         if needs_approval and output.status != "needs_human_approval":
             problems.append("status must be 'needs_human_approval' when anything needs approval.")
 
@@ -283,6 +312,38 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
                        problems=problems)
         raise ModelRetry("Please fix these problems and answer again:\n- " + "\n- ".join(problems))
     return output
+
+
+async def purchase_review(lookup: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+                          ticket: dict[str, Any], sku: str, size: str, qty: int, vendor_id: int) -> dict[str, Any]:
+    """The facts and warnings for a purchase request, from the MCP server.
+
+    Used when an agent's output is checked and again, live, when a person reviews
+    the request. `shortfall` is what the ticket needs: quantity wanted minus stock.
+    """
+    t = ticket["ticket"]
+    stock = await lookup("check_stock", {"sku": sku, "size": size})
+    vendor = (await lookup("get_vendor_status", {"vendor_id": vendor_id}))["vendors"][0]
+    price = await lookup("price_bulk_order", {"sku": sku, "size": size, "qty": qty, "discount_percent": 0})
+    in_stock = stock["requested_size"]["qty"]
+    unpaid = vendor["unpaid_invoices"]
+    warnings: list[str] = []
+    if not vendor["can_ship_additional_products"]:
+        ids = ", ".join(str(i["id"]) for i in unpaid)
+        warnings.append(f"{vendor['name']} can't ship until its unpaid invoice(s) {ids} "
+                        f"(${vendor['unpaid_total']:,.2f}) are paid: vendors with unpaid invoices cannot "
+                        "ship additional products.")
+    inv = ticket.get("linked", {}).get("invoice")
+    if inv and stock["sku"] in (inv.get("description") or ""):
+        warnings.append(f"Invoice {inv['id']} linked to this ticket (\"{inv['description']}\") may already "
+                        "cover this item.")
+    return {
+        "product_name": stock["name"], "qty_in_stock": in_stock,
+        "shortfall": (t.get("qty") or 0) - in_stock if (t.get("sku"), t.get("size")) == (stock["sku"], size) else None,
+        "vendor_name": vendor["name"], "vendor_specialty": vendor["specialty"], "lead_days": vendor["lead_days"],
+        "vendor_can_ship": vendor["can_ship_additional_products"], "unpaid_invoices": [i["id"] for i in unpaid],
+        "estimated_unit_cost": price["unit_cost"], "estimated_cost": price["total_cost"], "warnings": warnings,
+    }
 
 
 async def _list_price_amounts(d: ShopDeps) -> set[float]:
@@ -402,6 +463,9 @@ class Team:
         for r in out.discount_approvals:
             rec("approval_requested", run_id=run_id, agent="boss", ticket_id=ticket_id,
                 approval_id="apr_" + new_run_id()[4:], approval_type="discount", request=r.model_dump())
+        for r in out.purchase_approvals:
+            rec("approval_requested", run_id=run_id, agent="boss", ticket_id=ticket_id,
+                approval_id="apr_" + new_run_id()[4:], approval_type="purchase", request=r.model_dump())
         for m in out.draft_messages:
             rec("draft_message", run_id=run_id, agent="boss", ticket_id=ticket_id,
                 message=m.model_dump(), sent=False)

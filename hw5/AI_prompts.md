@@ -255,7 +255,37 @@ None.
 
 ### Follow-up prompts
 
-None.
+**Follow-up 1**
+
+> Thank you. The dashboard address is fine for now.
+>
+> I have one question about purchase approvals. If the Inventory agent determines that we need to order more products, can the system prepare that request for a person to review and approve? I want to make sure we're covering purchases as well as payments without adding anything unnecessary.
+>
+> Please clarify how that works with what we've already built before making any changes.
+
+*What was missing:* The original prompt asked for routes to approve "payments or purchases", but only payments and discounts could be approved. The Inventory agent could only mention a needed restock in a free-text follow-up note, which wasn't checked against the records and couldn't be approved or rejected. No changes were made in response to this question. The assistant explained what existed and noted that Ticket 101's tee is already on order (invoice 501), so Ticket 103's 12 missing hoodies are the real case. It proposed a minimal purchase request and asked how to proceed.
+
+**Follow-up 2**
+
+> Thank you. Since Problem 7 requires us to approve payments or purchases, I think we should add the purchase approval process.
+>
+> Please keep it simple and consistent with what we've already built. The agents should be able to prepare a purchase request based on what's needed for a ticket, and a person should be able to approve or reject it through the backend.
+>
+> For Ticket 103, that would mean requesting the 12 additional hoodies needed to fill the order. If the vendor has an unpaid invoice, the request should clearly indicate that the vendor cannot ship until it's paid.
+>
+> Approval should not automatically place an order, contact a vendor, or deduct money from the account. Please record the decision in our audit trail.
+>
+> I don't think we need additional purchasing rules or features beyond what's required for the assignment.
+>
+> Please test the changes, update harness.md and AI_prompts.md, and push everything to GitHub.
+
+*What needed to be fixed:* Purchases had no approval process. Purchase requests were added the same way as discount requests:
+- **What Inventory can request:** only the ticket's own item, for exactly its shortfall (12 hoodies in M for Ticket 103).
+- **Facts from the records:** stock, vendor, lead time, estimated cost and unpaid invoices are filled in from the MCP server.
+- **Warnings:** if the vendor has an unpaid invoice, a warning says it can't ship until the invoice is paid, and the approver must confirm it.
+- **Approving or rejecting:** through `POST /api/approvals/{id}` or `approve.py`. The decision is recorded in the audit trail only. No order is placed, no vendor is contacted, no money moves and the database doesn't change.
+
+No new MCP tool, database table or purchasing rule was added. `harness.md` and the Problem 6 plan page (`desk_tickets.html`) were updated to match. Eight new tests cover it (47 backend tests in total).
 
 ---
 

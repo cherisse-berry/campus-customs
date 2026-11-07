@@ -427,7 +427,7 @@ These are the rules as the shop gave them. They're in `backend/prompts/shop_rule
 |---|---|
 | All payments require human approval and must be recorded in the database. | No agent can record a payment: `record_payment` only exists when the MCP server is started in the approver role, which only `approve.py` does. A person must approve and type their name. The payment is then written to `payments` with `approved_by` set to that name. |
 | Payments cannot exceed available cash or result in a negative balance. | `check_payment` and `record_payment` refuse a payment larger than the cash balance. `record_payment` re-checks inside a database transaction and only takes money out if the balance stays at $0 or more. The output check also refuses payment requests that together exceed the cash. |
-| Vendors with unpaid invoices cannot ship additional products. | `get_vendor_status` reports `can_ship_additional_products: false` for any vendor with an unpaid invoice. Bulldog Print Co is in that position because of invoice 501. |
+| Vendors with unpaid invoices cannot ship additional products. | `get_vendor_status` reports `can_ship_additional_products: false` for any vendor with an unpaid invoice. Bulldog Print Co is in that position because of invoice 501. A purchase request from such a vendor carries a warning that it can't ship until the invoice is paid, and the approver must confirm it. |
 | Revenue is only received when customers pick up their orders. | Available cash is only the `cash_accounts` balance. No tool counts expected sales, and the agents are told never to. |
 | Discounts require human approval, and there is no established discount policy. | Agents may evaluate discount levels for a specific request and recommend one, but only inside a discount approval request for a person. The figures for every option are re-checked with `price_bulk_order`, and a recommendation must be one of the evaluated options and give a reason. Agents are told not to state any general discount rule. Customer drafts that mention a percentage, "$X off" or a price other than the list price are sent back. Only a person sets a discount, in `approve.py`. |
 | Agents can draft customer messages but cannot send them or contact vendors directly. | There is no tool for sending anything. Every draft has `sent: false` (it can't be set to true). Drafts are only accepted when addressed to the requester of a customer ticket, never to a vendor or the landlord. |
@@ -440,7 +440,7 @@ These are the rules as the shop gave them. They're in `backend/prompts/shop_rule
 | Agent | Responsibilities | MCP tools it can use | Tables behind those tools |
 |---|---|---|---|
 | **Boss** | Reads the ticket and delegates work to the right teammates. Combines their answers, checks they agree (for example, payments fit in the cash), and returns one plan for the staff: findings, decisions, approval requests, customer drafts and follow-ups. It approves nothing. | `list_open_tickets`, `get_ticket` | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `desk` |
-| **Inventory** | Reports stock by size, shortfalls and shelf locations. For restocking, names vendors whose listed specialty fits and says whether they're allowed to ship. Only estimates arrival from `lead_days` if the vendor can ship. | `get_ticket`, `check_stock`, `get_vendor_status` | `tickets`, `inventory`, `pricing`, `vendors`, `invoices`, `desk` |
+| **Inventory** | Reports stock by size, shortfalls and shelf locations. For restocking, names vendors whose listed specialty fits and says whether they're allowed to ship. Only estimates arrival from `lead_days` if the vendor can ship. Can prepare a purchase request for a ticket's shortfall for a person to approve. | `get_ticket`, `check_stock`, `get_vendor_status` | `tickets`, `inventory`, `pricing`, `vendors`, `invoices`, `desk` |
 | **Accounting** | Handles bills, rent, cash and pricing facts. Checks every payment with `check_payment` before requesting approval, and makes sure requests together fit in the cash. For discount requests, evaluates a few discount levels with `price_bulk_order` and may recommend one for that request, with reasons, for a person to decide. | `get_ticket`, `get_payments_due`, `check_payment`, `price_bulk_order`, `get_vendor_status` | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `cash_accounts`, `pricing`, `inventory`, `desk` |
 | **Facilities** | Handles the lease and rent. Checks a rent notice against the lease on file: landlord, due date, amount, and how much is still owed for that date. Reports mismatches for a person to verify. | `get_ticket`, `get_lease`, `get_payments_due` | `tickets`, `leases`, `payments`, `invoices`, `vendors`, `cash_accounts`, `desk` |
 | **Customer Service** | Writes short, honest drafts to the customer who raised the ticket. It never sends them, never offers a discount and never promises a date that isn't confirmed. | `get_ticket`, `check_stock` | `tickets`, `inventory`, `pricing`, `invoices`, `vendors`, `leases`, `desk` |
@@ -466,6 +466,7 @@ The Boss returns a `TicketResolution` (`backend/models.py`):
 | `summary`, `findings`, `decisions` | What was found (with the tools each fact came from) and what the team decided or recommends, with reasons |
 | `payment_approvals` | Payments for a person to approve: kind, invoice or lease number, payee, amount, due date, reason, cash before and after, and any warnings from `check_payment` |
 | `discount_approvals` | Discount requests for a person to decide: the facts, the discount levels evaluated (price, total and profit for each), and the agents' recommendation for that request with its reason. A person makes the decision. |
+| `purchase_approvals` | Requests to buy more stock for a ticket (added in Problem 7). Each gives the item and exactly the ticket's shortfall, plus facts filled in from the records: stock, vendor, lead time, whether the vendor can ship, unpaid invoices, an estimated cost and warnings. A person approves or rejects; approval doesn't place an order. |
 | `draft_messages` | Customer drafts, always `sent: false` |
 | `human_follow_ups` | Things only a person can do, such as contacting a vendor |
 | `unknowns` | What the tools couldn't tell the agents |
@@ -499,6 +500,7 @@ Before any agent's answer is accepted, `check_output` in `backend/agents.py` che
 
   If a rule fails, nothing changes and the refusal is recorded.
 - **Discounts:** the person sees the options the agents evaluated and their recommendation, then types the discount they choose, which can differ from the recommendation. That decision is recorded in the audit trail. Nothing is sent to the customer, and no price in the database changes.
+- **Purchases:** the person sees the request checked live (stock, vendor, lead time, estimated cost) and any warnings. For example, *"Bulldog Print Co can't ship until its unpaid invoice(s) 501 ($840.00) are paid"*. They must confirm each warning (by typing `APPROVE ANYWAY` in `approve.py`). Approving only records the decision in the audit trail, with `order_placed`, `vendor_contacted` and `money_moved` all false. No order is placed, no vendor is contacted, no money moves and nothing in the database changes. A person places the order themselves, outside the system.
 
 ### Limits on AI usage
 
@@ -537,7 +539,7 @@ Each entry has a timestamp (UTC), the shop's date, the run ID, the ticket, the a
 
 The agents have **not yet been run with the real model**. This session had no Portkey key, and its network blocked `api.portkey.ai`. Everything below was tested without AI calls. The model's part was played by a scripted stand-in (PydanticAI's `FunctionModel`), with the real MCP server running on a temporary copy of the database.
 
-**Verified** (`backend/tests/test_agents.py`, 27 tests, and `mcp_server/test_tools.py`, all passing):
+**Verified** (`backend/tests/test_agents.py`, 31 tests, `backend/tests/test_api.py`, 16 tests, and `mcp_server/test_tools.py`, all passing):
 
 | Area | What was checked |
 |---|---|
@@ -636,7 +638,7 @@ It's then at `http://localhost:8000`, with interactive docs at `http://localhost
 | `GET /api/activity` | Agent activity for the dashboard to poll. Each event has `categories` and a one-line `summary`, for example `inventory called check_stock(sku='CC-TEE-WHITE', size='S')`. See the details below. | Audit trail |
 | `GET /api/approvals` | Approval requests (`?status=pending` by default, or `decided`, `expired`, `all`; optional `?ticket_id=`). Each pending payment includes a live `review`: what's still owed, cash before and after, `warnings`, `problems`, `also_pending` and whether it `can_approve`. | Audit trail + MCP `check_payment` |
 | `GET /api/approvals/{approval_id}` | One pending request, with the live review | Audit trail + MCP `check_payment` |
-| `POST /api/approvals/{approval_id}` | Approve or reject a payment or discount request. See the details below. | MCP `record_payment` (approver role) for payments |
+| `POST /api/approvals/{approval_id}` | Approve or reject a payment, purchase or discount request. See the details below. | MCP `record_payment` (approver role) for payments |
 | `GET /api/cash` | The current checking balance (and as-of date), the bills and rent still owed, and the cash left if everything is paid. Order revenue isn't counted until pickup. | MCP `get_payments_due` |
 | `POST /api/reset` | Resets the **working** database for a fresh run by copying the original over it. See the details below. | Database files |
 
@@ -673,7 +675,22 @@ The approval route (`POST /api/approvals/{approval_id}`) follows the safeguards 
 
 For a **discount**, the person sends the `discount_percent` they chose. It's recorded in the audit trail only: nothing is sent to the customer and no price changes. `"decision": "reject"` closes any request. A request that isn't pending gets `409`, and an unknown ID gets `404`.
 
-"Purchases" have no separate approval: in this shop, the requests that need a person are payments (vendor invoices and rent) and discounts on a customer's purchase (Ticket 103). Agents can't order from vendors.
+### Approving a purchase
+
+A purchase request asks to buy stock a ticket needs. For Ticket 103, that's the 12 hoodies in M missing from the 20 wanted.
+- **Review:** `GET /api/approvals` shows each pending purchase with a live `review`: stock on hand, vendor, specialty and lead time, whether the vendor can ship, its unpaid invoices, an estimated cost (quantity × the shop's `unit_cost`; the database has no vendor price list), the `warnings` and `approval_effect`.
+- **Warnings:** if the vendor has an unpaid invoice, the warning says it can't ship until the invoice is paid. Approving needs the same body as a payment, with every warning in `confirmed_warnings`, or the response is `409 confirmation_required`. A purchase linked to an invoice for the same item also gets a warning that it may already be on order (for example Ticket 101 and the reprint in invoice 501).
+- **Effect:** approval only adds an `approval_decision` entry to the audit trail, with `order_placed`, `vendor_contacted` and `money_moved` all false. No order is placed, no vendor is contacted, no money moves and nothing in the database changes. `"decision": "reject"` closes the request. If the vendor's invoice is paid later, the warning disappears from the live review.
+
+### Where purchase requests come from
+
+Only Inventory prepares them, and the code checks every one before it's accepted:
+- it must be for the ticket's own item (SKU and size)
+- its quantity must be exactly the ticket's shortfall (quantity wanted minus quantity in stock)
+- the vendor must exist
+- the facts and warnings are filled in from the MCP server (`check_stock`, `get_vendor_status`, `price_bulk_order`)
+
+A ticket without a product, like the rent notice, can't have one. No new MCP tool or database table was needed, and there are no other purchasing rules: no reorder levels, no automatic ordering and no vendor contact.
 
 ### Resetting the database
 
@@ -686,11 +703,12 @@ The original is only read, never written. The audit trail is kept, and a `databa
 
 ### Testing
 
-`backend/tests/test_api.py` has 12 tests (39 in the backend suite in total). They:
+`backend/tests/test_api.py` has 16 tests (47 in the backend suite in total). They:
 - run the API against a temporary copy of the working database and a temporary audit trail, and confirm both real database files are unchanged afterwards
 - cover every route
 - run the agent team on Ticket 101 with the scripted stand-in model (no AI calls), checking the run status and the activity in each category, and that polling with `since` returns only new events
 - run through every payment safeguard (duplicate warning, confirmation required, already paid, cash limit) and the discount and reject paths
+- cover purchase approval: the vendor warning must be confirmed, approval leaves the database unchanged, rejection works, the warning clears once the vendor's invoice is paid (in the temporary copy), and the command-line path works
 - cover reset, including refusing an original that doesn't match
 
 The real server was also started with `uvicorn main:app --reload --port 8000` from `hw5/backend`. The read-only routes were called against the working database. `POST /api/tickets/101/run` correctly answered `503` because no Portkey key is set. No payment, reset or agent run was made against the working database, and the real audit trail is still empty.

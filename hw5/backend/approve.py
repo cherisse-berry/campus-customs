@@ -33,11 +33,13 @@ from approvals import (
     ApprovalError,
     approve_discount,
     approve_payment,
+    approve_purchase,
     check_now,  # noqa: F401  (used by the tests)
     pending,
     record_payment,  # noqa: F401  (used by the tests)
     reject,
     review_payment,
+    review_purchase,
     same_bill_pending,  # noqa: F401
 )
 from audit import AuditTrail
@@ -47,6 +49,10 @@ CONFIRM_WORDS = PAY_ANYWAY
 
 def describe(e: dict[str, Any]) -> str:
     r = e["request"]
+    if e["approval_type"] == "purchase":
+        return (f"[{e['approval_id']}] Ticket {e['ticket_id']}: BUY {r['qty']} x {r['product_name'] or r['sku']} "
+                f"({r['sku']}, size {r['size']}) from {r['vendor_name']}, estimated ${r['estimated_cost']:,.2f}.\n"
+                f"    Reason: {r['reason']}")
     if e["approval_type"] == "payment":
         return (f"[{e['approval_id']}] Ticket {e['ticket_id']}: PAY {r['payee']} ${r['amount']:,.2f} "
                 f"({r['kind']} {r['ref_id']}, due {r['due_date']}) from {r['account']}.\n"
@@ -81,6 +87,15 @@ def describe_review(review: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def describe_purchase_review(review: dict[str, Any]) -> str:
+    lines = [f"    Checked just now: {review['qty_in_stock']} in stock; {review['vendor_name']} "
+             f"({review['vendor_specialty']}, {review['lead_days']} days); estimated "
+             f"${review['estimated_cost']:,.2f} (${review['estimated_unit_cost']:,.2f} each, the shop's unit cost)."]
+    lines += [f"    !! WARNING: {w}" for w in review["warnings"]]
+    lines.append(f"    {review['approval_effect']}")
+    return "\n".join(lines)
+
+
 def ask(prompt: str) -> str:
     return input(prompt).strip()
 
@@ -95,6 +110,9 @@ def ask_name() -> str:
 async def decide(audit: AuditTrail, e: dict[str, Any]) -> None:
     print("\n" + describe(e))
     review = None
+    if e["approval_type"] == "purchase":
+        purchase = await review_purchase(e)
+        print(describe_purchase_review(purchase))
     if e["approval_type"] == "payment":
         review = await review_payment(audit, e)
         print(describe_review(review))
@@ -123,6 +141,16 @@ async def decide(audit: AuditTrail, e: dict[str, Any]) -> None:
             name = ask_name()
             result = await approve_payment(audit, e, name, review["warnings"])
             print(f"Payment {result['payment_id']} recorded. Balance now ${result['balance_after']:,.2f}.")
+            return
+        if e["approval_type"] == "purchase":
+            if purchase["needs_confirmation"]:
+                typed = ask("This purchase has warnings. Type APPROVE ANYWAY to approve it, or press Enter to stop: ")
+                if typed != "APPROVE ANYWAY":
+                    print("Not confirmed; nothing recorded. The request is still pending.")
+                    return
+            name = ask_name()
+            await approve_purchase(audit, e, name, purchase["warnings"], ask("Note (optional): "))
+            print("Purchase approval recorded. No order was placed, no vendor was contacted and no money moved.")
             return
         name = ask_name()
         discount = ask("Discount you are approving, in percent (your decision, whatever the agents recommended): ")

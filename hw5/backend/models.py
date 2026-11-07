@@ -126,6 +126,35 @@ class DiscountApprovalRequest(BaseModel):
         None, description="Why, based on facts from the tools. Required when recommending.")
 
 
+class PurchaseApprovalRequest(BaseModel):
+    """A request to buy more stock for a ticket, for a person to approve or reject.
+
+    The agent gives the item, quantity, vendor and reason. Everything else is
+    filled in from the MCP server before the output is accepted. Approving it
+    only records the decision: no order is placed, no vendor is contacted and
+    no money moves.
+    """
+
+    ticket_id: int
+    sku: str
+    size: str
+    qty: int = Field(gt=0, description="The ticket's shortfall: quantity wanted minus quantity in stock.")
+    vendor_id: int
+    reason: str = Field(description="Why this purchase is needed for the ticket, from the tool results.")
+    # Filled in from the records (not set by agents):
+    product_name: str = ""
+    qty_in_stock: int = 0
+    vendor_name: str = ""
+    vendor_specialty: str = ""
+    lead_days: int = 0
+    vendor_can_ship: bool = False
+    unpaid_invoices: list[int] = []
+    estimated_unit_cost: float = 0
+    estimated_cost: float = Field(0, description="qty x the shop's unit_cost from pricing. An estimate: "
+                                                 "the database has no vendor price list.")
+    warnings: list[str] = []
+
+
 class DraftMessage(BaseModel):
     """A draft message to a customer. Drafts are never sent by the agents."""
 
@@ -152,6 +181,7 @@ class AgentReport(BaseModel):
     decisions: list[str] = Field([], description="Decisions or recommendations, each with its reason.")
     payment_approvals: list[PaymentApprovalRequest] = []
     discount_approvals: list[DiscountApprovalRequest] = []
+    purchase_approvals: list[PurchaseApprovalRequest] = []
     draft_messages: list[DraftMessage] = []
     human_follow_ups: list[HumanFollowUp] = []
     unknowns: list[str] = Field([], description="Things the tools couldn't tell you.")
@@ -168,6 +198,7 @@ class TicketResolution(BaseModel):
     decisions: list[str] = []
     payment_approvals: list[PaymentApprovalRequest] = []
     discount_approvals: list[DiscountApprovalRequest] = []
+    purchase_approvals: list[PurchaseApprovalRequest] = []
     draft_messages: list[DraftMessage] = []
     human_follow_ups: list[HumanFollowUp] = []
     unknowns: list[str] = []
@@ -187,7 +218,7 @@ class ApprovalDecisionRequest(BaseModel):
     decision: Literal["approve", "reject"]
     decided_by: str = Field(description="The person deciding. Recorded as the approver.")
     confirmed_warnings: list[str] = Field(
-        [], description="For a payment: every warning the person saw and confirms, exactly as "
+        [], description="For a payment or purchase: every warning the person saw and confirms, exactly as "
                         "GET /api/approvals returned them. Required whenever there are warnings.")
     discount_percent: float | None = Field(
         None, ge=0, lt=100, description="For a discount approval: the discount the person chose.")
