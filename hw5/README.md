@@ -5,7 +5,10 @@
 | `AI_prompts.md` | The prompts given to the AI assistant for each problem, with follow-ups and what they fixed |
 | `output/harness.md` | Plain-language guide to the database, the three open tickets, the MCP server tools and what the agents need |
 | `setup_db.py` | Sets up the database files (see below) |
-| `mcp_server/` | The FastMCP server with three read-only tools for the agents (see `mcp_server/README.md`) |
+| `mcp_server/` | The FastMCP server the agents use for all shop information (see `mcp_server/README.md`) |
+| `backend/` | Problem 5: the five PydanticAI agents (Boss, Inventory, Accounting, Facilities, Customer Service), their prompts and data types (see `backend/README.md`) |
+| `output/audit_trail.json` | Problem 5: every agent action, delegation, decision and human approval, added to and never overwritten |
+| `.env.example` | Where `PORTKEY_API_KEY` goes. Copy it to `.env`, which is never committed. |
 | `output/mcp_smoke.json` | Problem 4: the required smoke-test results in JSON (question asked, tool used, arguments, what it returned, database check) |
 | `output/mcp_tests.md` | Problem 4: the same tests explained in plain language, plus how the server is connected to Claude Code |
 | `../.mcp.json` | The Claude Code connection settings for the MCP server (at the repository root) |

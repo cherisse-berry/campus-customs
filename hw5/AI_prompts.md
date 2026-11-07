@@ -129,3 +129,44 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 - **Problem title:** the section was labeled only "Problem 4" because no title had been given. It now uses the official title, "Add the MCP Server to Vibe Coder and Test Each Tool".
 
 ---
+
+## Problem 5: Build the Agent Team and Grow the MCP Tools
+
+### Original prompt
+
+> Let's move on to Problem 5. I want to build the five Campus Customs agents using PydanticAI: Boss, Inventory, Accounting, Facilities, and Customer Service.
+>
+> Each agent should have clear responsibilities and detailed instructions based on the shop's rules. They should all be able to communicate and delegate tasks to each other as needed.
+>
+> Please put the individual agent prompts in backend/prompts, the agent code in backend, and the data types in backend/models.py. Make sure all agents use only gpt-6-luna through Portkey.
+>
+> We also need to expand our MCP tools so the agents can address the three open tickets. All shop information should come through the MCP server using our working database, not a separate system.
+>
+> I want to track what each agent does, including decisions and communication between agents. Please save this in output/audit_trail.json without overwriting previous activity.
+>
+> Make sure the agents follow the shop's rules, particularly around payments, available cash, vendor restrictions, discounts, and customer communications. Human approval should be required where appropriate, and no messages should actually be sent. We also need limits on AI usage to control costs.
+>
+> Please update harness.md with all the agents and MCP tools, including which tables they use, and update the MCP server README.
+>
+> Finally, add this prompt to AI_prompts.md under Problem 5: Build the Agent Team and Grow the MCP Tools, then commit and push everything to GitHub.
+
+### Follow-up prompts
+
+**Follow-up 1**
+
+> Here are the shop rules you need for Problem 5:
+>
+> All payments require human approval and must be recorded in the database. Payments cannot exceed available cash or result in a negative balance. Vendors with unpaid invoices cannot ship additional products.
+>
+> Revenue is only received when customers pick up their orders. Discounts require human approval, and there is no established discount policy, so please don't invent one.
+>
+> Agents can draft customer messages but cannot send them or contact vendors directly. Use desk.date_today as the shop's date.
+>
+> All five agents must use gpt-6-luna through Portkey with PORTKEY_API_KEY. Keep the API key private and out of GitHub.
+>
+> Please use these rules to proceed with Problem 5.Do not hallucinate. Update AI_prompts.md with this clarification and commit and push the changes to GitHub.
+
+*What was missing:* The original prompt asked the agents to follow "the shop's rules", but the rules weren't in the database, the data zip or the repository. Before building anything, the assistant asked where the rules should come from, and the user chose to paste them. This follow-up supplied the rules, how the model is reached (gpt-6-luna through Portkey with `PORTKEY_API_KEY`) and that the key must stay out of GitHub. Nothing had been built before this clarification, so there was nothing to correct. The agents, prompts and code checks were written from these rules as given, without adding a discount policy or other rules of their own.
+
+---
+

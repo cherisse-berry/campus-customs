@@ -59,7 +59,10 @@ async def main() -> None:
     async with Client(config) as client:
         tools = sorted(t.name for t in await client.list_tools())
         print("Tools listed by the server")
-        check("tool names", tools, ["check_stock", "get_payments_due", "price_bulk_order"])
+        check("tool names", tools, ["check_payment", "check_stock", "get_lease", "get_payments_due",
+                                    "get_ticket", "get_vendor_status", "list_open_tickets",
+                                    "price_bulk_order"])
+        check("record_payment hidden from agents", "record_payment" in tools, False)
 
         # ---- Ticket 101: check_stock
         print("\nTicket 101: check_stock(sku='CC-TEE-WHITE', size='S')")
@@ -110,7 +113,7 @@ async def main() -> None:
         check("price each at 10% off", r["unit_price"], unit)
         check("total for 20", r["total_price"], round(unit * 20, 2))
         check("profit for 20", r["total_profit"], round((unit - p["unit_cost"]) * 20, 2))
-        check("break-even discount %", r["max_discount_percent_without_loss"],
+        check("break-even discount %", r["break_even_discount_percent"],
               round((1 - p["unit_cost"] / p["list_price"]) * 100, 2))
         check("in stock in M", r["qty_in_stock"], qty_m)
         check("shortfall", r["shortfall"], 20 - qty_m)
