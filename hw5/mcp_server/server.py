@@ -129,19 +129,42 @@ def require_size(conn: sqlite3.Connection, sku: str, size: str) -> str:
     return size
 
 
-def rent_payment_for(conn: sqlite3.Connection, lease: sqlite3.Row) -> sqlite3.Row | None:
-    """The recorded payment that covers the lease's next due date, if any.
+def cents(x: float) -> int:
+    return int(round(float(x) * 100))
 
-    The payments table has no 'period' column, so a rent payment counts toward
-    the next due date if it was recorded for this lease no more than 31 days
-    before that date (or any time after it).
-    """
-    window_start = (date.fromisoformat(lease["next_due"]) - timedelta(days=31)).isoformat()
+
+def payments_for(conn: sqlite3.Connection, kind: str, ref_id: int) -> list[sqlite3.Row]:
     return conn.execute(
-        """SELECT * FROM payments WHERE kind = 'rent' AND ref_id = ? AND paid_at >= ?
-           ORDER BY paid_at DESC LIMIT 1""",
-        (lease["id"], window_start),
-    ).fetchone()
+        "SELECT * FROM payments WHERE kind = ? AND ref_id = ? ORDER BY id", (kind, ref_id)).fetchall()
+
+
+def invoice_balance(conn: sqlite3.Connection, invoice: sqlite3.Row) -> dict[str, Any]:
+    """What has been paid toward an invoice and what is still owed, from the payments table."""
+    paid = sum(cents(p["amount"]) for p in payments_for(conn, "invoice", invoice["id"]))
+    owed = 0 if invoice["status"] == "paid" else max(cents(invoice["amount"]) - paid, 0)
+    return {"amount_on_file": money(invoice["amount"]), "paid_so_far": paid / 100, "still_owed": owed / 100}
+
+
+def rent_balance(conn: sqlite3.Connection, lease: sqlite3.Row) -> dict[str, Any]:
+    """What has been paid toward the lease's next due date and what is still owed for it.
+
+    Every rent payment for the lease is credited in order. Each time the
+    credit reaches a full month's rent, record_payment moves next_due on by a
+    month, so whatever is left over counts toward the current next_due.
+    """
+    rent = cents(lease["monthly_rent"])
+    paid_total = sum(cents(p["amount"]) for p in payments_for(conn, "rent", lease["id"]))
+    toward_next = paid_total % rent if rent else 0
+    return {"amount_on_file": money(lease["monthly_rent"]), "paid_toward_next_due": toward_next / 100,
+            "still_owed_for_next_due": (rent - toward_next) / 100}
+
+
+def add_months(d: date, months: int) -> date:
+    """The same day `months` later, or the last day of that month if it's shorter."""
+    month_index = d.month - 1 + months
+    year, month = d.year + month_index // 12, month_index % 12 + 1
+    next_month = date(year + (month == 12), month % 12 + 1, 1)
+    return date(year, month, min(d.day, (next_month - timedelta(days=1)).day))
 
 
 def unpaid_invoices(conn: sqlite3.Connection, vendor_id: int | None = None) -> list[sqlite3.Row]:
@@ -164,12 +187,22 @@ def cash_balance(conn: sqlite3.Connection, account: str) -> float:
 
 def evaluate_payment(conn: sqlite3.Connection, kind: str, ref_id: int, amount: float,
                      account: str) -> dict[str, Any]:
-    """Check a proposed payment against the shop's payment rules. Changes nothing."""
+    """Check a proposed payment against the shop's payment rules. Changes nothing.
+
+    `problems` are the shop's rules (the amount can't exceed the available cash
+    or make the balance negative) plus basic validity (a positive amount); any
+    problem blocks the payment. `warnings` are facts the approver should see,
+    such as a payment that differs from what the records say is still owed or
+    a bill already paid in full. They don't block the payment: the person
+    approving decides.
+    """
     kind = kind.strip().lower()
     if kind not in PAYMENT_KINDS:
         raise ToolError(f"kind must be one of: {', '.join(PAYMENT_KINDS)}.")
     today = shop_today(conn)
     problems: list[str] = []
+    warnings: list[str] = []
+    amt = money(amount)
 
     if kind == "invoice":
         rec = conn.execute(
@@ -177,28 +210,34 @@ def evaluate_payment(conn: sqlite3.Connection, kind: str, ref_id: int, amount: f
                WHERE i.id = ?""", (ref_id,)).fetchone()
         if rec is None:
             raise ToolError(f"There is no invoice {ref_id}.")
-        payee, amount_on_file, due = rec["vendor"], float(rec["amount"]), rec["due_date"]
-        description = rec["description"]
-        if rec["status"] == "paid":
-            problems.append(f"Invoice {ref_id} is already paid.")
+        payee, due, description = rec["vendor"], rec["due_date"], rec["description"]
+        balance = invoice_balance(conn, rec)
+        owed = balance["still_owed"]
+        if owed == 0:
+            warnings.append(f"Invoice {ref_id} is already paid in full; this would be an extra payment.")
+        elif amt > owed:
+            warnings.append(f"${amt:,.2f} is more than the ${owed:,.2f} still owed on invoice {ref_id}.")
+        elif amt < owed:
+            warnings.append(f"Partial payment: ${owed - amt:,.2f} of invoice {ref_id} would still be owed.")
     else:
         rec = conn.execute("SELECT * FROM leases WHERE id = ?", (ref_id,)).fetchone()
         if rec is None:
             raise ToolError(f"There is no lease {ref_id}.")
-        payee, amount_on_file, due = rec["landlord"], float(rec["monthly_rent"]), rec["next_due"]
+        payee, due = rec["landlord"], rec["next_due"]
         description = f"Monthly rent for {rec['space_name']}"
-        paid = rent_payment_for(conn, rec)
-        if paid is not None:
-            problems.append(f"Rent for lease {ref_id} due {due} was already recorded as paid "
-                            f"(payment {paid['id']} on {paid['paid_at']}).")
+        balance = rent_balance(conn, rec)
+        owed = balance["still_owed_for_next_due"]
+        if amt < owed:
+            warnings.append(f"Partial rent: ${owed - amt:,.2f} of the rent due {due} would still be owed.")
+        elif amt > owed:
+            warnings.append(f"${amt:,.2f} is more than the ${owed:,.2f} still owed for the rent due {due}; "
+                            "the rest would count toward later rent.")
 
     cash = cash_balance(conn, account)
     if amount <= 0:
         problems.append("The amount must be more than $0.")
-    if money(amount) != money(amount_on_file):
-        problems.append(f"The amount ${money(amount):,.2f} does not match the ${amount_on_file:,.2f} on file.")
     if amount > cash:
-        problems.append(f"The amount ${money(amount):,.2f} is more than the ${cash:,.2f} available "
+        problems.append(f"The amount ${amt:,.2f} is more than the ${cash:,.2f} available "
                         f"in '{account}'; the balance would go negative.")
 
     return {
@@ -209,13 +248,14 @@ def evaluate_payment(conn: sqlite3.Connection, kind: str, ref_id: int, amount: f
         "description": description,
         "due_date": due,
         "days_until_due": (date.fromisoformat(due) - today).days,
-        "amount": money(amount),
-        "amount_on_file": money(amount_on_file),
+        "amount": amt,
+        **balance,
         "account": account,
         "cash_available": money(cash),
         "cash_after_payment": money(cash - amount),
         "allowed": not problems,
         "problems": problems,
+        "warnings": warnings,
         "requires_human_approval": True,
     }
 
@@ -261,6 +301,7 @@ def get_ticket(ticket_id: int) -> dict[str, Any]:
                     "amount": money(i["amount"]), "due_date": i["due_date"],
                     "days_until_due": (date.fromisoformat(i["due_date"]) - today).days,
                     "status": i["status"], "description": i["description"],
+                    **invoice_balance(conn, i),
                 }
         if t["lease_id"] is not None:
             lease = conn.execute("SELECT * FROM leases WHERE id = ?", (t["lease_id"],)).fetchone()
@@ -269,7 +310,7 @@ def get_ticket(ticket_id: int) -> dict[str, Any]:
                     "id": lease["id"], "space_name": lease["space_name"], "landlord": lease["landlord"],
                     "monthly_rent": money(lease["monthly_rent"]), "next_due": lease["next_due"],
                     "days_until_due": (date.fromisoformat(lease["next_due"]) - today).days,
-                    "rent_paid_for_next_due": rent_payment_for(conn, lease) is not None,
+                    **rent_balance(conn, lease),
                 }
     return {
         "today": today.isoformat(),
@@ -353,8 +394,9 @@ def get_vendor_status(vendor_id: int | None = None) -> dict[str, Any]:
                     "id": i["id"], "amount": money(i["amount"]), "due_date": i["due_date"],
                     "days_until_due": (date.fromisoformat(i["due_date"]) - today).days,
                     "status": i["status"], "description": i["description"],
+                    **invoice_balance(conn, i),
                 } for i in unpaid],
-                "unpaid_total": money(sum(i["amount"] for i in unpaid)),
+                "unpaid_total": money(sum(invoice_balance(conn, i)["still_owed"] for i in unpaid)),
                 "can_ship_additional_products": not unpaid,
                 "reason": (f"Has {len(unpaid)} unpaid invoice(s); a vendor with unpaid invoices "
                            "cannot ship additional products." if unpaid else "No unpaid invoices."),
@@ -366,7 +408,7 @@ def get_vendor_status(vendor_id: int | None = None) -> dict[str, Any]:
 
 @mcp.tool(annotations=READ_ONLY)
 def get_lease(lease_id: int) -> dict[str, Any]:
-    """Get the shop's lease: space, landlord, monthly rent, next due date and whether that rent is paid.
+    """Get the shop's lease: space, landlord, monthly rent, next due date and what is still owed for it.
 
     Use this to check a rent notice against the lease on file (Ticket 102).
 
@@ -379,7 +421,8 @@ def get_lease(lease_id: int) -> dict[str, Any]:
         if lease is None:
             ids = [str(r["id"]) for r in conn.execute("SELECT id FROM leases ORDER BY id")]
             raise ToolError(f"There is no lease {lease_id}. Leases: {', '.join(ids)}.")
-        paid = rent_payment_for(conn, lease)
+        balance = rent_balance(conn, lease)
+        payments = [dict(p) for p in payments_for(conn, "rent", lease_id)]
     return {
         "today": today.isoformat(),
         "id": lease["id"],
@@ -388,8 +431,8 @@ def get_lease(lease_id: int) -> dict[str, Any]:
         "monthly_rent": money(lease["monthly_rent"]),
         "next_due": lease["next_due"],
         "days_until_due": (date.fromisoformat(lease["next_due"]) - today).days,
-        "rent_paid_for_next_due": paid is not None,
-        "payment": dict(paid) if paid is not None else None,
+        **balance,
+        "rent_payments_recorded": payments,
         "notes": lease["notes"],
     }
 
@@ -400,8 +443,9 @@ def get_payments_due() -> dict[str, Any]:
 
     Use this to check a rent or bill request against the records on file
     (Ticket 102) and to see whether the reprint invoice linked to Ticket 101 is
-    paid. Each item shows who is owed, how much, the due date and how many days
-    are left (negative means overdue). Amounts come from the database, not from
+    paid. Each item shows who is owed, the amount still owed (after any payments
+    already recorded), the due date and how many days are left (negative means
+    overdue). Amounts come from the database, not from
     any email or ticket. Revenue from customer orders is only received when the
     customer picks up the order, so it is not counted as available cash.
     This tool does not pay anything.
@@ -411,7 +455,8 @@ def get_payments_due() -> dict[str, Any]:
         accounts = conn.execute("SELECT name, balance, date FROM cash_accounts ORDER BY name").fetchall()
         invoices = unpaid_invoices(conn)
         leases = conn.execute("SELECT * FROM leases").fetchall()
-        unpaid_leases = [lease for lease in leases if rent_payment_for(conn, lease) is None]
+        invoice_owed = {i["id"]: invoice_balance(conn, i) for i in invoices}
+        rent_owed = {lease["id"]: rent_balance(conn, lease) for lease in leases}
 
     def days_left(due: str) -> int:
         return (date.fromisoformat(due) - today).days
@@ -421,16 +466,19 @@ def get_payments_due() -> dict[str, Any]:
         d = days_left(i["due_date"])
         items.append({
             "kind": "invoice", "id": i["id"], "payee": i["vendor"], "vendor_id": i["vendor_id"],
-            "description": i["description"], "amount": money(i["amount"]),
+            "description": i["description"], "amount": invoice_owed[i["id"]]["still_owed"],
+            "amount_on_file": money(i["amount"]), "paid_so_far": invoice_owed[i["id"]]["paid_so_far"],
             "due_date": i["due_date"], "days_until_due": d, "overdue": d < 0, "status": i["status"],
         })
-    for lease in unpaid_leases:
+    for lease in leases:
         d = days_left(lease["next_due"])
         items.append({
             "kind": "rent", "id": lease["id"], "payee": lease["landlord"],
             "description": f"Monthly rent for {lease['space_name']}",
-            "amount": money(lease["monthly_rent"]), "due_date": lease["next_due"],
-            "days_until_due": d, "overdue": d < 0,
+            "amount": rent_owed[lease["id"]]["still_owed_for_next_due"],
+            "amount_on_file": money(lease["monthly_rent"]),
+            "paid_so_far": rent_owed[lease["id"]]["paid_toward_next_due"],
+            "due_date": lease["next_due"], "days_until_due": d, "overdue": d < 0,
         })
     items.sort(key=lambda x: x["due_date"])
 
@@ -453,9 +501,11 @@ def check_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
                   account: str = "checking") -> dict[str, Any]:
     """Check a proposed payment against the shop's payment rules, without paying anything.
 
-    It checks that the invoice or lease exists and isn't already paid, that the
-    amount matches the amount on file, and that the amount doesn't exceed the
-    available cash (the balance can't go negative). Every payment also needs a
+    Blocking problems (`allowed` is false) come from the shop's rules: the amount
+    can't exceed the available cash or make the balance negative (and must be
+    more than $0). `warnings` show the approver anything unusual, such as an
+    amount that differs from what the records say is still owed, or a bill
+    already paid in full; they don't block the payment. Every payment needs a
     person's approval before it can be recorded, whatever this check says.
 
     Args:
@@ -534,10 +584,14 @@ def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
                    approved_by: str, account: str = "checking") -> dict[str, Any]:
     """Record a payment that a person has approved. Approver role only.
 
-    Re-checks every payment rule, then in one transaction: adds a row to
-    payments (paid_at = the shop's date), takes the amount from the cash
-    account and, for an invoice, marks it paid. If any rule fails, nothing
-    is changed.
+    Re-checks the payment rules, then in one transaction: adds a row to
+    payments (paid_at = the shop's date) and takes the amount from the cash
+    account. For an invoice, it's marked paid once the payments recorded for it
+    cover the amount on file. For rent, the lease's next_due moves on one month
+    for each full month's rent the payments cover. If a rule fails, nothing is
+    changed. Warnings from the check (for example a partial or extra payment)
+    are returned so they're on record; they don't block the payment, because
+    the person approving has already seen them.
 
     Args:
         kind: "invoice" or "rent".
@@ -564,8 +618,25 @@ def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
                 """INSERT INTO payments (kind, ref_id, amount, account, paid_at, approved_by)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (check["kind"], ref_id, money(amount), account, check["today"], approved_by))
+            effect: dict[str, Any] = {}
             if check["kind"] == "invoice":
-                conn.execute("UPDATE invoices SET status = 'paid' WHERE id = ?", (ref_id,))
+                inv = conn.execute("SELECT * FROM invoices WHERE id = ?", (ref_id,)).fetchone()
+                paid = sum(cents(p["amount"]) for p in payments_for(conn, "invoice", ref_id))
+                if inv["status"] != "paid" and paid >= cents(inv["amount"]):
+                    conn.execute("UPDATE invoices SET status = 'paid' WHERE id = ?", (ref_id,))
+                inv = conn.execute("SELECT * FROM invoices WHERE id = ?", (ref_id,)).fetchone()
+                effect = {"invoice_status": inv["status"], **invoice_balance(conn, inv)}
+            else:
+                lease = conn.execute("SELECT * FROM leases WHERE id = ?", (ref_id,)).fetchone()
+                rent = cents(lease["monthly_rent"])
+                total = sum(cents(p["amount"]) for p in payments_for(conn, "rent", ref_id))
+                months = total // rent - (total - cents(amount)) // rent
+                if months:
+                    new_due = add_months(date.fromisoformat(lease["next_due"]), months).isoformat()
+                    conn.execute("UPDATE leases SET next_due = ? WHERE id = ?", (new_due, ref_id))
+                lease = conn.execute("SELECT * FROM leases WHERE id = ?", (ref_id,)).fetchone()
+                effect = {"months_of_rent_covered": months, "next_due": lease["next_due"],
+                          **rent_balance(conn, lease)}
             balance = cash_balance(conn, account)
             if balance < 0:
                 raise ToolError("Payment not recorded: the balance would go negative.")
@@ -584,6 +655,8 @@ def record_payment(kind: Literal["invoice", "rent"], ref_id: int, amount: float,
         "paid_at": check["today"],
         "approved_by": approved_by,
         "balance_after": money(balance),
+        "warnings": check["warnings"],
+        **effect,
     }
 
 

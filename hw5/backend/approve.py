@@ -5,8 +5,10 @@
 
 Agents can only ask. A payment is recorded in the database only here, after a
 person approves it and types their name. It goes through the MCP server's
-record_payment tool, which exists only in the approver role and re-checks every
-payment rule (amount on file, not already paid, cash available, balance not negative).
+record_payment tool, which exists only in the approver role. It re-checks the
+shop's payment rules: the payment can't exceed the cash available or make the
+balance negative. Warnings (for example a partial payment, or a bill already
+paid in full) are shown before the person decides.
 
 A discount decision is recorded in the audit trail with the discount the person
 chose; nothing is sent to the customer. Every decision is added to the audit trail.
@@ -37,14 +39,25 @@ def describe(e: dict[str, Any]) -> str:
     if e["approval_type"] == "payment":
         return (f"[{e['approval_id']}] Ticket {e['ticket_id']}: PAY {r['payee']} ${r['amount']:,.2f} "
                 f"({r['kind']} {r['ref_id']}, due {r['due_date']}) from {r['account']}.\n"
-                f"    Reason: {r['reason']}")
+                f"    Reason: {r['reason']}"
+                + "".join(f"\n    WARNING: {w}" for w in r.get("warnings", [])))
     facts = "\n".join(f"      - {f}" for f in r.get("facts_for_decision", []))
+    options = "\n".join(
+        f"      - {o['discount_percent']}% off: ${o['unit_price']:,.2f} each, total ${o['total_price']:,.2f}, "
+        f"profit ${o['total_profit']:,.2f}" + (" (BELOW COST)" if o["below_cost"] else "")
+        for o in r.get("options_evaluated", []))
+    rec = r.get("recommended_discount_percent")
+    recommendation = (f"    Agents' recommendation for this request: {rec}% off. {r.get('recommendation_reason') or ''}"
+                      if rec is not None else
+                      f"    Agents' recommendation: no discount. {r.get('recommendation_reason') or ''}"
+                      if r.get("recommendation_reason") else "    No recommendation from the agents.")
     return (f"[{e['approval_id']}] Ticket {e['ticket_id']}: DISCOUNT request from {r['customer']} for "
             f"{r['qty']} x {r['sku']} size {r['size']}.\n"
             f"    List price ${r['list_price']:,.2f}, unit cost ${r['unit_cost']:,.2f}, "
             f"total at list price ${r['total_at_list_price']:,.2f}, in stock {r['qty_in_stock']}.\n"
             f"    Break-even discount {r['break_even_discount_percent']}% (zero profit; a limit, "
-            f"not a recommendation). There is no discount policy.\n{facts}")
+            f"not a target). There is no discount policy; you decide.\n{facts}"
+            + (f"\n    Options evaluated:\n{options}" if options else "") + f"\n{recommendation}")
 
 
 async def record_payment(request: dict[str, Any], approved_by: str) -> dict[str, Any]:
@@ -90,7 +103,7 @@ async def decide(audit: AuditTrail, e: dict[str, Any]) -> None:
             print(f"Not recorded: {result['error']}")
         return
 
-    discount = ask("Discount you are approving, in percent (you decide; the shop has no policy): ")
+    discount = ask("Discount you are approving, in percent (your decision, whatever the agents recommended): ")
     try:
         pct = float(discount)
     except ValueError:

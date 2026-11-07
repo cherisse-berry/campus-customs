@@ -212,13 +212,15 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
         # Use the records' values, not the agent's.
         p.payee, p.due_date = check["payee"], check["due_date"]
         p.cash_available, p.cash_after_payment = check["cash_available"], check["cash_after_payment"]
+        p.warnings = check["warnings"]
         cash = check["cash_available"]
         total += p.amount
     if cash is not None and round(total, 2) > cash:
         problems.append(f"The payment requests add up to ${total:,.2f}, more than the ${cash:,.2f} "
                         "available. Payments can't exceed available cash.")
 
-    # Discounts: facts must match the records; there is no field for an amount.
+    # Discounts: facts and evaluated options must match the records; a recommendation
+    # must be one of the evaluated options and give a reason. A person decides.
     for r in output.discount_approvals:
         if r.ticket_id != d.ticket_id:
             problems.append(f"Discount approval ticket_id must be {d.ticket_id}.")
@@ -231,6 +233,18 @@ async def check_output(ctx: RunContext[ShopDeps], output: AgentReport | TicketRe
         r.list_price, r.unit_cost = facts["list_price"], facts["unit_cost"]
         r.total_at_list_price, r.qty_in_stock = facts["total_at_list_price"], facts["qty_in_stock"]
         r.break_even_discount_percent = facts["break_even_discount_percent"]
+        for o in r.options_evaluated:
+            opt = await team.lookup("price_bulk_order", {"sku": r.sku, "size": r.size, "qty": r.qty,
+                                                         "discount_percent": o.discount_percent})
+            o.unit_price, o.total_price = opt["unit_price"], opt["total_price"]
+            o.total_profit, o.below_cost = opt["total_profit"], opt["below_cost"]
+        if r.recommended_discount_percent is not None:
+            evaluated = {o.discount_percent for o in r.options_evaluated}
+            if r.recommended_discount_percent not in evaluated:
+                problems.append(f"The recommended discount ({r.recommended_discount_percent}%) must be one of "
+                                "the options you evaluated with price_bulk_order (options_evaluated).")
+            if not (r.recommendation_reason or "").strip():
+                problems.append("Give recommendation_reason: why this discount, based on facts from the tools.")
 
     # Customer drafts: only to the customer requester, never sent, no discount amounts or invented prices.
     allowed_amounts = await _list_price_amounts(d)

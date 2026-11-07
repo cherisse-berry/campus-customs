@@ -279,9 +279,22 @@ async def test_payment_requests_are_checked_against_the_records(temp_db, audit):
     # Payee, due date and cash figures come from the records, not from the agent.
     assert (p.payee, p.due_date, p.cash_available, p.cash_after_payment) == \
         ("Elm City Properties", "2026-09-02", 3400.0, 1000.0)
-    assert any("does not match" in x for x in events(audit, "output_rejected")[0]["problems"])
+    assert any("balance would go negative" in x for x in events(audit, "output_rejected")[0]["problems"])
+    assert p.warnings == []
     req = events(audit, "approval_requested")[0]
     assert req["approval_type"] == "payment" and req["request"]["amount"] == 2400
+
+
+async def test_partial_payment_is_allowed_with_a_warning_for_the_approver(temp_db, audit):
+    partial = payment("rent", 1, 2000)
+    script = Script({"boss": [
+        ("final", {**resolution(102, payment_approvals=[partial]), "status": "needs_human_approval"}),
+    ]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(102)
+    assert not events(audit, "output_rejected")
+    assert out.payment_approvals[0].warnings == ["Partial rent: $400.00 of the rent due 2026-09-02 would still be owed."]
+    assert events(audit, "approval_requested")[0]["request"]["warnings"]
 
 
 async def test_payments_together_cannot_exceed_cash(temp_db, audit):
@@ -298,10 +311,16 @@ async def test_payments_together_cannot_exceed_cash(temp_db, audit):
     assert any("more than the $3,000.00 available" in p for p in events(audit, "output_rejected")[0]["problems"])
 
 
-async def test_discount_request_has_no_amount_and_facts_come_from_records(temp_db, audit):
-    req = {"ticket_id": 103, "customer": "Yale AI Club", "sku": "CC-HOOD-NAVY", "size": "M", "qty": 20,
-           "list_price": 1, "unit_cost": 1, "total_at_list_price": 1, "qty_in_stock": 99,
-           "break_even_discount_percent": 1, "facts_for_decision": ["Only 8 in M."]}
+def discount_request(**extra) -> dict[str, Any]:
+    return {"ticket_id": 103, "customer": "Yale AI Club", "sku": "CC-HOOD-NAVY", "size": "M", "qty": 20,
+            "list_price": 1, "unit_cost": 1, "total_at_list_price": 1, "qty_in_stock": 99,
+            "break_even_discount_percent": 1, "facts_for_decision": ["Only 8 in M."], **extra}
+
+
+async def test_discount_options_and_recommendation_use_the_records(temp_db, audit):
+    options = [{"discount_percent": p} for p in (0, 5, 10)]
+    req = discount_request(options_evaluated=options, recommended_discount_percent=5,
+                           recommendation_reason="Keeps most of the profit; only 8 of 20 in stock.")
     script = Script({"boss": [("final", {**resolution(103, discount_approvals=[req]),
                                          "status": "needs_human_approval"})]})
     async with Team(FunctionModel(script), audit) as team:
@@ -309,7 +328,28 @@ async def test_discount_request_has_no_amount_and_facts_come_from_records(temp_d
     d = out.discount_approvals[0]
     assert (d.list_price, d.unit_cost, d.total_at_list_price, d.qty_in_stock, d.break_even_discount_percent) == \
         (58.0, 22.0, 1160.0, 8, 62.07)
-    assert "discount_percent" not in d.model_dump()
+    assert [(o.discount_percent, o.unit_price, o.total_price, o.total_profit) for o in d.options_evaluated] == \
+        [(0, 58.0, 1160.0, 720.0), (5, 55.1, 1102.0, 662.0), (10, 52.2, 1044.0, 604.0)]
+    assert d.recommended_discount_percent == 5
+    # The request goes to a person; the customer draft rules still forbid mentioning it.
+    assert events(audit, "approval_requested")[0]["approval_type"] == "discount"
+
+
+async def test_recommendation_must_be_an_evaluated_option_with_a_reason(temp_db, audit):
+    bad = discount_request(options_evaluated=[{"discount_percent": 0}, {"discount_percent": 10}],
+                           recommended_discount_percent=15)
+    good = discount_request(options_evaluated=[{"discount_percent": 0}, {"discount_percent": 10}],
+                            recommended_discount_percent=10, recommendation_reason="Profit stays at $604.")
+    script = Script({"boss": [
+        ("final", {**resolution(103, discount_approvals=[bad]), "status": "needs_human_approval"}),
+        ("final", {**resolution(103, discount_approvals=[good]), "status": "needs_human_approval"}),
+    ]})
+    async with Team(FunctionModel(script), audit) as team:
+        _, out = await team.handle_ticket(103)
+    problems = events(audit, "output_rejected")[0]["problems"]
+    assert any("must be one of the options you evaluated" in p for p in problems)
+    assert any("recommendation_reason" in p for p in problems)
+    assert out.discount_approvals[0].recommended_discount_percent == 10
 
 
 # ---------------------------------------------------------------- delegation guards and usage limits
@@ -381,20 +421,67 @@ def test_audit_file_stays_valid_json(tmp_path):
 
 # ---------------------------------------------------------------- human approval
 
-async def test_approved_payment_is_recorded_and_rules_rechecked(temp_db):
+async def test_approved_payments_follow_the_payment_rules(temp_db):
     import sqlite3
-    ok = await approve.record_payment({"kind": "invoice", "ref_id": 501, "amount": 840, "account": "checking"},
-                                      "Test Person")
-    assert ok["recorded"] and ok["balance_after"] == 2560.0 and ok["approved_by"] == "Test Person"
-    again = await approve.record_payment({"kind": "invoice", "ref_id": 501, "amount": 840,
-                                          "account": "checking"}, "Test Person")
-    assert not again["recorded"] and "already paid" in again["error"]
-    with sqlite3.connect(temp_db) as conn:
-        conn.execute("UPDATE cash_accounts SET balance = 1000")
-    short = await approve.record_payment({"kind": "rent", "ref_id": 1, "amount": 2400,
-                                          "account": "checking"}, "Test Person")
+
+    def pay(kind, ref_id, amount):
+        return approve.record_payment({"kind": kind, "ref_id": ref_id, "amount": amount,
+                                       "account": "checking"}, "Test Person")
+
+    def db(sql):
+        with sqlite3.connect(temp_db) as conn:
+            return conn.execute(sql).fetchall()
+
+    # Partial invoice payment: recorded with a warning; the invoice stays open until fully paid.
+    part = await pay("invoice", 501, 500)
+    assert part["recorded"] and part["invoice_status"] == "open" and part["still_owed"] == 340.0
+    assert part["warnings"] == ["Partial payment: $340.00 of invoice 501 would still be owed."]
+    rest = await pay("invoice", 501, 340)
+    assert rest["invoice_status"] == "paid" and rest["still_owed"] == 0 and rest["warnings"] == []
+    # Paying again is not blocked (a person approved it), but the approver is warned.
+    again = await pay("invoice", 501, 10)
+    assert again["recorded"] and "already paid in full" in again["warnings"][0]
+
+    # Full rent moves the lease on a month; a partial payment counts toward the new due date.
+    rent = await pay("rent", 1, 2400)
+    assert rent["months_of_rent_covered"] == 1 and rent["next_due"] == "2026-10-02"
+    assert rent["still_owed_for_next_due"] == 2400.0
+    partial = await pay("rent", 1, 100)
+    assert partial["next_due"] == "2026-10-02" and partial["still_owed_for_next_due"] == 2300.0
+    assert partial["balance_after"] == 3400 - 850 - 2400 - 100
+
+    # The shop's rule: no payment beyond the cash available / no negative balance.
+    short = await pay("rent", 1, 2300)
     assert not short["recorded"] and "balance would go negative" in short["error"]
-    with sqlite3.connect(temp_db) as conn:
-        assert conn.execute("SELECT kind, ref_id, amount, approved_by FROM payments").fetchall() == \
-            [("invoice", 501, 840.0, "Test Person")]
-        assert conn.execute("SELECT status FROM invoices WHERE id = 501").fetchone() == ("paid",)
+    assert db("SELECT balance FROM cash_accounts") == [(50.0,)]
+    assert db("SELECT next_due FROM leases") == [("2026-10-02",)]
+    assert db("SELECT kind, ref_id, amount, approved_by FROM payments") == [
+        ("invoice", 501, 500.0, "Test Person"), ("invoice", 501, 340.0, "Test Person"),
+        ("invoice", 501, 10.0, "Test Person"), ("rent", 1, 2400.0, "Test Person"),
+        ("rent", 1, 100.0, "Test Person")]
+
+
+async def test_vendor_can_ship_only_once_its_invoices_are_fully_paid(temp_db):
+    from fastmcp import Client
+
+    async def can_ship():
+        async with Client(agents_module.mcp_transport("agent")) as c:
+            return (await c.call_tool("get_vendor_status", {"vendor_id": 1})).data["vendors"][0]
+    assert (await can_ship())["can_ship_additional_products"] is False
+    await approve.record_payment({"kind": "invoice", "ref_id": 501, "amount": 800, "account": "checking"}, "T")
+    v = await can_ship()
+    assert v["can_ship_additional_products"] is False and v["unpaid_total"] == 40.0
+    await approve.record_payment({"kind": "invoice", "ref_id": 501, "amount": 40, "account": "checking"}, "T")
+    assert (await can_ship())["can_ship_additional_products"] is True
+
+
+def test_add_months_keeps_the_day_or_uses_month_end():
+    import subprocess
+    import sys
+
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); from datetime import date; from server import add_months; "
+            "print(add_months(date(2026, 9, 2), 1), add_months(date(2026, 12, 15), 1), "
+            "add_months(date(2027, 1, 31), 1), add_months(date(2028, 1, 31), 1))")
+    out = subprocess.run([str(config.MCP_PYTHON), "-c", code, str(config.MCP_SERVER_SCRIPT.parent)],
+                         capture_output=True, text=True, check=True).stdout.split()
+    assert out == ["2026-10-02", "2027-01-15", "2027-02-28", "2028-02-29"]

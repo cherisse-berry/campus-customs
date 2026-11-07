@@ -78,13 +78,31 @@ class PaymentApprovalRequest(BaseModel):
     reason: str = Field(description="Why this should be paid, and why now, based on the records.")
     cash_available: float = Field(description="Cash available before this payment, from check_payment.")
     cash_after_payment: float = Field(ge=0, description="Cash left after this payment, from check_payment.")
+    warnings: list[str] = Field([], description="Filled in from check_payment (for example a partial or "
+                                "extra payment), so the approver sees them. Not set by agents.")
+
+
+class DiscountOption(BaseModel):
+    """One discount level the agents evaluated with price_bulk_order.
+
+    The figures are replaced with price_bulk_order's results before the
+    output is accepted, so they always match the records.
+    """
+
+    discount_percent: float = Field(ge=0, lt=100)
+    unit_price: float = 0
+    total_price: float = 0
+    total_profit: float = 0
+    below_cost: bool = False
 
 
 class DiscountApprovalRequest(BaseModel):
     """A customer's discount request, passed to a person to decide.
 
-    There is deliberately no field for a discount amount: the shop has no
-    discount policy, so the amount is a person's decision.
+    The agents may evaluate several discount levels and recommend one for this
+    request, with their reasons. The shop has no discount policy, so the
+    recommendation isn't a policy, nothing is offered to the customer, and the
+    final decision is a person's (in approve.py).
     """
 
     ticket_id: int
@@ -99,6 +117,13 @@ class DiscountApprovalRequest(BaseModel):
     break_even_discount_percent: float = Field(
         description="The discount at which the price equals unit cost (zero profit). A limit, not a recommendation.")
     facts_for_decision: list[str] = Field(description="Facts the person deciding should know, from the tools.")
+    options_evaluated: list[DiscountOption] = Field(
+        [], description="Discount levels evaluated with price_bulk_order, including 0 (list price).")
+    recommended_discount_percent: float | None = Field(
+        None, description="The agents' recommendation for this request only: one of options_evaluated, "
+                          "or None to recommend no discount or no recommendation. A person decides.")
+    recommendation_reason: str | None = Field(
+        None, description="Why, based on facts from the tools. Required when recommending.")
 
 
 class DraftMessage(BaseModel):

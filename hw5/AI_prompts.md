@@ -168,5 +168,29 @@ A record of the prompts I give the AI assistant while working on Homework 5, org
 
 *What was missing:* The original prompt asked the agents to follow "the shop's rules", but the rules weren't in the database, the data zip or the repository. Before building anything, the assistant asked where the rules should come from, and the user chose to paste them. This follow-up supplied the rules, how the model is reached (gpt-6-luna through Portkey with `PORTKEY_API_KEY`) and that the key must stay out of GitHub. Nothing had been built before this clarification, so there was nothing to correct. The agents, prompts and code checks were written from these rules as given, without adding a discount policy or other rules of their own.
 
+**Follow-up 2**
+
+> Thank you. Before moving on, I have a few questions.
+>
+> I noticed you made some assumptions about payments, particularly requiring the exact amount and using a 31-day window for rent. Are those rules necessary, or could they create problems?
+>
+> Also, for the hoodie order, I want the agents to be able to evaluate different discounts and make a recommendation, while leaving the final decision to a person. Does our current setup allow that?
+>
+> Finally, since we haven't tested the agents with the actual AI model, please clarify what has been verified and what still needs testing.
+>
+> Please review these issues and make any necessary corrections without adding new business rules. Update AI_prompts.md with this follow-up and push the changes to GitHub.
+
+*What needed to be fixed:*
+
+- **Payment assumptions:** the first version refused any payment that didn't exactly match the amount on file, and any payment on a bill already paid. Neither is a shop rule. They would have blocked legitimate partial payments, for example paying part of a bill when cash is short. The 31-day window for deciding whether rent was paid was an arbitrary cut-off that could miscount early or late payments, and it never moved the lease on to the next month. Now:
+  - Only the shop's rules block a payment: no more than the available cash and no negative balance (plus basic validity, such as a positive amount).
+  - Partial payments, extra payments and payments on already-paid bills are allowed with warnings that the approver sees.
+  - What's still owed is worked out from the payments recorded. An invoice is marked paid once it's fully covered. Rent moves `leases.next_due` on a month for each full month paid.
+- **Discount recommendations:** the first version told the agents never to suggest or recommend a discount, and the approval request had nowhere to put one. Now:
+  - Accounting can evaluate several discount levels with `price_bulk_order` and recommend one for that specific request, with reasons, in the discount approval request.
+  - The code re-checks every option's figures and requires the recommendation to be one of the evaluated options with a reason.
+  - A person still decides in `approve.py`, nothing is offered to the customer, and the agents are told not to turn a recommendation into a general discount rule.
+- **What has been tested:** `harness.md` now has a section listing what was verified without the real model (23 offline tests plus the Problem 4 checks) and what still needs testing with gpt-6-luna through Portkey. That includes the connection and model name, tool calling and structured output, the agents' actual judgment, whether the usage limits fit, and the end-to-end scripts.
+
 ---
 

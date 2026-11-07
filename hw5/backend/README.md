@@ -51,3 +51,5 @@ python -m pytest
 ```
 
 The tests use a scripted stand-in for the model, so they make no AI calls and need no key. The MCP server is real, but runs on a temporary copy of the database. A check confirms both real database files are unchanged afterwards.
+
+The agents haven't been run with the real model yet. See [What has been verified, and what still needs testing](../output/harness.md#what-has-been-verified-and-what-still-needs-testing) in `harness.md`.

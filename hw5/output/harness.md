@@ -429,7 +429,7 @@ These are the rules as the shop gave them. They're in `backend/prompts/shop_rule
 | Payments cannot exceed available cash or result in a negative balance. | `check_payment` and `record_payment` refuse a payment larger than the cash balance. `record_payment` re-checks inside a database transaction and only takes money out if the balance stays at $0 or more. The output check also refuses payment requests that together exceed the cash. |
 | Vendors with unpaid invoices cannot ship additional products. | `get_vendor_status` reports `can_ship_additional_products: false` for any vendor with an unpaid invoice. Bulldog Print Co is in that position because of invoice 501. |
 | Revenue is only received when customers pick up their orders. | Available cash is only the `cash_accounts` balance. No tool counts expected sales, and the agents are told never to. |
-| Discounts require human approval, and there is no established discount policy. | A discount approval request has no field for a discount amount. Customer drafts that mention a percentage, "$X off" or a price other than the list price are sent back. Only a person can set a discount, in `approve.py`. |
+| Discounts require human approval, and there is no established discount policy. | Agents may evaluate discount levels for a specific request and recommend one, but only inside a discount approval request for a person. The figures for every option are re-checked with `price_bulk_order`, and a recommendation must be one of the evaluated options and give a reason. Agents are told not to state any general discount rule. Customer drafts that mention a percentage, "$X off" or a price other than the list price are sent back. Only a person sets a discount, in `approve.py`. |
 | Agents can draft customer messages but cannot send them or contact vendors directly. | There is no tool for sending anything. Every draft has `sent: false` (it can't be set to true). Drafts are only accepted when addressed to the requester of a customer ticket, never to a vendor or the landlord. |
 | Use `desk.date_today` as the shop's date. | Every date calculation in the MCP server uses `desk.date_today` (August 31, 2026). Payments are recorded with that date. |
 | All five agents must use gpt-6-luna through Portkey with PORTKEY_API_KEY. | One function creates the model: `gpt-6-luna` at `https://api.portkey.ai/v1`, authenticated with `PORTKEY_API_KEY`. The team refuses any other model name. |
@@ -441,8 +441,8 @@ These are the rules as the shop gave them. They're in `backend/prompts/shop_rule
 |---|---|---|---|
 | **Boss** | Reads the ticket and delegates work to the right teammates. Combines their answers, checks they agree (for example, payments fit in the cash), and returns one plan for the staff: findings, decisions, approval requests, customer drafts and follow-ups. It approves nothing. | `list_open_tickets`, `get_ticket` | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `desk` |
 | **Inventory** | Reports stock by size, shortfalls and shelf locations. For restocking, names vendors whose listed specialty fits and says whether they're allowed to ship. Only estimates arrival from `lead_days` if the vendor can ship. | `get_ticket`, `check_stock`, `get_vendor_status` | `tickets`, `inventory`, `pricing`, `vendors`, `invoices`, `desk` |
-| **Accounting** | Handles bills, rent, cash and pricing facts. Checks every payment with `check_payment` before requesting approval, and makes sure requests together fit in the cash. For discount requests, reports list-price facts and the break-even point, but never an amount. | `get_ticket`, `get_payments_due`, `check_payment`, `price_bulk_order`, `get_vendor_status` | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `cash_accounts`, `pricing`, `inventory`, `desk` |
-| **Facilities** | Handles the lease and rent. Checks a rent notice against the lease on file: landlord, due date, amount, and whether it's already paid. Reports mismatches for a person to verify. | `get_ticket`, `get_lease`, `get_payments_due` | `tickets`, `leases`, `payments`, `invoices`, `vendors`, `cash_accounts`, `desk` |
+| **Accounting** | Handles bills, rent, cash and pricing facts. Checks every payment with `check_payment` before requesting approval, and makes sure requests together fit in the cash. For discount requests, evaluates a few discount levels with `price_bulk_order` and may recommend one for that request, with reasons, for a person to decide. | `get_ticket`, `get_payments_due`, `check_payment`, `price_bulk_order`, `get_vendor_status` | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `cash_accounts`, `pricing`, `inventory`, `desk` |
+| **Facilities** | Handles the lease and rent. Checks a rent notice against the lease on file: landlord, due date, amount, and how much is still owed for that date. Reports mismatches for a person to verify. | `get_ticket`, `get_lease`, `get_payments_due` | `tickets`, `leases`, `payments`, `invoices`, `vendors`, `cash_accounts`, `desk` |
 | **Customer Service** | Writes short, honest drafts to the customer who raised the ticket. It never sends them, never offers a discount and never promises a date that isn't confirmed. | `get_ticket`, `check_stock` | `tickets`, `inventory`, `pricing`, `invoices`, `vendors`, `leases`, `desk` |
 
 Each agent's instructions are its own prompt file (`backend/prompts/<agent>.md`) plus the shared `shop_rules.md`. A short "This run" section is added automatically with the agent's name, the shop's date, the ticket and who it can still delegate to.
@@ -464,8 +464,8 @@ The Boss returns a `TicketResolution` (`backend/models.py`):
 |---|---|
 | `status` | `needs_human_approval` if anything needs approving, otherwise `ready_for_review` |
 | `summary`, `findings`, `decisions` | What was found (with the tools each fact came from) and what the team decided or recommends, with reasons |
-| `payment_approvals` | Payments for a person to approve: kind, invoice or lease number, payee, the amount on file, due date, reason, cash before and after |
-| `discount_approvals` | Discount requests for a person to decide: the facts only, with no discount amount |
+| `payment_approvals` | Payments for a person to approve: kind, invoice or lease number, payee, amount, due date, reason, cash before and after, and any warnings from `check_payment` |
+| `discount_approvals` | Discount requests for a person to decide: the facts, the discount levels evaluated (price, total and profit for each), and the agents' recommendation for that request with its reason. A person makes the decision. |
 | `draft_messages` | Customer drafts, always `sent: false` |
 | `human_follow_ups` | Things only a person can do, such as contacting a vendor |
 | `unknowns` | What the tools couldn't tell the agents |
@@ -474,8 +474,8 @@ The Boss returns a `TicketResolution` (`backend/models.py`):
 
 Before any agent's answer is accepted, `check_output` in `backend/agents.py` checks it. If something is wrong, the answer goes back to the agent with the problems listed (up to 2 times), and each rejection is recorded in the audit trail.
 
-- **Payment requests:** each one is re-run through `check_payment` on the MCP server. It must be allowed: it exists, isn't already paid, matches the amount on file and fits in the cash. The payee, due date and cash figures are replaced with the values from the records. All requests together must fit in the available cash.
-- **Discount requests:** list price, unit cost, total, stock and break-even are replaced with the values from `price_bulk_order`.
+- **Payment requests:** each one is re-run through `check_payment` on the MCP server, and it must be allowed: the invoice or lease exists, and the amount is more than $0 and fits in the cash. The payee, due date, cash figures and warnings (for example a partial payment) are replaced with the values from the records. All requests together must fit in the available cash.
+- **Discount requests:** list price, unit cost, total, stock, break-even and the figures for every evaluated option are replaced with the values from `price_bulk_order`. A recommendation must be one of the evaluated options and must give a reason.
 - **Customer drafts:**
   - They must be addressed to the ticket's requester, and only on a customer ticket (`customer_order` or `price_override`).
   - They can't be addressed to a vendor.
@@ -486,13 +486,14 @@ Before any agent's answer is accepted, `check_output` in `backend/agents.py` che
 
 `python approve.py --list` shows the requests waiting for a decision. `python approve.py` lets a person decide them at a terminal; it refuses to run without a person typing.
 
-- **Payments:** the person approves and types their name. `record_payment` re-checks every rule and records the payment in one transaction:
+- **Payments:** the person sees the request with any warnings (for example a partial payment or a bill already paid), then approves and types their name. `record_payment` re-checks the shop's payment rules (cash available, balance not negative) and records the payment in one transaction:
   - it adds a `payments` row with `approved_by` set to the person's name and `paid_at` set to the shop's date
   - it lowers the `cash_accounts` balance
-  - for an invoice, it sets the status to `paid`
+  - for an invoice, it sets the status to `paid` once the payments recorded for it cover the amount on file
+  - for rent, it moves `leases.next_due` on one month for each full month's rent covered
 
-  If any rule fails, nothing changes and the refusal is recorded.
-- **Discounts:** the person decides and types the discount they choose. That decision is recorded in the audit trail. Nothing is sent to the customer, and no price in the database changes.
+  If a rule fails, nothing changes and the refusal is recorded.
+- **Discounts:** the person sees the options the agents evaluated and their recommendation, then types the discount they choose, which can differ from the recommendation. That decision is recorded in the audit trail. Nothing is sent to the customer, and no price in the database changes.
 
 ### Limits on AI usage
 
@@ -527,6 +528,37 @@ Every action is added as one entry:
 
 Each entry has a timestamp (UTC), the shop's date, the run ID, the ticket, the agent and the event. The file is a JSON array with one entry per line. New entries only replace the closing `]`, so earlier activity is never rewritten or deleted. If the file is damaged, nothing is written to it, so it's never overwritten. `python audit.py` shows recent entries.
 
+### What has been verified, and what still needs testing
+
+The agents have **not yet been run with the real model**. This session had no Portkey key, and its network blocked `api.portkey.ai`. Everything below was tested without AI calls. The model's part was played by a scripted stand-in (PydanticAI's `FunctionModel`), with the real MCP server running on a temporary copy of the database.
+
+**Verified** (`backend/tests/test_agents.py`, 23 tests, and `mcp_server/test_tools.py`, all passing):
+
+| Area | What was checked |
+|---|---|
+| MCP look-ups | The Problem 3 tools return values that match direct SQL queries of the working database (`test_tools.py`). The new tools return the expected values for tickets 101–103. |
+| Payment rules | A payment over the cash available is refused and nothing changes. Partial and extra payments and already-paid bills are allowed with warnings. An invoice is marked paid only when fully covered. Rent moves `next_due` on a month per full month paid, and the date arithmetic handles month ends. A vendor can't ship until its invoices are fully paid. `record_payment` doesn't exist for agents, and needs an approver's name. |
+| Agent wiring | Each agent sees only its own MCP tools. Delegation works and is recorded. Delegating to yourself, looping back, going too deep or exceeding the count is refused. A runaway run stops at the usage limit and is recorded. |
+| Output checks | Payment requests are re-checked against the records (including cash for all requests together), and warnings are attached. Discount options and facts are replaced with the records' values. A recommendation must be an evaluated option with a reason. Customer drafts can't mention a discount, quote another price, or go to a vendor, the landlord or anyone but the customer requester. |
+| Audit trail | New entries are added and earlier ones kept. The file stays valid JSON, and a damaged file is never overwritten. |
+| Model setup | The model object is `gpt-6-luna`, at Portkey's address, with the key in the Portkey header. Any other model name is refused. A missing key gives a clear error. The key isn't passed to the MCP server. No request was sent to Portkey. |
+| Databases | Both real database files are unchanged after every test run. |
+
+**Still needs testing with the real model and a Portkey key:**
+
+1. **Connection:** that Portkey accepts the key and routes the model name `gpt-6-luna` exactly as written. Depending on how the Portkey account is set up, it may expect a provider prefix or a config, which hasn't been checked.
+2. **Tools and structured output:** that gpt-6-luna supports tool calling and the structured output the agents return, through Portkey's OpenAI-compatible API.
+3. **Agent behavior:** whether the agents actually follow their instructions on the three tickets. For example:
+   - whether the Boss delegates sensibly
+   - whether Accounting evaluates discount levels and makes a sensible, well-reasoned recommendation
+   - whether drafts are accurate and helpful
+   - how often the output checks have to send answers back
+
+   The code checks catch rule-breaking output, but not poor judgment.
+4. **Limits:** whether the usage limits (30 model calls, 40 tool calls, 150,000 tokens per ticket; 2,000 tokens per response) suit real runs, and what a ticket actually costs.
+5. **End-to-end scripts:** `run.py` with the real model, and `approve.py` typed by a person at a terminal. Only the payment-recording part of `approve.py` was tested.
+6. **Other setups:** Windows (the MCP server path in `.mcp.json` and `config.py`), and two runs writing to the audit trail at the same time from separate processes.
+
 ## MCP server tools after Problem 5
 
 The MCP server grew from three tools to eight read-only tools plus one approver-only write tool. All of them use the working copy only.
@@ -537,9 +569,9 @@ The MCP server grew from three tools to eight read-only tools plus one approver-
 | `get_ticket(ticket_id)` | One ticket with its linked invoice (and vendor) or lease, and whether the requester is a customer | `tickets`, `invoices`, `vendors`, `leases`, `payments`, `desk` | All | All five agents |
 | `check_stock(sku, size=None)` | Stock by size, shelf and list price | `inventory`, `pricing` | 101, 103 | Inventory, Customer Service |
 | `get_vendor_status(vendor_id=None)` | Vendors, specialty, lead time, unpaid invoices and `can_ship_additional_products` | `vendors`, `invoices`, `desk` | 101, 103 | Inventory, Accounting |
-| `get_lease(lease_id)` | The lease: landlord, rent, next due date, days left and whether that rent is paid | `leases`, `payments`, `desk` | 102 | Facilities |
+| `get_lease(lease_id)` | The lease: landlord, rent, next due date, days left, how much is paid toward and still owed for that date, and the rent payments recorded | `leases`, `payments`, `desk` | 102 | Facilities |
 | `get_payments_due()` | Unpaid invoices and unpaid rent, cash available and cash left if all are paid | `invoices`, `vendors`, `leases`, `payments`, `cash_accounts`, `desk` | 101, 102 | Accounting, Facilities |
-| `check_payment(kind, ref_id, amount, account="checking")` | Checks a payment against the rules without paying | `invoices`, `vendors`, `leases`, `payments`, `cash_accounts`, `desk` | 101, 102 | Accounting |
+| `check_payment(kind, ref_id, amount, account="checking")` | Checks a payment against the payment rules without paying: blocks only an amount over the cash (or $0 or less), and warns about anything unusual such as a partial payment | `invoices`, `vendors`, `leases`, `payments`, `cash_accounts`, `desk` | 101, 102 | Accounting |
 | `price_bulk_order(sku, size, qty, discount_percent=0)` | Price, cost, totals, profit, break-even discount and stock for a bulk order | `pricing`, `inventory` | 103 | Accounting |
 | `record_payment(kind, ref_id, amount, approved_by, account="checking")` | **Approver role only.** Records a person-approved payment after re-checking every rule | Writes `payments`, `cash_accounts`, `invoices`; reads `leases`, `vendors`, `desk` | 101, 102 | No agent: only `approve.py` |
 
@@ -548,13 +580,19 @@ The MCP server grew from three tools to eight read-only tools plus one approver-
 - **`list_open_tickets` and `get_ticket`:** in Problem 3 the agents couldn't read tickets, so the details had to be typed in. Now the Boss reads the ticket and the records it links to directly. `requester_is_customer` tells the agents whether a customer message may be drafted.
 - **`get_vendor_status`:** applies the vendor rule. For Ticket 101 it shows that Bulldog Print Co has unpaid invoice 501 ($840, 3 days overdue), so it can't ship more products, including a restock of the white tee in S or the 12 extra hoodies for Ticket 103, until that's paid.
 - **`get_lease`:** for Ticket 102, it confirms the rent notice against the lease (Elm City Properties, $2,400, due September 2, 2 days away, not yet paid).
-- **`check_payment`:** lets Accounting check a payment against the payment rules before asking for approval. For example, rent of $2,400 is allowed and would leave $1,000; $5,000 is refused, because it doesn't match the amount on file and is more than the cash.
+- **`check_payment`:** lets Accounting check a payment against the payment rules before asking for approval. For example, rent of $2,400 is allowed and would leave $1,000. $2,000 is allowed with a warning that $400 would still be owed. $5,000 is refused because it's more than the $3,400 in cash.
 - **`record_payment`:** the rules say payments must be recorded in the database, and only a person may approve them. This tool is the only way to write a payment, and only the human approval script can reach it.
 
 ### Notes
 
 - **Payment kinds:** payments are recorded with `kind` set to `invoice` (with `ref_id` = the invoice number) or `rent` (with `ref_id` = the lease number). The database didn't define these values (the `payments` table was empty), so they were chosen for this project.
-- **When rent counts as paid:** the `payments` table has no column for which month a payment covers. A rent payment counts toward the lease's next due date if it was recorded no more than 31 days before that date, or any time after. `leases.next_due` itself isn't changed.
-- **Amounts must match the records:** a payment must equal the amount on file for the invoice or lease. That way the amount comes from the database, not from an email or ticket (for example, the rent email in Ticket 102 gives no amount).
+- **What's still owed:** this comes from the records, not from a separate rule.
+  - **Invoices:** what's owed is the invoice amount minus the payments recorded for it. The invoice is marked `paid` once those payments cover it.
+  - **Rent:** all rent payments for the lease are added up. Each time they cover a full `monthly_rent`, `leases.next_due` moves on one month (same day, or the month's last day if it's shorter). Anything left over counts toward the new due date.
+  - **No period column needed:** the `payments` table has no column for which month a payment covers. Counting this way avoids needing one, and avoids the 31-day window used in the first version of Problem 5.
+- **Only the shop's rules block a payment:** a payment is refused only if it's more than the available cash or would make the balance negative (or is $0 or less, or names an invoice, lease or account that doesn't exist).
+  - Partial payments, payments above what's owed, and payments on a bill already paid in full are allowed, with a warning the approver sees.
+  - The first version of Problem 5 also refused payments that didn't exactly match the amount on file, and payments on bills already paid. Those weren't shop rules, so they were changed to warnings. The person approving decides.
+  - Agents are still told to base amounts on what the records say is owed, never on an email or ticket.
 - **Which tickets are customer tickets:** `customer_order` and `price_override` tickets count as customer tickets, because their requesters are buying from the shop. `rent_notice` doesn't, because the landlord isn't a customer.
 - **Testing the server:** `mcp_server/test_tools.py` (Problem 4) was updated for the new tool list. It still passes against the working database. The new tools, including `record_payment`, are tested on a temporary copy of the database in `backend/tests/test_agents.py`.
