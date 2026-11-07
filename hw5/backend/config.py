@@ -22,6 +22,17 @@ os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 # ---- Model: every agent uses this one model, through Portkey's AI gateway.
 MODEL_NAME = "gpt-6-luna"
 PORTKEY_BASE_URL = "https://api.portkey.ai/v1"
+
+# Which Portkey (OpenAI-compatible) endpoint the agents use. gpt-6-luna is a reasoning
+# model, and the chat-completions endpoint doesn't allow function tools while it reasons,
+# so the default is the Responses API (/v1/responses), which does. Set OPENAI_ENDPOINT=chat
+# in hw5/.env to use chat completions instead, with reasoning turned off (reasoning_effort "none").
+ENDPOINTS = ("responses", "chat")
+DEFAULT_ENDPOINT = "responses"
+# Reasoning effort on the Responses endpoint. Reasoning tokens count toward the usage
+# limits below, so it's kept low; set OPENAI_REASONING_EFFORT in hw5/.env to change it.
+REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high")
+DEFAULT_REASONING_EFFORT = "low"
 PORTKEY_API_KEY_VAR = "PORTKEY_API_KEY"
 
 # ---- MCP server: all shop information comes from it.
@@ -36,7 +47,7 @@ AUDIT_TRAIL = Path(os.environ.get("CAMPUS_AUDIT_TRAIL") or HW5 / "output" / "aud
 REQUEST_LIMIT = 30            # model calls
 TOOL_CALLS_LIMIT = 40         # MCP tool calls + delegations
 TOTAL_TOKENS_LIMIT = 150_000  # input + output tokens
-MAX_OUTPUT_TOKENS = 2_000     # per model response
+MAX_OUTPUT_TOKENS = 4_000     # per model response, including any reasoning tokens
 MAX_DELEGATION_DEPTH = 2      # Boss -> specialist -> specialist, no deeper
 MAX_DELEGATIONS = 8           # delegations per ticket
 MODEL_TIMEOUT_SECONDS = 120

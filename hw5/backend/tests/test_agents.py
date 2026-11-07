@@ -635,3 +635,118 @@ async def test_no_purchase_for_a_ticket_without_a_product(temp_db, audit):
         _, out = await team.handle_ticket(102)
     assert out.purchase_approvals == []
     assert "isn't for a product" in events(audit, "output_rejected")[0]["problems"][0]
+
+
+# ---------------------------------------------------------------- the exact requests sent to Portkey
+
+def capture_portkey_requests():
+    """An HTTP client that records each request and answers with an error, so nothing reaches Portkey."""
+    import httpx
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(400, json={"error": {"message": "captured by test", "type": "invalid_request_error"}})
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler)), seen
+
+
+async def first_request(monkeypatch, endpoint: str | None, run):
+    if endpoint:
+        monkeypatch.setenv("OPENAI_ENDPOINT", endpoint)
+    else:
+        monkeypatch.delenv("OPENAI_ENDPOINT", raising=False)
+    monkeypatch.delenv("OPENAI_REASONING_EFFORT", raising=False)
+    monkeypatch.setenv("PORTKEY_API_KEY", "test-key-not-real")
+    client, seen = capture_portkey_requests()
+    model = create_portkey_model(http_client=client)
+    with pytest.raises(Exception):
+        await run(model)
+    req = seen[0]
+    return req, json.loads(req.content)
+
+
+def tool_names(body) -> set[str]:
+    return {t.get("name") or t.get("function", {}).get("name") for t in body.get("tools", [])}
+
+
+async def test_default_uses_the_responses_endpoint_with_tools_and_reasoning(monkeypatch):
+    from pydantic import BaseModel
+    from pydantic_ai import Agent
+
+    class Out(BaseModel):
+        ok: bool
+
+    async def run(model):
+        agent = Agent(model, output_type=Out)
+
+        @agent.tool_plain
+        def shop_date() -> str:
+            return "2026-08-31"
+        await agent.run("hi")
+
+    req, body = await first_request(monkeypatch, None, run)
+    assert req.url.path == "/v1/responses" and req.url.host == "api.portkey.ai"
+    assert req.headers["authorization"] == "Bearer test-key-not-real" and "x-portkey-api-key" not in req.headers
+    assert body["model"] == "gpt-6-luna"
+    assert body["reasoning"]["effort"] == "low"
+    assert "shop_date" in tool_names(body)          # function tool
+    assert len(tool_names(body)) >= 2               # plus the structured-output tool
+
+
+async def test_chat_fallback_turns_reasoning_off(monkeypatch):
+    from pydantic_ai import Agent
+
+    async def run(model):
+        agent = Agent(model)
+
+        @agent.tool_plain
+        def shop_date() -> str:
+            return "2026-08-31"
+        await agent.run("hi")
+
+    req, body = await first_request(monkeypatch, "chat", run)
+    assert req.url.path == "/v1/chat/completions"
+    assert body["reasoning_effort"] == "none" and "shop_date" in tool_names(body)
+
+
+def test_bad_endpoint_setting_is_a_clear_error(monkeypatch):
+    monkeypatch.setenv("PORTKEY_API_KEY", "x")
+    monkeypatch.setenv("OPENAI_ENDPOINT", "websocket")
+    with pytest.raises(AgentsNotConfigured, match="OPENAI_ENDPOINT"):
+        create_portkey_model()
+
+
+async def test_every_agent_request_has_its_mcp_tools_delegate_and_output_on_responses(temp_db, audit, monkeypatch):
+    """The real five agents, on the default endpoint: what Portkey would receive from each."""
+    async def run_each(model):
+        async with Team(model, audit) as team:
+            ticket = await team.lookup("get_ticket", {"ticket_id": 101})
+            vendors = await team.lookup("get_vendor_status", {})
+            from models import ShopDeps
+            from agents import usage_limits
+            for name, agent in team.agents.items():
+                deps = ShopDeps(team=team, audit=audit, run_id="run_capture", ticket=ticket,
+                                vendor_names={v["name"] for v in vendors["vendors"]},
+                                usage_limits=usage_limits(), agent=name, chain=(name,))
+                try:
+                    await agent.run("Handle ticket 101.", deps=deps)
+                except Exception:
+                    pass
+        raise RuntimeError("done")
+
+    monkeypatch.delenv("OPENAI_ENDPOINT", raising=False)
+    monkeypatch.delenv("OPENAI_REASONING_EFFORT", raising=False)
+    monkeypatch.setenv("PORTKEY_API_KEY", "test-key-not-real")
+    client, seen = capture_portkey_requests()
+    model = create_portkey_model(http_client=client)
+    with pytest.raises(RuntimeError):
+        await run_each(model)
+
+    bodies = [json.loads(r.content) for r in seen]
+    assert len(bodies) == 5 and all(r.url.path == "/v1/responses" for r in seen)
+    for name, body in zip(AGENT_NAMES, bodies):
+        tools = tool_names(body)
+        assert TOOLS_BY_AGENT[name] <= tools, name                      # its MCP tools
+        assert "delegate" in tools and "record_payment" not in tools    # delegation, never payments
+        assert body["reasoning"]["effort"] == "low" and body["model"] == "gpt-6-luna"
+        assert body["max_output_tokens"] == config.MAX_OUTPUT_TOKENS

@@ -21,9 +21,9 @@ from pydantic_ai import Agent
 from pydantic_ai.usage import UsageLimits
 
 import config
-from agents import AgentsNotConfigured, create_portkey_model
+from agents import AgentsNotConfigured, create_portkey_model, model_options
 
-LIMITS = UsageLimits(request_limit=4, total_tokens_limit=4_000)
+LIMITS = UsageLimits(request_limit=4, total_tokens_limit=8_000)
 
 
 class Check(BaseModel):
@@ -37,7 +37,9 @@ async def main() -> int:
     except AgentsNotConfigured as e:
         print(f"FAIL  setup: {e}")
         return 2
-    print(f"Model {config.MODEL_NAME} at {config.PORTKEY_BASE_URL}\n")
+    endpoint, effort = model_options()
+    path = "/responses" if endpoint == "responses" else "/chat/completions"
+    print(f"Model {config.MODEL_NAME} at {config.PORTKEY_BASE_URL}{path} (reasoning effort: {effort})\n")
     failures = 0
 
     async def step(label, coro, verify):

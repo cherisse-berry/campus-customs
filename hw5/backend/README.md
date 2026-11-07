@@ -43,6 +43,8 @@ python check_portkey.py
 
 It makes three tiny calls (a plain reply, a tool call and structured output) and prints PASS or FAIL for each. It doesn't touch the database, the MCP server, the agents or the audit trail.
 
+The agents use Portkey's **Responses endpoint** (`/v1/responses`) with low reasoning effort, because gpt-6-luna doesn't allow function tools on the chat-completions endpoint while it reasons. If the Responses endpoint doesn't work with your Portkey key, add `OPENAI_ENDPOINT=chat` to `hw5/.env` to use chat completions with reasoning turned off, and run the check again. `OPENAI_REASONING_EFFORT` (`none`, `minimal`, `low`, `medium`, `high`) changes the effort on the Responses endpoint. See `hw5/.env.example`.
+
 ## Running
 
 From `hw5/backend`, with the virtual environment active:

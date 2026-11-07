@@ -473,6 +473,7 @@ These are the rules as the shop gave them. They're in `backend/prompts/shop_rule
 | Agents can draft customer messages but cannot send them or contact vendors directly. | There is no tool for sending anything. Every draft has `sent: false` (it can't be set to true). Drafts are only accepted when addressed to the requester of a customer ticket, never to a vendor or the landlord. |
 | Use `desk.date_today` as the shop's date. | Every date calculation in the MCP server uses `desk.date_today` (August 31, 2026). Payments are recorded with that date. |
 | All five agents must use gpt-6-luna through Portkey with PORTKEY_API_KEY. | One function creates the model: `gpt-6-luna` at `https://api.portkey.ai/v1`, authenticated with `PORTKEY_API_KEY`. The team refuses any other model name. |
+| *(how the model is reached)* | gpt-6-luna is a reasoning model, and Portkey's chat-completions endpoint doesn't allow function tools while it reasons. Every agent needs tools (MCP tools, `delegate`, and the structured-output tool PydanticAI uses for typed results), so the agents use the **Responses endpoint** (`/v1/responses`) with **low** reasoning effort by default. `OPENAI_ENDPOINT=chat` in `hw5/.env` switches to chat completions with reasoning off (`reasoning_effort: none`). `OPENAI_REASONING_EFFORT` changes the effort. Found in Problem 9: the first connection check passed the plain reply but failed the tool call and structured output on chat completions. |
 | Keep the API key private and out of GitHub. | The key is read from `hw5/.env`, which `.gitignore` keeps out of GitHub. `hw5/.env.example` has an empty placeholder. The key is only sent to Portkey, never passed to the MCP server and never written to the audit trail. |
 
 ### The five agents
@@ -551,7 +552,7 @@ The limits are set in `backend/config.py` and apply to each ticket, shared by ev
 | Model calls | 30 |
 | Tool calls (MCP tools and delegations) | 40 |
 | Total tokens (input + output) | 150,000 |
-| Longest single model response | 2,000 tokens |
+| Longest single model response | 4,000 tokens, including reasoning tokens (raised from 2,000 when the agents moved to the Responses endpoint with reasoning on) |
 | Delegation depth / delegations per ticket | 2 / 8 |
 | Model call timeout | 120 seconds, 1 retry |
 
@@ -603,7 +604,7 @@ The agents have **not yet been run with the real model**. This session had no Po
    - how often the output checks have to send answers back
 
    The code checks catch rule-breaking output, but not poor judgment.
-4. **Limits:** whether the usage limits (30 model calls, 40 tool calls, 150,000 tokens per ticket; 2,000 tokens per response) suit real runs, and what a ticket actually costs.
+4. **Limits:** whether the usage limits (30 model calls, 40 tool calls, 150,000 tokens per ticket; 4,000 tokens per response) suit real runs, and what a ticket actually costs.
 5. **End-to-end scripts:** `run.py` with the real model, and `approve.py` typed by a real person at a terminal. Its decision steps were tested with scripted answers, not by a person.
 6. **Other setups:** Windows (the MCP server path in `.mcp.json` and `config.py`), and two runs writing to the audit trail at the same time from separate processes.
 
@@ -808,7 +809,7 @@ These are every safeguard in the system, and where each is enforced. Most are en
 | **Facts in requests come from the records.** Payee, amounts, cash, stock, costs and vendor status in approval requests are replaced with the MCP server's values before an agent's answer is accepted. | `check_output` in `agents.py` |
 | **Purchases only for what a ticket needs.** A purchase request must be for the ticket's own item and exactly its shortfall. Approving it records the decision only: no order, no vendor contact, no money. | `check_output`, `approvals.py` |
 | **Agents only see the tools their job needs.** No agent can see `record_payment`. | `TOOLS_BY_AGENT` in `agents.py` |
-| **Limits on AI usage.** Per ticket: 30 model calls, 40 tool calls, 150,000 tokens; 2,000 tokens per response; delegation at most 2 levels deep and 8 times; one run or reset at a time. | `config.py`, `agents.py`, `main.py` |
+| **Limits on AI usage.** Per ticket: 30 model calls, 40 tool calls, 150,000 tokens; 4,000 tokens per response (including reasoning); delegation at most 2 levels deep and 8 times; one run or reset at a time. | `config.py`, `agents.py`, `main.py` |
 | **Only the working copy changes.** The original database is only read (by setup and reset). The MCP server refuses to open it. Reset checks the original's fingerprint first, and only replaces the working copy. Requests pending from before a reset expire. | `mcp_server/server.py`, `setup_db.py`, `POST /api/reset` |
 | **Nothing is overwritten in the audit trail.** New entries replace only the closing `]`. A damaged file is never written to. | `audit.py` |
 | **Honest status.** A run that errors or hits a usage limit is never shown as resolved. | `frontend/src/status.ts` |
@@ -827,7 +828,13 @@ In this order (each README has the details):
 
 ## Problem 9: Resolving the tickets
 
-**Status: not run yet.** The agents haven't been run with gpt-6-luna. This session has no Portkey key, and its network doesn't allow `api.portkey.ai` yet. The working database is still identical to the original (same fingerprint), the real audit trail is empty, and no payment, purchase or discount has been approved.
+**Status: not run yet.** The tickets haven't been run with gpt-6-luna.
+
+**Connection progress:** the user is running the project on their Mac with an existing course Portkey key in `hw5/.env`.
+- **First connection check:** the plain reply **passed**. The tool call and structured output **failed**, because the chat-completions endpoint doesn't allow function tools while a reasoning model reasons.
+- **The fix:** the agents now use the Responses endpoint (`/v1/responses`) with low reasoning effort, with chat completions plus reasoning off as a fallback setting.
+- **Offline check of the fix:** the requests every agent would send were captured without contacting Portkey. Each goes to `/v1/responses` with its MCP tools, `delegate` and the structured-output tool.
+- **Still to confirm:** the connection check needs to be run again on the Mac. The working database is still identical to the original (same fingerprint), the real audit trail is empty, and no payment, purchase or discount has been approved.
 
 Once the key is in place, the plan is:
 1. Run `check_portkey.py`, and stop if any check fails.

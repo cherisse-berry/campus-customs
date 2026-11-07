@@ -29,7 +29,12 @@ from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.exceptions import UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset
 from pydantic_ai.models import Model
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openai import (
+    OpenAIChatModel,
+    OpenAIChatModelSettings,
+    OpenAIResponsesModel,
+    OpenAIResponsesModelSettings,
+)
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.toolsets import WrapperToolset
@@ -76,7 +81,7 @@ class AgentsNotConfigured(RuntimeError):
 
 # ---------------------------------------------------------------- model
 
-def create_portkey_model() -> OpenAIChatModel:
+def create_portkey_model(http_client: Any = None) -> OpenAIResponsesModel | OpenAIChatModel:
     """gpt-6-luna through Portkey's AI gateway, authenticated with PORTKEY_API_KEY.
 
     The key is read from the environment (or hw5/.env) and is only ever sent to Portkey.
@@ -94,8 +99,28 @@ def create_portkey_model() -> OpenAIChatModel:
         api_key=key,
         timeout=config.MODEL_TIMEOUT_SECONDS,
         max_retries=1,
+        http_client=http_client,  # only the tests pass one, to capture requests
     )
-    return OpenAIChatModel(config.MODEL_NAME, provider=OpenAIProvider(openai_client=client))
+    provider = OpenAIProvider(openai_client=client)
+    endpoint, effort = model_options()
+    if endpoint == "chat":
+        # Chat completions only allow function tools with reasoning turned off.
+        return OpenAIChatModel(config.MODEL_NAME, provider=provider,
+                               settings=OpenAIChatModelSettings(openai_reasoning_effort="none"))
+    return OpenAIResponsesModel(config.MODEL_NAME, provider=provider,
+                                settings=OpenAIResponsesModelSettings(openai_reasoning_effort=effort))
+
+
+def model_options() -> tuple[str, str]:
+    """The endpoint and reasoning effort from hw5/.env (or the defaults)."""
+    endpoint = os.environ.get("OPENAI_ENDPOINT", "").strip().lower() or config.DEFAULT_ENDPOINT
+    if endpoint not in config.ENDPOINTS:
+        raise AgentsNotConfigured(f"OPENAI_ENDPOINT must be one of {', '.join(config.ENDPOINTS)}, not {endpoint!r}.")
+    effort = os.environ.get("OPENAI_REASONING_EFFORT", "").strip().lower() or config.DEFAULT_REASONING_EFFORT
+    if effort not in config.REASONING_EFFORTS:
+        raise AgentsNotConfigured(
+            f"OPENAI_REASONING_EFFORT must be one of {', '.join(config.REASONING_EFFORTS)}, not {effort!r}.")
+    return endpoint, ("none" if endpoint == "chat" else effort)
 
 
 def usage_limits() -> UsageLimits:
@@ -371,7 +396,7 @@ class Team:
     """
 
     def __init__(self, model: Model, audit: AuditTrail):
-        if isinstance(model, OpenAIChatModel) and model.model_name != config.MODEL_NAME:
+        if isinstance(model, (OpenAIChatModel, OpenAIResponsesModel)) and model.model_name != config.MODEL_NAME:
             raise ValueError(f"All agents must use {config.MODEL_NAME}, not {model.model_name}.")
         self.model = model
         self.audit = audit

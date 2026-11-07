@@ -426,5 +426,22 @@ The run itself, the approvals, the Actual and Cash sections, `resolved_tickets.j
 
 The connection test is run by the user on their Mac. No key was displayed or committed, and the database, agents and audit trail weren't touched.
 
+**Follow-up 8**
+
+> Good news! I was able to use my existing Portkey key, and the connection test worked for the basic response.
+>
+> However, the tool call and structured output tests both failed. The error says that function tools with reasoning_effort aren't supported through the current endpoint. It suggests using /v1/responses or setting reasoning_effort to none.
+>
+> Can you review our setup and make the necessary corrections so all three tests pass? Please make sure the changes also work for the five agents we've built.
+>
+> I don't want to reset the database or run the tickets yet. Let's confirm everything is working first.
+
+*What needed to be fixed:* The agents called gpt-6-luna through Portkey's chat-completions endpoint. gpt-6-luna is a reasoning model, and that endpoint doesn't allow function tools while it reasons. The structured-output test failed for the same reason, because PydanticAI returns typed results through a tool call. All five agents would have failed the same way, since they use MCP tools, `delegate` and structured output. Now:
+- **Responses endpoint by default:** the agents use Portkey's Responses endpoint (`/v1/responses`), which allows tools with reasoning on, with **low** reasoning effort.
+- **Chat fallback:** `OPENAI_ENDPOINT=chat` in `hw5/.env` switches to chat completions with reasoning turned off. `OPENAI_REASONING_EFFORT` changes the effort. Both are documented in `hw5/.env.example`.
+- **Per-response limit:** raised from 2,000 to 4,000 tokens, because reasoning tokens count toward it. The per-ticket limits are unchanged.
+- **Offline checks:** without contacting Portkey or using a key, the tests capture the exact request each of the five agents would send. Each goes to `/v1/responses` with `gpt-6-luna`, its own MCP tools, `delegate` and the structured-output tool, and never `record_payment`. The chat fallback sends `reasoning_effort: none`. All 51 backend tests pass.
+- **Next step:** the user re-runs `check_portkey.py` on their Mac. The database wasn't reset and no tickets were run.
 
 ---
+
