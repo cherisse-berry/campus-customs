@@ -255,11 +255,13 @@ def test_reset_restores_only_the_working_copy_and_keeps_the_audit_trail(client, 
     assert r.status_code == 200
     body = r.json()
     assert body["changed"] is True and body["expired_approvals"] == ["apr_old"]
+    assert body["starting_checking_balance"] == 3400.0
     assert fingerprint(env["working"]) == fingerprint(env["original"]) == original_before
     assert client.get("/api/cash").json()["checking_balance"] == 3400.0
 
     after = env["audit"].entries()
     assert after[:len(before_entries)] == before_entries and after[-1]["event"] == "database_reset"
+    assert after[-1]["starting_checking_balance"] == 3400.0 and after[-1]["shop_date"] == "2026-08-31"
     assert client.get("/api/approvals").json()["pending"] == []
     assert [e["approval_id"] for e in client.get("/api/approvals", params={"status": "expired"}).json()["expired"]] == ["apr_old"]
 

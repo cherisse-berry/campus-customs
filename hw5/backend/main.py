@@ -454,11 +454,16 @@ async def reset(body: ResetRequest) -> dict[str, Any]:
             raise HTTPException(500, "The copy didn't match the original; nothing was changed.")
         os.chmod(temp, 0o644)
         os.replace(temp, working)
+        # The starting balance for a fresh run, read back through the MCP server.
+        cash = await mcp("get_payments_due")
+        checking = next((a for a in cash["cash_accounts"] if a["name"] == "checking"), None)
+        starting = checking["balance"] if checking else None
         entry = audit().record("database_reset", agent="human", requested_by=body.requested_by,
                                working_database=working.name, sha256_before=before,
-                               sha256_after=_fingerprint(working), expired_approvals=expiring)
+                               sha256_after=_fingerprint(working), expired_approvals=expiring,
+                               starting_checking_balance=starting, shop_date=cash["today"])
     finally:
         app.state.busy = None
     return {"reset": True, "working_database": working.name, "sha256": entry["sha256_after"],
             "changed": before != entry["sha256_after"], "expired_approvals": expiring,
-            "audit_entry": entry["id"]}
+            "starting_checking_balance": starting, "audit_entry": entry["id"]}

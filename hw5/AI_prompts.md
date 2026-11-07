@@ -443,5 +443,19 @@ The connection test is run by the user on their Mac. No key was displayed or com
 - **Offline checks:** without contacting Portkey or using a key, the tests capture the exact request each of the five agents would send. Each goes to `/v1/responses` with `gpt-6-luna`, its own MCP tools, `delegate` and the structured-output tool, and never `record_payment`. The chat fallback sends `reasoning_effort: none`. All 51 backend tests pass.
 - **Next step:** the user re-runs `check_portkey.py` on their Mac. The database wasn't reset and no tickets were run.
 
+**Follow-up 9**
+
+> Good news! All three Portkey tests passed on my Mac using gpt-6-luna.
+>
+> I'd like to move forward with Problem 9. Can you walk me through running the actual agents and dashboard, one step at a time?
+>
+> Before we start, please make sure the working database is set up correctly and explain how we'll record the results for the assignment.
+>
+> I want to review any payment, purchase, or discount requests myself before approving them. Please don't make those decisions for me or use simulated results.
+>
+> Let's start with Ticket 101 and review what happens before moving to the other tickets.
+
+*What happened:* The connection check passed all three tests on the user's Mac with gpt-6-luna. The assistant walked the user step by step through setting up and verifying the working database, starting the backend and dashboard, resetting the working database, and running Ticket 101 only. It explained how the results are recorded: the real activity goes into `hw5/output/audit_trail.json` on the Mac, which the user commits and pushes along with dashboard screenshots, and the assignment files are then built only from that real data. One small change: a database reset now also records the starting checking balance in its audit entry, read through the MCP server. Approvals are left to the user in the dashboard. No results were simulated.
+
 ---
 
