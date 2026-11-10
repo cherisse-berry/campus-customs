@@ -1,0 +1,8 @@
+# Never commit authentication state, evidence, or the filled-in manifest.
+.auth/
+evidence/
+reports/
+config/authorization-manifest.json
+node_modules/
+*.zip
+evidence-selftest-*/

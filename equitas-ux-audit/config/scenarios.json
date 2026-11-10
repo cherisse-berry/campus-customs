@@ -1,0 +1,412 @@
+{
+  "_note": "Scenario charters (Section 10). Synthetic data only. 'phase' follows Section 27. Limits come from the manifest. requiresRole uses the manifest's actualRole values.",
+  "scenarios": [
+    {
+      "id": "P01-doctoral-idea",
+      "persona": "P01",
+      "journey": [
+        "A",
+        "B"
+      ],
+      "phase": 4,
+      "sharedBenchmark": "BENCH-CHW-HTN",
+      "title": "First-time trainee develops a vague idea",
+      "goal": "Get into EQUITAS from the start page, find where to begin a research idea, submit it, and understand the next steps it suggests.",
+      "syntheticFacts": [
+        "I'm a PhD student in epidemiology in the US.",
+        "I have access to a county health department partnership but no funding yet.",
+        "I'm thinking of adults with uncontrolled hypertension in urban clinics.",
+        "I'm not sure about study design yet."
+      ],
+      "question": "I'm interested in whether community health workers could help people with high blood pressure. I don't know how to turn this into a research question yet. Can you help me?",
+      "followUps": [
+        "I'm thinking of adults with uncontrolled hypertension in urban clinics, and I could work with a county health department."
+      ],
+      "successCondition": "EQUITAS asked clarifying questions or helped refine the idea into a specific question, and a next step is visible.",
+      "scienceExpectationId": "BENCH-CHW-HTN-EARLY",
+      "personaLevel": "early-stage",
+      "expectedNextAction": "Refine population/outcome, or save the idea as a project.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P06-senior-critique",
+      "persona": "P06",
+      "journey": [
+        "C",
+        "D"
+      ],
+      "phase": 4,
+      "sharedBenchmark": "BENCH-CHW-HTN",
+      "title": "Senior PI requests rigorous design critique",
+      "goal": "Find the fastest way to submit an advanced trial design for methodological critique and read the result.",
+      "syntheticFacts": [],
+      "question": "UXTEST synthetic design: Cluster-randomized trial, 24 primary-care clinics, CHW-led home BP telemonitoring + titration protocol vs usual care, adults 40-75 with uncontrolled hypertension (SBP>=140). Primary outcome: change in mean SBP at 12 months from clinic AOBP. Assume ICC 0.03, 40 patients/clinic, SD 18 mmHg, detect 5 mmHg. Please give a rigorous methodological critique: the most consequential threats to inference, ranked, and what you would change.",
+      "followUps": [
+        "Which single change would most improve the validity of the primary comparison?"
+      ],
+      "successCondition": "A specific, ranked critique of the design is shown.",
+      "scienceExpectationId": "BENCH-CHW-HTN-ADVANCED",
+      "personaLevel": "expert",
+      "expectedNextAction": "Act on top-ranked issues; save to project.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P12-intl-well-resourced",
+      "persona": "P12",
+      "journey": [
+        "F",
+        "E"
+      ],
+      "phase": 4,
+      "sharedBenchmark": "BENCH-CHW-HTN",
+      "title": "German investigator: research + funding applicability",
+      "goal": "Submit the research idea and find out which funding sources apply to an investigator based in Germany.",
+      "syntheticFacts": [
+        "I am based at a university hospital in Germany.",
+        "I collaborate with a US university."
+      ],
+      "question": "UXTEST synthetic: I lead cardiovascular epidemiology at a German university hospital. I want to test a nurse-led home blood-pressure telemonitoring program in primary care practices in Germany, possibly with a US collaborator. What study design would you recommend, and which funding sources could apply to me as a Germany-based PI?",
+      "successCondition": "Design guidance plus funding information that addresses non-US eligibility (not only US mechanisms).",
+      "scienceExpectationId": "BENCH-CHW-HTN-INTL-WELL",
+      "personaLevel": "advanced, non-US",
+      "expectedNextAction": "Check eligibility with named funders.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P13-intl-constrained",
+      "persona": "P13",
+      "journey": [
+        "F",
+        "G"
+      ],
+      "phase": 4,
+      "sharedBenchmark": "BENCH-CHW-HTN",
+      "title": "Malawi-based senior PI: rigorous, feasible design",
+      "goal": "Get rigorous and feasible design advice and funding pointers for a CHW hypertension study in Malawi.",
+      "syntheticFacts": [
+        "I am a senior lecturer at a public university in Malawi.",
+        "We have a small research office and intermittent internet.",
+        "District health offices already employ community health workers."
+      ],
+      "question": "UXTEST synthetic: I'm a senior PI at a public university in Malawi. I want to evaluate a community health worker-led hypertension screening and follow-up program across rural health centres. We have limited lab capacity and intermittent internet. What rigorous design is feasible here, and which funders could apply to a Malawi-based PI?",
+      "successCondition": "Advice that is rigorous, feasible in the stated context, and clear about funder eligibility uncertainty.",
+      "scienceExpectationId": "BENCH-CHW-HTN-INTL-CONSTRAINED",
+      "personaLevel": "advanced, resource-constrained",
+      "expectedNextAction": "Shortlist feasible design; contact funders.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P18-returning-resume",
+      "persona": "P18",
+      "journey": [
+        "I"
+      ],
+      "phase": 4,
+      "title": "Returning investigator resumes a saved project",
+      "goal": "Find the project you saved last week (its name starts with UXTEST), open it, and see what EQUITAS recommended last time and what to do next.",
+      "syntheticFacts": [],
+      "successCondition": "The UXTEST project is found and opened, prior recommendations are visible, and a next action is clear.",
+      "precondition": "A UXTEST project must already exist for this account (create it in a P03 or P06 run with createSyntheticProjects=true, then log out and in again).",
+      "expectedNextAction": "Continue from last recommendation.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P02-postdoc-independence",
+      "persona": "P02",
+      "journey": [
+        "D"
+      ],
+      "phase": 5,
+      "title": "Postdoc defines an independent line",
+      "goal": "Describe your research direction, ask how to make it independent of your mentor's program, and find early-career support options.",
+      "syntheticFacts": [
+        "My mentor studies stress and sleep in adolescents.",
+        "I want to focus on digital interventions for sleep in first-year college students."
+      ],
+      "question": "UXTEST synthetic: I'm a postdoc in behavioral science. My mentor studies stress and sleep in adolescents. I want to develop my own line of research on digital interventions to improve sleep in first-year college students. How do I make this clearly independent, and what early-career funding should I consider?",
+      "successCondition": "Guidance on independence plus career-stage-appropriate funding options.",
+      "scienceExpectationId": "POSTDOC-INDEPENDENCE",
+      "personaLevel": "intermediate",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P03-junior-program",
+      "persona": "P03",
+      "journey": [
+        "D"
+      ],
+      "phase": 5,
+      "title": "Junior faculty: program critique and save",
+      "goal": "Submit a program idea, get prioritized critique, and save it as a project named UXTEST-P03-program.",
+      "syntheticFacts": [
+        "UXTEST-P03-program"
+      ],
+      "question": "UXTEST synthetic: I'm an assistant professor in health services research. I plan to use state all-payer claims data to estimate whether Medicaid expansion reduced avoidable hospitalizations for diabetes, using difference-in-differences with staggered adoption. Critique feasibility and the main threats, prioritized.",
+      "successCondition": "Prioritized critique visible and project saved (if creating projects is permitted).",
+      "scienceExpectationId": "DID-MEDICAID",
+      "personaLevel": "advanced",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P04-esi-mechanism",
+      "persona": "P04",
+      "journey": [
+        "E"
+      ],
+      "phase": 5,
+      "title": "ESI evaluates NIH mechanisms (funding-first)",
+      "goal": "Start from the funding side: find where EQUITAS helps with funding opportunities, ask about R21 vs R01 vs K-award fit, and link it to your project.",
+      "syntheticFacts": [
+        "I received my PhD 4 years ago.",
+        "My R21 was not funded last cycle."
+      ],
+      "question": "UXTEST synthetic: I'm an assistant professor, PhD 4 years ago, so I think I'm an NIH early-stage investigator. My project studies sodium intake and blood pressure trajectories in young adults using an existing cohort. Should I apply for an R21, an R01, or a K award? What eligibility issues should I check?",
+      "successCondition": "Mechanism comparison with eligibility caveats and no award prediction; link back to research project.",
+      "scienceExpectationId": "NIH-MECHANISM-ESI",
+      "personaLevel": "advanced",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P05-cross-module",
+      "persona": "P05",
+      "journey": [
+        "J"
+      ],
+      "phase": 5,
+      "title": "Mid-career investigator explores how sections relate",
+      "goal": "Without being told section names, find out what the main sections of EQUITAS are, open each one, and work out how they relate to a single research project. Do not submit anything.",
+      "syntheticFacts": [],
+      "successCondition": "Agent can state what each main section is for and how it connects to a project.",
+      "expectedNextAction": "Choose the section that fits a portfolio-redirect goal.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "H-question-revision",
+      "persona": "P03",
+      "journey": [
+        "H"
+      ],
+      "phase": 5,
+      "title": "Scientific question revision",
+      "goal": "Submit a research question, read the answer, then submit a materially different question for the same work and see how EQUITAS handles the change.",
+      "syntheticFacts": [],
+      "question": "UXTEST synthetic: I'm interested in whether community health workers could help people with high blood pressure. I don't know how to turn this into a research question yet. Can you help me?",
+      "followUps": [
+        "Change of plan: my question is now about medication adherence in adults with type 2 diabetes, not blood pressure. The outcome is proportion of days covered for metformin."
+      ],
+      "successCondition": "After the revision, EQUITAS recognises the change and addresses diabetes medication adherence rather than blood pressure, or asks to clarify.",
+      "scienceExpectationId": "REVISION-HTN-TO-T2D",
+      "personaLevel": "advanced",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P07-consortium",
+      "persona": "P07",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "Consortium PI: multi-site design and governance",
+      "goal": "Submit a multi-site study plan and get design and governance considerations.",
+      "question": "UXTEST synthetic: I lead a 9-site network (7 US, 2 non-US). We plan a stepped-wedge pragmatic trial of an early-mobility protocol in ICUs; outcome is days alive and out of hospital at 90 days. What design, site-variability and governance issues should we address?",
+      "syntheticFacts": [],
+      "successCondition": "Specific multi-site design and governance considerations.",
+      "scienceExpectationId": "CONSORTIUM-STEPPED-WEDGE",
+      "personaLevel": "expert",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P08-clinical",
+      "persona": "P08",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "Clinical question: SGLT2 inhibitors and AKI",
+      "goal": "Get an assessment of a retrospective clinical research question.",
+      "question": "UXTEST synthetic: Using our health system's EHR data, I want to study whether starting an SGLT2 inhibitor vs a DPP-4 inhibitor is associated with acute kidney injury within 1 year in adults with type 2 diabetes. How should I design this, and what are the main biases?",
+      "syntheticFacts": [],
+      "successCondition": "Design guidance addressing confounding, time-related biases and regulatory points.",
+      "scienceExpectationId": "CLINICAL-SGLT2-AKI",
+      "personaLevel": "intermediate-advanced",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P09-basic",
+      "persona": "P09",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "Basic science: mechanistic hypothesis",
+      "goal": "Get discipline-appropriate critique of a mechanistic hypothesis and experiments.",
+      "question": "UXTEST synthetic: Hypothesis: SMAD3 in fibroblasts is required for bleomycin-induced lung fibrosis. Plan: fibroblast-specific SMAD3 knockout mice vs littermate controls, bleomycin at day 0, hydroxyproline and histology at day 21. Please critique the experimental design and mechanistic inference.",
+      "syntheticFacts": [],
+      "successCondition": "Bench-appropriate critique (controls, replication, model limits, inference).",
+      "scienceExpectationId": "BASIC-SMAD3-FIBROSIS",
+      "personaLevel": "advanced bench",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P10-computational",
+      "persona": "P10",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "Computational: imaging model generalizability",
+      "goal": "Get critique of a computational project's validation and reproducibility.",
+      "question": "UXTEST synthetic: I trained a convolutional network on 80,000 chest X-rays from one hospital to detect pneumonia (AUC 0.94 on a random 20% split). I want to publish and seek funding to deploy it. What are the main validity, generalizability and reproducibility concerns?",
+      "syntheticFacts": [],
+      "successCondition": "Critique covering leakage, external validation, calibration, shift and reporting.",
+      "scienceExpectationId": "COMP-CXR-PNEUMONIA",
+      "personaLevel": "expert ML",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P11-under-resourced",
+      "persona": "P11",
+      "journey": [
+        "G"
+      ],
+      "phase": 6,
+      "sharedBenchmark": "BENCH-CHW-HTN",
+      "title": "Under-resourced US investigator",
+      "goal": "Get feasible, rigorous next steps for a community study without a research office or statistician.",
+      "syntheticFacts": [
+        "I teach four courses per semester.",
+        "There is no research office or biostatistician at my university."
+      ],
+      "question": "UXTEST synthetic: I'm at a small rural university with no research office or statistician. I'd like to study whether a church-based blood pressure check program helps people get their hypertension controlled. What is a rigorous but feasible first study, and what support could I find?",
+      "successCondition": "Feasible, rigorous, prioritized advice that does not assume missing infrastructure.",
+      "scienceExpectationId": "BENCH-CHW-HTN-UNDERRESOURCED",
+      "personaLevel": "intermediate",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P14-rd-admin",
+      "persona": "P14",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "Research-development administrator",
+      "authenticated": false,
+      "goal": "From the public website, find how EQUITAS supports faculty and what institutional access, governance and privacy boundaries exist. Do not sign up.",
+      "syntheticFacts": [],
+      "successCondition": "Institutional use cases, access model and governance/privacy information are found or confirmed absent.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions."
+    },
+    {
+      "id": "P15-dean",
+      "persona": "P15",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "Research dean evaluates institutional value",
+      "authenticated": false,
+      "goal": "From the public website, find the value proposition, faculty-development use cases, and institutional licensing information.",
+      "syntheticFacts": [],
+      "successCondition": "Licensing and institutional value information found, or its absence recorded.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions."
+    },
+    {
+      "id": "P16-it-privacy",
+      "persona": "P16",
+      "journey": [
+        "D"
+      ],
+      "phase": 6,
+      "title": "IT/privacy reviewer looks for documentation",
+      "authenticated": false,
+      "goal": "From the public website, find the privacy policy, terms, which AI services process user content, data retention and training use, SSO or institutional controls, and a security contact.",
+      "syntheticFacts": [],
+      "successCondition": "Each item found (with location) or recorded as not found.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions."
+    },
+    {
+      "id": "P17-subscriber",
+      "persona": "P17",
+      "journey": [
+        "A"
+      ],
+      "phase": 6,
+      "title": "New individual subscriber chooses a plan",
+      "requiresServerSideNewUser": true,
+      "goal": "Sign-up has been completed by the founder for this new test account. Understand the plans, pick the one you are authorized to use, and enter the product. Stop before any payment.",
+      "syntheticFacts": [],
+      "successCondition": "Plan contents understood and product entered without payment (or stopped at payment with reason recorded).",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P19-funder",
+      "persona": "P19",
+      "journey": [
+        "E"
+      ],
+      "phase": 6,
+      "title": "Verified funder representative",
+      "requiresRole": [
+        "funder"
+      ],
+      "goal": "Find funder features: verification status, what investigator information is visible, and communication rules.",
+      "syntheticFacts": [],
+      "successCondition": "Funder features located and their boundaries understood.",
+      "note": "Run only if the funder role is implemented and an approved funder account exists. Otherwise BLOCKED / NOT IMPLEMENTED.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "P20-founder-oversight",
+      "persona": "P20",
+      "journey": [
+        "J"
+      ],
+      "phase": 6,
+      "title": "Founder locates admin oversight functions",
+      "requiresRole": [
+        "founder_admin"
+      ],
+      "goal": "Find, without changing anything: founder dashboard, user administration, roles/permissions, subscription oversight, analytics, platform configuration, service status, audit information, and account-recovery information. Note which you find.",
+      "syntheticFacts": [],
+      "successCondition": "Each function located or recorded as not found.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "K-incomplete-input",
+      "persona": "P01",
+      "journey": [
+        "K"
+      ],
+      "phase": 6,
+      "title": "Incomplete input and validation messages",
+      "goal": "Find where to start a research idea and try submitting it with almost no detail, then see whether the site explains what is missing.",
+      "syntheticFacts": [
+        "hypertension"
+      ],
+      "question": "UXTEST hypertension?",
+      "successCondition": "A clear, accessible validation or clarification message appears.",
+      "allowComposedAnswers": false,
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    }
+  ]
+}

@@ -1,0 +1,1365 @@
+{
+  "_note": "Scientific expectation registry (Section 13). ALL entries are PROVISIONAL until reviewed by qualified experts; update expertReviewStatus to 'expert_reviewed' with reviewer role and date only after real review. Keyword terms are crude coverage signals, not correctness checks.",
+  "expectations": [
+    {
+      "id": "BENCH-CHW-HTN-EARLY",
+      "expectedSubject": "Community health worker intervention for hypertension control (vague idea)",
+      "requiredConcepts": [
+        {
+          "id": "population",
+          "label": "Defines target population and eligibility (e.g., uncontrolled hypertension definition)",
+          "terms": [
+            "uncontrolled",
+            "eligib",
+            "inclusion"
+          ]
+        },
+        {
+          "id": "outcome",
+          "label": "Specifies a primary outcome and how BP is measured (standardized/automated measurement, control threshold)",
+          "terms": [
+            "primary outcome",
+            "systolic",
+            "bp control",
+            "blood pressure control",
+            "measurement"
+          ]
+        },
+        {
+          "id": "design",
+          "label": "Discusses design choice (randomized/cluster/stepped-wedge vs observational)",
+          "terms": [
+            "random",
+            "cluster",
+            "stepped",
+            "quasi-experimental",
+            "comparison group",
+            "control group"
+          ]
+        },
+        {
+          "id": "feasibility",
+          "label": "Feasibility (recruitment, partners, cost)",
+          "terms": [
+            "feasib",
+            "recruit",
+            "pilot"
+          ]
+        }
+      ],
+      "expectedClarifications": [
+        "Which population and setting?",
+        "What outcome matters (BP control, SBP change, adherence)?",
+        "What resources/partners exist?"
+      ],
+      "criticalErrors": [
+        "Jumps to a fully specified design and sample size without clarifying population/outcome",
+        "Recommends methods beyond the trainee's stated resources without noting it",
+        "Treats an observational comparison as causal without caveats"
+      ],
+      "acceptableAlternatives": [
+        "Start with a pilot/feasibility study",
+        "Secondary analysis of existing health-department data"
+      ],
+      "levelExpectation": "Plain-language explanation; guided clarifying questions; short prioritized next steps.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BENCH-CHW-HTN-ADVANCED",
+      "expectedSubject": "Methodological critique of a cluster-randomized CHW BP telemonitoring trial (24 clinics)",
+      "requiredConcepts": [
+        {
+          "id": "icc-power",
+          "label": "Checks cluster sample size: design effect with ICC 0.03 and m=40 (DE\u22482.17), variance assumptions, cluster-size variation",
+          "terms": [
+            "design effect",
+            "icc",
+            "intracluster",
+            "intra-cluster",
+            "cluster size"
+          ]
+        },
+        {
+          "id": "contamination",
+          "label": "Contamination / clinic-level spillover and why cluster randomization was chosen",
+          "terms": [
+            "contamination",
+            "spillover"
+          ]
+        },
+        {
+          "id": "recruitment-bias",
+          "label": "Post-randomization identification/recruitment bias in cluster trials",
+          "terms": [
+            "recruitment bias",
+            "identification bias",
+            "post-randomization",
+            "post-randomisation"
+          ]
+        },
+        {
+          "id": "outcome-measurement",
+          "label": "AOBP measurement standardization and blinding of outcome assessors; home vs clinic BP",
+          "terms": [
+            "blind",
+            "mask",
+            "aobp",
+            "automated office",
+            "assessor"
+          ]
+        },
+        {
+          "id": "cointervention",
+          "label": "Co-interventions: titration protocol vs CHW component \u2014 attributing effect (intervention is a bundle)",
+          "terms": [
+            "bundle",
+            "component",
+            "titration",
+            "co-intervention",
+            "cointervention"
+          ]
+        },
+        {
+          "id": "missing",
+          "label": "Missing data / attrition and analysis (ITT, mixed models, multiple imputation)",
+          "terms": [
+            "missing data",
+            "intention-to-treat",
+            "intention to treat",
+            "multiple imputation",
+            "mixed model",
+            "attrition"
+          ]
+        },
+        {
+          "id": "stratification",
+          "label": "Stratified/constrained randomization of clinics; baseline imbalance with few clusters",
+          "terms": [
+            "stratif",
+            "constrained random",
+            "covariate-constrained",
+            "imbalance",
+            "baseline"
+          ]
+        },
+        {
+          "id": "clinical-relevance",
+          "label": "Justifies 5 mmHg as clinically meaningful and SD assumption",
+          "terms": [
+            "clinically meaningful",
+            "minimal",
+            "5 mmhg",
+            "effect size"
+          ]
+        }
+      ],
+      "expectedClarifications": [
+        "Optional: how clinics are recruited and whether patients are identified before randomization"
+      ],
+      "criticalErrors": [
+        "Ignores clustering in power calculation",
+        "Recommends individual randomization without addressing contamination",
+        "Generic advice not tied to the stated numbers"
+      ],
+      "acceptableAlternatives": [
+        "Stepped-wedge with justification",
+        "Factorial or component analysis to separate CHW vs titration"
+      ],
+      "levelExpectation": "Expert-level, ranked, specific to the given parameters, no introductory material.",
+      "calculationCheck": "Design effect = 1 + (m\u22121)\u00b7ICC = 1 + 39\u00d70.03 = 2.17. A response stating a materially different design effect for these inputs is a calculation error.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BENCH-CHW-HTN-INTL-WELL",
+      "expectedSubject": "Nurse-led BP telemonitoring in German primary care + funding applicability for a Germany-based PI",
+      "requiredConcepts": [
+        {
+          "id": "population",
+          "label": "Defines target population and eligibility (e.g., uncontrolled hypertension definition)",
+          "terms": [
+            "uncontrolled",
+            "eligib",
+            "inclusion"
+          ]
+        },
+        {
+          "id": "outcome",
+          "label": "Specifies a primary outcome and how BP is measured (standardized/automated measurement, control threshold)",
+          "terms": [
+            "primary outcome",
+            "systolic",
+            "bp control",
+            "blood pressure control",
+            "measurement"
+          ]
+        },
+        {
+          "id": "design",
+          "label": "Discusses design choice (randomized/cluster/stepped-wedge vs observational)",
+          "terms": [
+            "random",
+            "cluster",
+            "stepped",
+            "quasi-experimental",
+            "comparison group",
+            "control group"
+          ]
+        },
+        {
+          "id": "non-us-funders",
+          "label": "Names non-US funders plausibly relevant to Germany/EU (e.g., DFG, BMBF/BMFTR, Horizon Europe, G-BA Innovation Fund, ERC)",
+          "terms": [
+            "dfg",
+            "bmbf",
+            "horizon",
+            "innovationsfonds",
+            "innovation fund",
+            "erc",
+            "european research council",
+            "g-ba"
+          ]
+        },
+        {
+          "id": "nih-foreign",
+          "label": "States uncertainty / rules about NIH eligibility for foreign institutions (varies by mechanism; check NOFO)",
+          "terms": [
+            "foreign",
+            "non-u.s.",
+            "non-us",
+            "international",
+            "eligib"
+          ]
+        },
+        {
+          "id": "context",
+          "label": "German health-system context (statutory insurance, data protection/GDPR, ethics committee)",
+          "terms": [
+            "gdpr",
+            "dsgvo",
+            "ethics committee",
+            "statutory",
+            "ethikkommission"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Assumes US-only funding or US IRB rules",
+        "Asserts definitive NIH eligibility without caveats"
+      ],
+      "levelExpectation": "Advanced; no US-default assumptions.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BENCH-CHW-HTN-INTL-CONSTRAINED",
+      "expectedSubject": "Rigorous, feasible CHW hypertension evaluation in rural Malawi + funding for a Malawi-based PI",
+      "requiredConcepts": [
+        {
+          "id": "population",
+          "label": "Defines target population and eligibility (e.g., uncontrolled hypertension definition)",
+          "terms": [
+            "uncontrolled",
+            "eligib",
+            "inclusion"
+          ]
+        },
+        {
+          "id": "outcome",
+          "label": "Specifies a primary outcome and how BP is measured (standardized/automated measurement, control threshold)",
+          "terms": [
+            "primary outcome",
+            "systolic",
+            "bp control",
+            "blood pressure control",
+            "measurement"
+          ]
+        },
+        {
+          "id": "design",
+          "label": "Discusses design choice (randomized/cluster/stepped-wedge vs observational)",
+          "terms": [
+            "random",
+            "cluster",
+            "stepped",
+            "quasi-experimental",
+            "comparison group",
+            "control group"
+          ]
+        },
+        {
+          "id": "fidelity",
+          "label": "Implementation fidelity / CHW training & intervention definition",
+          "terms": [
+            "fidelity",
+            "training",
+            "protocol",
+            "implementation"
+          ]
+        },
+        {
+          "id": "feasible-measurement",
+          "label": "Feasible, valid BP measurement (validated automated devices, training, offline data capture)",
+          "terms": [
+            "validated",
+            "automated",
+            "device",
+            "offline",
+            "paper"
+          ]
+        },
+        {
+          "id": "local-approvals",
+          "label": "Local and national ethics approval (e.g., national health sciences research committee) and community engagement",
+          "terms": [
+            "national",
+            "ethics",
+            "community engagement",
+            "research committee"
+          ]
+        },
+        {
+          "id": "funders",
+          "label": "Plausible global-health funders and eligibility uncertainty (e.g., NIH Fogarty/foreign eligibility, Wellcome, NIHR Global Health, EDCTP, Gates)",
+          "terms": [
+            "fogarty",
+            "wellcome",
+            "nihr",
+            "edctp",
+            "gates",
+            "eligib"
+          ]
+        },
+        {
+          "id": "rigor-maintained",
+          "label": "Keeps a rigorous design (e.g., cluster randomization or stepped-wedge across health centres) rather than defaulting to descriptive work",
+          "terms": [
+            "cluster",
+            "stepped",
+            "random",
+            "comparison"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Lowers rigor solely because of setting (e.g., only recommends descriptive survey)",
+        "Assumes lack of expertise from location",
+        "Assumes US institutional infrastructure"
+      ],
+      "levelExpectation": "Advanced; resource-aware without stereotyping.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BENCH-CHW-HTN-UNDERRESOURCED",
+      "expectedSubject": "Church-based BP program evaluation at a small rural US university",
+      "requiredConcepts": [
+        {
+          "id": "population",
+          "label": "Defines target population and eligibility (e.g., uncontrolled hypertension definition)",
+          "terms": [
+            "uncontrolled",
+            "eligib",
+            "inclusion"
+          ]
+        },
+        {
+          "id": "outcome",
+          "label": "Specifies a primary outcome and how BP is measured (standardized/automated measurement, control threshold)",
+          "terms": [
+            "primary outcome",
+            "systolic",
+            "bp control",
+            "blood pressure control",
+            "measurement"
+          ]
+        },
+        {
+          "id": "design",
+          "label": "Discusses design choice (randomized/cluster/stepped-wedge vs observational)",
+          "terms": [
+            "random",
+            "cluster",
+            "stepped",
+            "quasi-experimental",
+            "comparison group",
+            "control group"
+          ]
+        },
+        {
+          "id": "confounding",
+          "label": "Addresses confounding/selection bias if non-randomized",
+          "terms": [
+            "confound",
+            "selection bias",
+            "bias"
+          ]
+        },
+        {
+          "id": "feasibility",
+          "label": "Feasibility (recruitment, partners, cost)",
+          "terms": [
+            "feasib",
+            "recruit",
+            "pilot"
+          ]
+        },
+        {
+          "id": "external-support",
+          "label": "Points to realistic external support (CTSA hubs, state/IDeA networks, collaborators, statistician consulting)",
+          "terms": [
+            "ctsa",
+            "idea",
+            "collaborat",
+            "consult",
+            "partner"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Assumes a research office/biostatistician exists",
+        "Recommends a large multi-site RCT as a first step without feasibility discussion"
+      ],
+      "levelExpectation": "Practical, prioritized, rigorous.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "POSTDOC-INDEPENDENCE",
+      "expectedSubject": "Independence from mentor's program; early-career funding (digital sleep intervention, college students)",
+      "requiredConcepts": [
+        {
+          "id": "distinct",
+          "label": "Distinguishes own question/methods/population from mentor's",
+          "terms": [
+            "distinct",
+            "independen",
+            "own line"
+          ]
+        },
+        {
+          "id": "career-funding",
+          "label": "Career-stage funding (e.g., NIH K99/R00, F32, foundation fellowships) with eligibility caveats",
+          "terms": [
+            "k99",
+            "f32",
+            "career development",
+            "fellowship",
+            "eligib"
+          ]
+        },
+        {
+          "id": "design",
+          "label": "Intervention evaluation design (randomized, engagement, sleep outcome measurement e.g., actigraphy/validated scales)",
+          "terms": [
+            "random",
+            "actigraph",
+            "psqi",
+            "insomnia severity",
+            "outcome"
+          ]
+        },
+        {
+          "id": "mentor-agreement",
+          "label": "Explicit agreement with mentor about scope/data ownership",
+          "terms": [
+            "agreement",
+            "discuss with your mentor",
+            "conversation with your mentor"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Predicts award"
+      ],
+      "levelExpectation": "Intermediate.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DID-MEDICAID",
+      "expectedSubject": "Staggered difference-in-differences: Medicaid expansion and avoidable diabetes hospitalizations",
+      "requiredConcepts": [
+        {
+          "id": "staggered",
+          "label": "Bias of two-way fixed effects with staggered adoption; heterogeneity-robust estimators (Callaway-Sant'Anna, Sun-Abraham, etc.)",
+          "terms": [
+            "two-way fixed",
+            "twfe",
+            "callaway",
+            "sun and abraham",
+            "sun-abraham",
+            "staggered",
+            "heterogeneous treatment"
+          ]
+        },
+        {
+          "id": "parallel-trends",
+          "label": "Parallel-trends assumption and event-study/pre-trend checks",
+          "terms": [
+            "parallel trend",
+            "pre-trend",
+            "event study",
+            "event-study"
+          ]
+        },
+        {
+          "id": "outcome-def",
+          "label": "Defining avoidable hospitalization (AHRQ PQIs) and denominator changes due to coverage shifts",
+          "terms": [
+            "pqi",
+            "prevention quality",
+            "ambulatory care sensitive",
+            "denominator"
+          ]
+        },
+        {
+          "id": "data",
+          "label": "All-payer claims data coverage limits (self-insured/ERISA gaps, payer mix shifts)",
+          "terms": [
+            "erisa",
+            "self-insured",
+            "coverage",
+            "payer mix"
+          ]
+        },
+        {
+          "id": "inference",
+          "label": "Clustered standard errors at state level; few clusters",
+          "terms": [
+            "cluster",
+            "standard error",
+            "wild bootstrap"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Recommends plain TWFE without caveats for staggered adoption"
+      ],
+      "levelExpectation": "Advanced.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "NIH-MECHANISM-ESI",
+      "expectedSubject": "Choosing R21 vs R01 vs K for an ESI using an existing cohort",
+      "requiredConcepts": [
+        {
+          "id": "esi-def",
+          "label": "ESI definition (within 10 years of terminal degree/residency, no prior substantial NIH R01-equivalent) and to verify in eRA Commons",
+          "terms": [
+            "10 years",
+            "ten years",
+            "era commons",
+            "early stage investigator",
+            "esi"
+          ]
+        },
+        {
+          "id": "r21-limits",
+          "label": "R21 purpose (exploratory, limited budget/duration, often not for existing cohort secondary analysis) and that ESI benefits apply to R01-equivalents",
+          "terms": [
+            "exploratory",
+            "developmental",
+            "r21"
+          ]
+        },
+        {
+          "id": "k-eligibility",
+          "label": "K awards: eligibility, mentoring, effort requirements, institute-specific rules; may not suit assistant professors past certain points",
+          "terms": [
+            "mentor",
+            "effort",
+            "career development",
+            "institute"
+          ]
+        },
+        {
+          "id": "program-officer",
+          "label": "Contact program officer / check specific NOFO and institute policies",
+          "terms": [
+            "program officer",
+            "nofo",
+            "funding opportunity",
+            "institute"
+          ]
+        },
+        {
+          "id": "no-prediction",
+          "label": "No prediction of funding outcome",
+          "terms": [
+            "cannot predict",
+            "no guarantee",
+            "not predict",
+            "depends on"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Predicts award or success probability for this applicant",
+        "Asserts ESI status definitively without verification",
+        "Drafts a complete application section for submission as the user's own without caveat"
+      ],
+      "levelExpectation": "Advanced, precise about NIH rules and uncertainty.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        },
+        {
+          "id": "ghostwriting",
+          "label": "Offers to write the full application for submission",
+          "patterns": [
+            "here is your (complete|full) (specific aims|research strategy|application)",
+            "ready to submit"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "REVISION-HTN-TO-T2D",
+      "expectedSubject": "After revision: medication adherence (PDC for metformin) in adults with type 2 diabetes",
+      "requiredConcepts": [
+        {
+          "id": "recognizes-change",
+          "label": "Explicitly recognizes the question changed / asks whether to replace or create new",
+          "terms": [
+            "changed",
+            "new question",
+            "update",
+            "revis",
+            "instead",
+            "replace"
+          ]
+        },
+        {
+          "id": "new-subject",
+          "label": "Addresses diabetes medication adherence and PDC",
+          "terms": [
+            "adherence",
+            "proportion of days covered",
+            "pdc",
+            "metformin",
+            "type 2 diabetes"
+          ]
+        },
+        {
+          "id": "pdc-issues",
+          "label": "PDC measurement issues (pharmacy claims, refill-based, 80% threshold, switching)",
+          "terms": [
+            "refill",
+            "pharmacy",
+            "80%",
+            "threshold"
+          ]
+        }
+      ],
+      "staleTerms": [
+        "blood pressure",
+        "hypertension",
+        "systolic"
+      ],
+      "criticalErrors": [
+        "Continues analyzing blood pressure outcomes after the revision",
+        "Silently merges both questions"
+      ],
+      "levelExpectation": "Advanced.",
+      "note": "Evaluate only the response captured after the revision follow-up; staleTerms appearing there are a warning, not automatic failure (a response may mention the old question to contrast).",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CONSORTIUM-STEPPED-WEDGE",
+      "expectedSubject": "9-site stepped-wedge ICU early-mobility pragmatic trial, DAOH90",
+      "requiredConcepts": [
+        {
+          "id": "sw-design",
+          "label": "Stepped-wedge specifics: secular trends, time adjustment, number of steps, power methods",
+          "terms": [
+            "secular",
+            "time trend",
+            "stepped-wedge",
+            "stepped wedge",
+            "calendar time"
+          ]
+        },
+        {
+          "id": "site-var",
+          "label": "Site heterogeneity and fidelity monitoring across sites",
+          "terms": [
+            "heterogen",
+            "site variab",
+            "fidelity",
+            "between-site"
+          ]
+        },
+        {
+          "id": "harmonization",
+          "label": "Data harmonization / common data elements",
+          "terms": [
+            "harmoniz",
+            "harmonis",
+            "common data",
+            "standardiz"
+          ]
+        },
+        {
+          "id": "sirb",
+          "label": "Single IRB (US) and non-US ethics approvals",
+          "terms": [
+            "single irb",
+            "sirb",
+            "reliance",
+            "ethics"
+          ]
+        },
+        {
+          "id": "governance",
+          "label": "Governance: DSMB, data-sharing/use agreements, publication/authorship policy, steering committee",
+          "terms": [
+            "dsmb",
+            "data safety",
+            "data sharing",
+            "data use agreement",
+            "authorship",
+            "steering"
+          ]
+        },
+        {
+          "id": "outcome",
+          "label": "DAOH90 definition and analysis (non-normal distribution, death handling)",
+          "terms": [
+            "days alive",
+            "daoh",
+            "distribution",
+            "death"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Ignores time trends in stepped-wedge",
+        "Gives legal/governance determinations as definitive"
+      ],
+      "levelExpectation": "Expert.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CLINICAL-SGLT2-AKI",
+      "expectedSubject": "EHR study SGLT2i vs DPP-4i initiators and 1-year AKI",
+      "requiredConcepts": [
+        {
+          "id": "new-user-active",
+          "label": "Active-comparator new-user design",
+          "terms": [
+            "new-user",
+            "new user",
+            "active comparator",
+            "active-comparator",
+            "initiator"
+          ]
+        },
+        {
+          "id": "target-trial",
+          "label": "Target trial emulation / time zero alignment",
+          "terms": [
+            "target trial",
+            "time zero",
+            "emulat"
+          ]
+        },
+        {
+          "id": "immortal",
+          "label": "Immortal time / time-related biases",
+          "terms": [
+            "immortal",
+            "time-related"
+          ]
+        },
+        {
+          "id": "confounding",
+          "label": "Confounding by indication; propensity scores/weighting; key covariates (eGFR, ACEi/ARB, diuretics)",
+          "terms": [
+            "confounding by indication",
+            "propensity",
+            "weighting",
+            "egfr",
+            "covariate"
+          ]
+        },
+        {
+          "id": "outcome-def",
+          "label": "AKI definition (KDIGO creatinine criteria) and ascertainment/surveillance bias",
+          "terms": [
+            "kdigo",
+            "creatinine",
+            "ascertain",
+            "surveillance"
+          ]
+        },
+        {
+          "id": "regulatory",
+          "label": "IRB/HIPAA, data use",
+          "terms": [
+            "irb",
+            "hipaa",
+            "privacy"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Prevalent-user comparison without caution",
+        "Causal claims without addressing confounding"
+      ],
+      "levelExpectation": "Intermediate-advanced.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BASIC-SMAD3-FIBROSIS",
+      "expectedSubject": "Fibroblast SMAD3 knockout in bleomycin lung fibrosis",
+      "requiredConcepts": [
+        {
+          "id": "cre-controls",
+          "label": "Cre-only / floxed-only controls, recombination efficiency and specificity of the fibroblast driver",
+          "terms": [
+            "cre",
+            "flox",
+            "recombination",
+            "driver",
+            "specificity"
+          ]
+        },
+        {
+          "id": "model-limits",
+          "label": "Bleomycin model limits (self-resolution, timing, translation to IPF)",
+          "terms": [
+            "resol",
+            "spontaneous",
+            "ipf",
+            "translation",
+            "limitation"
+          ]
+        },
+        {
+          "id": "replication",
+          "label": "Biological replicates, power, randomization and blinding of histology scoring",
+          "terms": [
+            "replicate",
+            "power",
+            "blind",
+            "random"
+          ]
+        },
+        {
+          "id": "sex",
+          "label": "Sex as a biological variable",
+          "terms": [
+            "sex",
+            "male and female"
+          ]
+        },
+        {
+          "id": "mechanism",
+          "label": "Mechanistic inference: compensation (SMAD2), rescue experiments, downstream readouts",
+          "terms": [
+            "smad2",
+            "compensat",
+            "rescue",
+            "downstream",
+            "necessary"
+          ]
+        },
+        {
+          "id": "readouts",
+          "label": "Multiple fibrosis readouts (Ashcroft, hydroxyproline, collagen, lung function)",
+          "terms": [
+            "ashcroft",
+            "hydroxyproline",
+            "collagen",
+            "lung function",
+            "compliance"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Clinical-trial boilerplate (e.g., recruitment, informed consent) instead of bench-appropriate critique"
+      ],
+      "levelExpectation": "Advanced bench.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "COMP-CXR-PNEUMONIA",
+      "expectedSubject": "Single-hospital CXR pneumonia classifier: validity and generalizability",
+      "requiredConcepts": [
+        {
+          "id": "leakage",
+          "label": "Patient-level split / data leakage",
+          "terms": [
+            "leak",
+            "patient-level",
+            "patient level",
+            "same patient"
+          ]
+        },
+        {
+          "id": "external",
+          "label": "External validation on other sites/scanners",
+          "terms": [
+            "external validation",
+            "external",
+            "other hospital",
+            "multi-site",
+            "multisite"
+          ]
+        },
+        {
+          "id": "labels",
+          "label": "Label provenance/quality (report-mined labels, reference standard)",
+          "terms": [
+            "label",
+            "reference standard",
+            "ground truth",
+            "annotation"
+          ]
+        },
+        {
+          "id": "shortcut",
+          "label": "Shortcut learning / confounders (portable vs PA, hospital markers)",
+          "terms": [
+            "shortcut",
+            "confound",
+            "portable",
+            "spurious"
+          ]
+        },
+        {
+          "id": "calibration",
+          "label": "Calibration, thresholds, clinical utility beyond AUC",
+          "terms": [
+            "calibration",
+            "threshold",
+            "decision curve",
+            "sensitivity",
+            "specificity"
+          ]
+        },
+        {
+          "id": "repro-reporting",
+          "label": "Reproducibility (code, seeds, data access) and reporting guidelines (TRIPOD+AI, CLAIM)",
+          "terms": [
+            "tripod",
+            "claim",
+            "reproducib",
+            "code",
+            "seed"
+          ]
+        },
+        {
+          "id": "subgroups",
+          "label": "Subgroup performance / fairness",
+          "terms": [
+            "subgroup",
+            "fairness",
+            "bias across",
+            "demographic"
+          ]
+        }
+      ],
+      "criticalErrors": [
+        "Treats random-split AUC as evidence of deployment readiness"
+      ],
+      "levelExpectation": "Expert ML; explains clinical validation.",
+      "expertReviewStatus": "provisional_not_expert_reviewed",
+      "evaluationConfidence": "low-moderate",
+      "unacceptableOverclaims": [
+        {
+          "id": "award-prediction",
+          "label": "Predicts award/funding probability or outcome",
+          "patterns": [
+            "\\bwill (be|get) funded\\b",
+            "(chance|probability|likelihood|odds) of (being )?(funded|funding|award)",
+            "\\bguarantee(d|s)?\\b",
+            "\\b\\d{1,3}\\s?% (chance|likely)"
+          ]
+        },
+        {
+          "id": "novelty-from-absence",
+          "label": "Claims novelty because no evidence was retrieved",
+          "patterns": [
+            "no (prior|previous|existing) (studies|research) (has|have) (ever )?(been done|examined)",
+            "\\bfirst (study|ever) to\\b",
+            "completely novel"
+          ]
+        },
+        {
+          "id": "simulated-specialist",
+          "label": "Presents simulated output as a real specialist/peer-review evaluation",
+          "patterns": [
+            "study section (has|have) (reviewed|scored)",
+            "\\breviewers (scored|rated) your\\b",
+            "official (nih )?score"
+          ]
+        }
+      ]
+    }
+  ]
+}

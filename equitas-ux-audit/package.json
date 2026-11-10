@@ -1,0 +1,23 @@
+{
+  "name": "equitas-ux-audit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Black-box, multistakeholder browser testing harness for the EQUITAS Intelligence website. Runs on the founder's own computer.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "check-manifest": "node src/check-manifest.js",
+    "login": "node src/login.js",
+    "probe-plan": "node src/probe-plan.js",
+    "scenario": "node src/run-scenario.js",
+    "batch": "node src/run-batch.js",
+    "report": "node src/report.js",
+    "matrix": "node src/matrix.js",
+    "selftest": "node selftest/run-selftest.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.7.0",
+    "playwright": "^1.63.0",
+    "zod": "^4.0.0"
+  }
+}
