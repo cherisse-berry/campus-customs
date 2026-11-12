@@ -75,14 +75,21 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
   if (!probes.length) md += "Not yet run.\n";
   for (const p of probes) {
     md += `### ${p.runId} — account ${p.account.id} (${p.account.actualRole} / ${p.account.actualEntitlement}, state ${p.account.accountState}, server-side new user: ${p.account.serverSideNewUser}) · Chromium ${p.browser?.version || "?"}\n\n`;
-    md += `**Regression check:** ${p.regression?.status || "n/a"}${p.regression?.checks ? "\n" + p.regression.checks.map((c) => `- [${c.viewport}] ${c.pass === true ? "pass" : c.pass === false ? "FAIL" : "inconclusive"} — ${c.reason}`).join("\n") : ""}\n\n`;
+    // Probes recorded before sign-in verification existed (harnessAuthVersion < 2)
+    // could report PASS on a public page. Their verdicts are not trusted.
+    const legacy = !p.harnessAuthVersion && p.account?.id !== "public-visitor";
+    if (legacy) md += `**Regression check: INVALID** — recorded by an older harness that did not verify sign-in (originally reported ${p.regression?.status || "n/a"}). Superseded; rerun the probe.\n\n`;
+    if (p.auth?.perViewport) md += `**Authentication:** ${p.auth.perViewport.map((a) => `[${a.viewport}] ${a.status || "not checked"}${a.conclusive ? " (verified)" : " (NOT established)"}`).join(" · ")}\n\n`;
+    else if (p.auth?.preflight && p.auth.preflight !== "READY") md += `**Authentication:** ${p.auth.preflight} — ${p.auth.reasons.join(" ")} EQUITAS was not contacted.\n\n`;
+    if (!legacy) md += `**Regression check:** ${p.regression?.status || "n/a"}${p.regression?.reason ? ` — ${p.regression.reason}` : ""}${p.regression?.checks ? "\n" + p.regression.checks.map((c) => `- [${c.viewport}] ${c.pass === true ? "pass" : c.pass === false ? "FAIL" : "inconclusive"} — ${c.reason}`).join("\n") : ""}\n\n`;
+    if (!p.interpretation) continue;
     md += `**Observed**\n${p.interpretation.observations.map((o) => "- " + o).join("\n")}\n\n**Hypotheses (inferred, not confirmed)**\n${p.interpretation.hypotheses.map((o) => "- " + o).join("\n") || "- none"}\n\n**Questions for Appifest**\n${p.interpretation.questionsForAppifest.map((o) => "- " + o).join("\n")}\n\n`;
   }
 
   md += `\n## Persona-by-persona\n\n`;
   for (const r of scenarioRuns) {
     const persona = personas.find((p) => p.id === r.personaId);
-    md += `### ${r.scenarioId} · ${persona?.label} · ${r.viewport}\n- Outcome: **${r.outcome.status}** — ${esc(r.outcome.reason)}\n- Browser: Chromium ${r.browser?.version || "?"} · Build at start/end: ${esc(r.buildAtStart?.buildId || r.buildAtStart?.assetHash)} / ${esc(r.buildAtEnd?.buildId || r.buildAtEnd?.assetHash)}\n- Sign-in check: ${r.authCheck?.status || "n/a"}${r.freshLogin ? " (fresh sign-in)" : ""} · First action succeeded: ${r.metrics?.firstActionSucceeded} · Duration: ${r.metrics?.durationSec ?? "?"} s\n`;
+    md += `### ${r.scenarioId} · ${persona?.label} · ${r.viewport}\n- Outcome: **${r.outcome.status}** — ${esc(r.outcome.reason)}\n- Browser: Chromium ${r.browser?.version || "?"} · Build at start/end: ${esc(r.buildAtStart?.buildId || r.buildAtStart?.assetHash)} / ${esc(r.buildAtEnd?.buildId || r.buildAtEnd?.assetHash)}\n- Sign-in check: ${r.auth?.status || r.auth?.preflight || (r.authCheck ? `${r.authCheck.status} (old heuristic, not reliable)` : "n/a")}${r.freshLogin ? " (fresh sign-in)" : ""} · First action succeeded: ${r.metrics?.firstActionSucceeded} · Duration: ${r.metrics?.durationSec ?? "?"} s\n`;
     if (r.validity?.warnings?.length) md += `- ⚠ Validity: ${r.validity.warnings.join("; ")}\n`;
     md += `- Path: ${r.navigationPath.map((n) => n.url).filter((u, i, a) => u !== a[i - 1]).join(" → ")}\n`;
     md += `- Steps:\n${r.steps.filter((s) => s.kind === "agent" && s.decision).map((s) => `  - [${esc(s.decision.whereAmI)}] ${s.decision.action.type} ${s.decision.action.role} "${esc(s.target?.actualName || s.decision.action.name)}" → ${esc(s.result)}`).join("\n")}\n`;

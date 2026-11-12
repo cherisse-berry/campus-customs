@@ -16,7 +16,8 @@
     "report": "node src/report.js",
     "matrix": "node src/matrix.js",
     "selftest": "node selftest/run-selftest.js",
-    "purge-evidence": "node src/purge-evidence.js"
+    "purge-evidence": "node src/purge-evidence.js",
+    "auth-diagnose": "node src/auth-diagnose.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.7.0",

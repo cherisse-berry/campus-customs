@@ -1,6 +1,6 @@
 // Prints whether the manifest is ready and which scenarios each account may run.
 import { loadManifest } from "./lib/manifest.js";
-import { readAuthMeta } from "./lib/evidence.js";
+import { sessionPreflight, resolveMarkers, readMeta } from "./lib/auth.js";
 import { ROOT } from "./lib/manifest.js";
 import { expiredRuns } from "./purge-evidence.js";
 import fs from "node:fs";
@@ -17,8 +17,13 @@ if (old) console.log(`WARNING: ${old} evidence run(s) are older than evidence.re
 console.log(`\nTarget: ${m.target.baseUrl}  hosts: ${m.target.allowedHosts.join(", ")}`);
 console.log(`Tester AI approved: ${!!m.testerAi?.approved}   Free-plan selection approved: ${!!m.permittedWorkflows.selectFreePlan}\n`);
 for (const a of m.accounts) {
-  const meta = readAuthMeta(ROOT, a.id);
-  console.log(`Account ${a.id}  role=${a.actualRole}  entitlement=${a.actualEntitlement}  state=${a.accountState}  login=${meta ? "saved " + meta.savedAt : "none"}`);
+  const meta = readMeta(ROOT, a.id);
+  const pre = sessionPreflight(m, a);
+  const mk = resolveMarkers(m, a, meta);
+  console.log(`Account ${a.id}  role=${a.actualRole}  entitlement=${a.actualEntitlement}  state=${a.accountState}`);
+  console.log(`  saved session: ${pre.status}${pre.reasons.length ? " — " + pre.reasons.join(" ") : ""}`);
+  console.log(`  sign-in markers (${mk.source}): signed-in ${mk.signedIn.length}, founder ${mk.founder.length}, signed-out ${mk.signedOut.length}; post-sign-in page ${mk.entryPath || "unknown"}`);
+  if (meta && !meta.markers) console.log("  NOTE: this session was saved by an older harness without markers. Sign in again: npm run login -- --account " + a.id);
 }
 console.log("\nScenario eligibility:");
 for (const s of scenarios) {

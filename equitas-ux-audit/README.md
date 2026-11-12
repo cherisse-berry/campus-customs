@@ -28,7 +28,7 @@ cd campus-customs && git checkout claude/youthful-einstein-sxzqvz
 cd equitas-ux-audit
 npm install
 npx playwright install chromium
-npm run selftest                 # 72 offline checks against a local fake site
+npm run selftest                 # 94 offline checks against a local fake site
 cp config/authorization-manifest.example.json config/authorization-manifest.json
 ```
 
@@ -54,8 +54,11 @@ For the tester AI, set an Anthropic API key in your shell (`export ANTHROPIC_API
 
 ```bash
 # Phase 1–2: sign in yourself, then reproduce the "Choose your plan" issue
-npm run login -- --account founder-admin          # a browser opens; YOU sign in + MFA, then press Enter
+npm run login -- --account founder-admin          # a browser opens; YOU sign in + MFA, press Enter, then pick sign-in markers
+npm run auth-diagnose -- --account founder-admin  # optional: is the saved session restored and verified? (names only)
 npm run probe-plan -- --account founder-admin     # desktop, mobile, 320 px; tests the Settings workaround
+# If the saved session cannot carry the sign-in (auth-diagnose says so):
+npm run probe-plan -- --account founder-admin --attended   # sign in in the window; the probe runs there; nothing saved
 npm run probe-plan -- --public                    # signed-out visitor
 
 # Phase 4: priority personas (early-stage, senior PI, international ×2, returning)
@@ -93,7 +96,15 @@ An outage of EQUITAS's own AI service can't be simulated safely on production, s
 - On a plan page, plan-selection controls are blocked unless the manifest allows free-plan selection **and** the plan looks free.
 - Once text has been typed, the **next click or Enter of any kind** counts as an EQUITAS AI submission, whatever the button is called. This can over-count but never under-counts.
 - `navigatePublicPages`, `navigateAuthenticatedPages`, `submitSyntheticResearchQuestions`, `createSyntheticProjects` and `selectFreePlan` are all enforced.
-- Before any signed-in test, the harness checks that the saved login still works. That means no sign-in page or password field, and the controls seen right after your sign-in are present. If the check fails, the run is `BLOCKED: SAVED_LOGIN_NOT_ACCEPTED` and nothing is clicked. The plan probe likewise refuses to describe a signed-out page.
+- **Sign-in verification** (see `docs/auth-incident-2026-11-12.md`):
+  - At `npm run login`, you pick 1–3 things that appear only when signed in, and optionally one only a founder sees. They are checked in a separate signed-out browser, and any marker also visible signed-out is refused.
+  - Before contacting EQUITAS, each run checks the saved session on disk. If it's missing, expired (age or cookie expiry), or EQUITAS rejected it earlier, the run is `BLOCKED` and the site is not contacted.
+  - Each run then visits the page EQUITAS showed after your sign-in **once**:
+    - A signed-in marker visible: `AUTHENTICATED`. Plus a founder marker: `FOUNDER_VERIFIED`.
+    - Sign-in evidence (login page, password field, "Log in"): `SESSION_REJECTED`. The session is marked rejected and never presented again until you sign in afresh.
+    - Neither: `UNVERIFIED`.
+  - The plan regression check gives PASS or FAIL only for verified viewports, and for founder accounts only with `FOUNDER_VERIFIED`. Otherwise it's `INCONCLUSIVE`, or `BLOCKED` for a rejected session. Signed-in scenarios are `BLOCKED` unless verified.
+  - The test browser reuses the user agent and browser settings from your sign-in. The harness never types credentials, never retries a sign-in, and never bypasses MFA.
 - The agent never types into password, MFA, email or payment fields. It types only the scenario's synthetic text, which carries a `UXTEST` marker.
 - These limits are enforced:
   - Actions and minutes per scenario.
@@ -137,7 +148,8 @@ An outage of EQUITAS's own AI service can't be simulated safely on production, s
 - Black-box only: root causes are hypotheses for Appifest to confirm.
 - The founder account can't show how other entitlements behave. Each role needs its own approved account.
 - Automated accessibility checks (axe-core, 320 px reflow, keyboard tab order, accessible names) are **not** WCAG conformance. Screen-reader, real zoom, cognitive and other manual tests are listed as NOT TESTED in `reports/accessibility.md`.
-- The saved login includes cookies, local storage and IndexedDB. Playwright can't save sessionStorage. If EQUITAS keeps its login only there, every run will say `SAVED_LOGIN_NOT_ACCEPTED`. It won't silently test a signed-out page.
+- The saved login includes cookies, local storage and IndexedDB. Playwright can't save sessionStorage. If EQUITAS keeps its login only there, `npm run login` and `npm run auth-diagnose` say so. Then use `--attended` (probe or a single scenario). A batch can't run attended without one sign-in per scenario.
+- Sessions saved before 12 Nov 2026 have no markers and report `MARKERS_NOT_CONFIGURED`. Sign in again once.
 - The tester-AI and judge paths are tested end to end with a fake client. The real API request was checked only up to authentication in the build environment, so check your first live run's log.
 - Long pages: the agent gets the start and end of the page plus a complete list of controls. Failed lookups on shortened pages are labelled as possibly a harness limitation.
 - Mid-run redeployment is detected from the page's build text and script and style file names. A deploy that changes neither won't be noticed.

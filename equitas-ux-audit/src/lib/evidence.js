@@ -27,26 +27,28 @@ export function readAuthMeta(root, accountId) {
   try { return JSON.parse(fs.readFileSync(path.join(root, ".auth", `${accountId}.meta.json`), "utf8")); } catch { return null; }
 }
 
+// One set of context options for sign-in AND for every later run, so the
+// saved session is replayed in the same kind of browser it was created in.
+export function contextOptions(viewport, extra = {}) {
+  return { viewport: VIEWPORTS[viewport] || VIEWPORTS.desktop, locale: "en-US", acceptDownloads: false, serviceWorkers: "block", ...extra };
+}
+
+// Opens a browser. With useAuth, the saved session is loaded only after the
+// caller has run sessionPreflight() (auth.js); this function no longer decides
+// whether a session is usable. The user agent recorded at sign-in is reused so
+// a headless run presents the same browser identity as the visible sign-in window.
 export async function openBrowser(manifest, { accountId, viewport = "desktop", headed = false, useAuth = true }) {
   const root = manifest._root;
-  let storageState;
+  let storageState, userAgent;
   if (useAuth && accountId) {
     const p = authStatePath(root, accountId);
-    const meta = readAuthMeta(root, accountId);
-    if (!fs.existsSync(p) || !meta) throw new Error(`No saved login for "${accountId}". Run: npm run login -- --account ${accountId}`);
-    const ageH = (Date.now() - new Date(meta.savedAt).getTime()) / 3.6e6;
-    if (ageH > (manifest.sessionReuseMaxHours ?? 12)) throw new Error(`Saved login for "${accountId}" is ${ageH.toFixed(1)}h old. Log in again.`);
+    if (!fs.existsSync(p)) throw new Error(`No saved login for "${accountId}". Run: npm run login -- --account ${accountId}`);
     storageState = p;
+    userAgent = readAuthMeta(root, accountId)?.userAgent;
   }
   const browser = await chromium.launch({ headless: !headed, executablePath: process.env.PW_CHROMIUM_PATH || undefined });
-  const context = await browser.newContext({
-    viewport: VIEWPORTS[viewport] || VIEWPORTS.desktop,
-    storageState,
-    locale: "en-US",
-    acceptDownloads: false,
-    serviceWorkers: "block",
-  });
-  return { browser, context, viewportName: viewport, viewport: VIEWPORTS[viewport] || VIEWPORTS.desktop, browserInfo: { name: "chromium", version: browser.version(), headless: !headed } };
+  const context = await browser.newContext(contextOptions(viewport, { storageState, ...(userAgent ? { userAgent } : {}) }));
+  return { browser, context, viewportName: viewport, viewport: VIEWPORTS[viewport] || VIEWPORTS.desktop, browserInfo: { name: "chromium", version: browser.version(), headless: !headed, userAgentFromSignIn: !!userAgent } };
 }
 
 // Blocks off-domain navigation in EVERY top-level frame of the context: the

@@ -1,17 +1,17 @@
 # Audit status — Section 26 deliverables and Section 28 success criteria
 
-**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-test (72 checks). Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
+**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-test (94 checks). 12 Nov 2026: the sign-in verification defects found in the founder's first live probe are fixed (docs/auth-incident-2026-11-12.md); the Choose Your Plan problem is NOT yet verified on the authenticated founder pathway. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
 
 ## Deliverables (Section 26)
 
 | # | Deliverable | Status | Where |
 |---|---|---|---|
 | 1 | Authorization & scope record | Template built; **awaiting founder sign-off** | `config/authorization-manifest.example.json` |
-| 2 | Browser testing implementation | Built; offline self-test passes (72 checks) | `src/`, `selftest/` |
+| 2 | Browser testing implementation | Built; offline self-test passes (94 checks) | `src/`, `selftest/` |
 | 3 | Test-account & entitlement inventory | **Awaiting founder** (only founder-admin known) | manifest `accounts`; `npm run check-manifest` |
 | 4–5 | 20-persona registry & behavioural specs | Built | `config/personas.json` |
 | 6 | Coverage matrix | Built | `docs/coverage-matrix.md` |
-| 7 | Choose Your Plan investigation | Probe built; **not run** | `npm run probe-plan` |
+| 7 | Choose Your Plan investigation | First live runs (12 Nov) were invalid: sign-in not verified (harness defect, fixed). **Rerun required.** | `npm run probe-plan` |
 | 8–17 | Journey findings (onboarding, research-first, funding-first, senior PI, early-stage, international, under-resourced, returning, cross-module, revision) | Scenarios built; **not run** | `config/scenarios.json` → `reports/results.md` |
 | 18 | Accessibility results & limitations | axe-core scans per page and viewport, 320 px reflow, tab order, accessible names; manual tests **NOT TESTED** | `reports/accessibility.md` |
 | 19 | Current navigation map | Generated from observed runs (pages, controls used, redirects) | `reports/navigation-map.md` |

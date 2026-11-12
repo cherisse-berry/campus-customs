@@ -16,13 +16,30 @@ import { usageUsd } from "../src/lib/agent.js";
 import { deploymentChanged } from "../src/lib/diagnostics.js";
 import { buildReports, pageNode } from "../src/report.js";
 import { purge } from "../src/purge-evidence.js";
+import { AUTH, validateMarkersSignedOut, readMeta } from "../src/lib/auth.js";
+import { diagnose } from "../src/auth-diagnose.js";
+import { chromium } from "playwright";
 
 const fx = path.join(ROOT, "selftest", "fixture");
+// Fixture site with REAL cookie-based sign-in, shaped like the reported case:
+//   /            public homepage for everyone (signed in or not)
+//   /app         the product (plan screen) — needs the fx_session=valid cookie
+//   other pages  need the cookie too; without it → 302 to /login.html
+// Every request is logged (path, session cookie value class, user agent) so
+// tests can prove when the harness did or did not contact the "site".
+const PUBLIC = new Set(["/", "/login.html", "/pricing.html", "/app.v1.js"]);
+const requests = [];
 const server = http.createServer((req, res) => {
-  const f = path.join(fx, req.url === "/" ? "index.html" : req.url.split("?")[0]);
+  const urlPath = req.url.split("?")[0];
+  const cookie = /(?:^|;\s*)fx_session=([^;]+)/.exec(req.headers.cookie || "")?.[1] || null;
+  requests.push({ path: urlPath, session: cookie, ua: req.headers["user-agent"] || "" });
+  if (!PUBLIC.has(urlPath) && cookie !== "valid") { res.writeHead(302, { location: "/login.html" }); return res.end(); }
+  const file = urlPath === "/" ? "home.html" : urlPath === "/app" ? "index.html" : urlPath.replace(/^\//, "");
+  const f = path.join(fx, file);
   if (!fs.existsSync(f) || !f.startsWith(fx)) { res.writeHead(404); return res.end("nf"); }
   res.writeHead(200, { "content-type": f.endsWith(".js") ? "text/javascript" : "text/html" }); res.end(fs.readFileSync(f));
 }).listen(0);
+const hits = () => requests.length;
 const port = server.address().port;
 const tmpRoot = fs.mkdtempSync(path.join(ROOT, "evidence-selftest-"));
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "authorization-manifest.example.json"), "utf8"));
@@ -36,10 +53,26 @@ manifest.limits.maxEquitasAiSubmissionsPerDay = 1000;
 manifest.permittedWorkflows.submitSyntheticResearchQuestions = true;
 manifest.evidence.redactTerms = ["Founder Fixture"];
 setRedactTerms(manifest.evidence.redactTerms);
-manifest.accounts = [{ id: "fixture", actualRole: "founder_admin", actualEntitlement: "fixture", accountState: "existing", approvedFor: ["*"], expectPlanScreen: false }];
+// One saved session per authentication case (Section: authenticated-session regression tests).
+const acct = (id) => ({ id, actualRole: "founder_admin", actualEntitlement: "fixture", accountState: "existing", approvedFor: ["*"], expectPlanScreen: false });
+manifest.accounts = ["fixture", "missing", "oldsession", "cookieexpired", "revoked", "nomarkers", "nofounder", "wrongmarker"].map(acct);
+const MARKERS = { signedIn: [{ role: "button", name: "Account menu" }], founder: [{ role: "link", name: "Admin console" }], signedOutAuto: [{ role: "link", name: "Log in" }] };
+const cookie = (value, expires = -1) => ({ name: "fx_session", value, domain: "127.0.0.1", path: "/", expires, httpOnly: true, secure: false, sameSite: "Lax" });
 fs.mkdirSync(path.join(tmpRoot, ".auth"), { recursive: true });
-fs.writeFileSync(path.join(tmpRoot, ".auth", "fixture.json"), JSON.stringify({ cookies: [], origins: [] }));
-fs.writeFileSync(path.join(tmpRoot, ".auth", "fixture.meta.json"), JSON.stringify({ savedAt: new Date().toISOString(), signedInFingerprint: ["Settings", "Partner site", "Start free", "Select Pro"] }));
+function saveSession(id, { value = "valid", expires = -1, savedAt = new Date().toISOString(), markers = MARKERS, ua = "FixtureSignInUA/1.0 (same browser as sign-in)" } = {}) {
+  fs.writeFileSync(path.join(tmpRoot, ".auth", `${id}.json`), JSON.stringify({ cookies: [cookie(value, expires)], origins: [] }));
+  const meta = { account: id, savedAt, landedOnPath: "/app", userAgent: ua };
+  if (markers) meta.markers = markers;
+  fs.writeFileSync(path.join(tmpRoot, ".auth", `${id}.meta.json`), JSON.stringify(meta));
+}
+saveSession("fixture");
+saveSession("oldsession", { savedAt: new Date(Date.now() - 13 * 3.6e6).toISOString() });
+saveSession("cookieexpired", { expires: Math.floor(Date.now() / 1000) - 3600 });
+saveSession("revoked", { value: "revoked-by-server" });
+saveSession("nomarkers", { markers: null });               // saved by the old harness (no markers)
+saveSession("nofounder", { markers: { ...MARKERS, founder: [] } });
+saveSession("wrongmarker", { markers: { ...MARKERS, signedIn: [{ role: "button", name: "Not on this page" }] } });
+// "missing" has no saved files at all.
 
 // Temporary config with short hook timings, for the failure-recovery tests.
 const cfgDir = fs.mkdtempSync(path.join(os.tmpdir(), "uxcfg-"));
@@ -104,7 +137,7 @@ ok(!fs.readFileSync(path.join(stepDir, "run.json"), "utf8").includes("Founder Fi
 ok(run.createdRecords.some((c) => c.kind === "new-id-in-url") && run.createdRecords.some((c) => c.kind === "listed-test-record"), "records EQUITAS creates itself (new ID in URL, listed UXTEST item) go to the cleanup list");
 ok(run.browser?.version && run.buildAtStart?.buildId === "1.4.2", "scenario records browser version and build");
 ok(run.accessibility.length >= 1 && run.findings.some((f) => /axe: Buttons must have discernible text/.test(f.title)), "axe scan in scenario reports the unnamed icon button");
-ok(run.authCheck?.status === "signed_in", "normal run recorded as signed in");
+ok(run.auth?.status === AUTH.FOUNDER_VERIFIED && /after sign-in/.test(run.entry.note), "normal run verified by markers and starts on the post-sign-in page");
 ok(run.finalPageText?.includes("Clarifying question"), "final page text kept as context for the science judge");
 
 console.log("fix 1 + 4: real names, ambiguity, unnamed controls, submission counting");
@@ -129,12 +162,72 @@ ok((await runScenario({ scenarioId: "P05-cross-module", accountId: "fixture", ma
 const noSubmit = structuredClone(manifest); noSubmit.permittedWorkflows.submitSyntheticResearchQuestions = false;
 ok(!(await makeGuard(noSubmit).checkAction({ type: "click", name: "Next", role: "button" }, { actualName: "Next", actualText: "Next", pendingTextLength: 50 })).ok, "submission refused when submitSyntheticResearchQuestions=false");
 
-console.log("fix 2: saved login that doesn't work is detected");
-const signedOut = structuredClone(manifest); signedOut.target.baseUrl = `http://127.0.0.1:${port}/login.html`;
-const run5 = await runScenario({ scenarioId: "P05-cross-module", accountId: "fixture", manifest: signedOut, decider: scripted(goNew) });
-ok(run5.outcome.status === "BLOCKED" && /SAVED_LOGIN_NOT_ACCEPTED/.test(run5.outcome.reason) && run5.metrics.actions === 0, "scenario BLOCKED on a sign-in page, nothing clicked");
-const probe2 = await probePlan({ manifest: signedOut, accountId: "fixture", viewports: ["desktop"] });
-ok(/SAVED_LOGIN_NOT_ACCEPTED/.test(probe2.probe[0].error || "") && probe2.regression.status === "INCONCLUSIVE", "plan probe refuses a signed-out page; regression INCONCLUSIVE");
+console.log("authenticated session: missing / expired / rejected / valid (regression for the reported defect)");
+// Reproduces the founder's report with the OLD meta shape: valid cookie, root is a
+// public homepage, no markers. Old harness: PASS. New harness: never PASS.
+let before = hits();
+const pNoMarkers = await probePlan({ manifest, accountId: "nomarkers", viewports: ["desktop", "mobile"] });
+ok(pNoMarkers.regression.status === "INCONCLUSIVE" && pNoMarkers.probe.every((r) => r.auth.status === AUTH.NO_MARKERS), "reported case (public homepage, no markers): INCONCLUSIVE, never PASS");
+ok(pNoMarkers.probe[0].root.headings.some((h) => /reimagined/.test(h)) && pNoMarkers.probe[0].landing.url.endsWith("/app"), "root (public homepage) and post-sign-in page (/app) are observed separately");
+ok(pNoMarkers.findings.some((f) => /Authentication not established/.test(f.title)) && !pNoMarkers.findings.some((f) => /Settings is the observed workaround/.test(f.title)), "no plan finding is drawn while authentication is unestablished");
+
+before = hits();
+const pMissing = await probePlan({ manifest, accountId: "missing", viewports: ["desktop"] });
+ok(pMissing.outcome.status === "BLOCKED" && /SESSION_MISSING/.test(pMissing.outcome.reason) && pMissing.regression.status === "BLOCKED" && hits() === before, "missing session: BLOCKED, site not contacted");
+before = hits();
+const pOld = await probePlan({ manifest, accountId: "oldsession", viewports: ["desktop"] });
+ok(pOld.regression.status === "BLOCKED" && /SESSION_EXPIRED/.test(pOld.outcome.reason) && hits() === before, "session older than sessionReuseMaxHours: BLOCKED, site not contacted");
+before = hits();
+const pCookieExp = await probePlan({ manifest, accountId: "cookieexpired", viewports: ["desktop"] });
+ok(pCookieExp.regression.status === "BLOCKED" && /cookies have expired/.test(pCookieExp.outcome.reason) && hits() === before, "all saved cookies expired: BLOCKED, site not contacted");
+
+before = hits();
+const pRevoked = await probePlan({ manifest, accountId: "revoked", viewports: ["desktop", "mobile", "reflow320"] });
+const revokedHits = requests.slice(before).filter((r) => r.session === "revoked-by-server" && r.path === "/app").length;
+ok(pRevoked.regression.status === "BLOCKED" && pRevoked.probe.length === 1 && pRevoked.probe[0].auth.status === AUTH.REJECTED, "rejected session: BLOCKED after the first viewport (no further attempts)");
+ok(revokedHits === 1 && readMeta(tmpRoot, "revoked").rejectedAt, "rejected session presented to the protected page exactly once, then marked rejected");
+before = hits();
+const pRevoked2 = await probePlan({ manifest, accountId: "revoked", viewports: ["desktop"] });
+ok(/SESSION_REJECTED_EARLIER/.test(pRevoked2.outcome.reason) && hits() === before, "previously rejected session is never presented again (no repeated attempts)");
+const sRevoked = await runScenario({ scenarioId: "P05-cross-module", accountId: "revoked", manifest, decider: scripted(goNew) });
+ok(sRevoked.outcome.status === "BLOCKED" && /SESSION_REJECTED_EARLIER/.test(sRevoked.outcome.reason), "scenario with a rejected session is BLOCKED before launch");
+
+const pNoFounder = await probePlan({ manifest, accountId: "nofounder", viewports: ["desktop"] });
+ok(pNoFounder.probe[0].auth.status === AUTH.AUTHENTICATED && pNoFounder.regression.status === "INCONCLUSIVE", "signed in but founder access not verified: INCONCLUSIVE");
+const pWrong = await probePlan({ manifest, accountId: "wrongmarker", viewports: ["desktop"] });
+ok(pWrong.probe[0].auth.status === AUTH.UNVERIFIED && pWrong.regression.status === "INCONCLUSIVE", "valid cookie but marker absent: UNVERIFIED → INCONCLUSIVE");
+const sWrong = await runScenario({ scenarioId: "P05-cross-module", accountId: "wrongmarker", manifest, decider: scripted(goNew) });
+ok(sWrong.outcome.status === "BLOCKED" && /UNVERIFIED/.test(sWrong.outcome.reason) && sWrong.metrics.actions === 0, "scenario with unverified sign-in BLOCKED, nothing clicked");
+
+before = hits();
+const pValid = await probePlan({ manifest, accountId: "fixture", viewports: ["desktop"] });
+ok(pValid.probe[0].auth.status === AUTH.FOUNDER_VERIFIED && pValid.probe[0].authConclusive, "valid session: FOUNDER_VERIFIED from application markers");
+ok(pValid.regression.status === "FAIL" && /Verified FOUNDER_VERIFIED/.test(pValid.regression.checks[0].reason), "verdict is drawn only on the verified post-sign-in page (fixture plan screen → FAIL)");
+ok(requests.slice(before).filter((r) => r.path === "/app").every((r) => r.ua.startsWith("FixtureSignInUA")), "test browser reuses the user agent recorded at sign-in");
+ok(pValid.interpretation.hypotheses.some((h) => /site root .* shows no signed-in markers/.test(h)), "public homepage at root with a verified session is reported as a separate EQUITAS question");
+
+let attendedCalled = false;
+const statBefore = fs.statSync(path.join(tmpRoot, ".auth", "fixture.json")).mtimeMs;
+const pAttended = await probePlan({ manifest, accountId: "fixture", viewports: ["desktop", "mobile"], attended: true, attendedLogin: async (page) => {
+  attendedCalled = true;
+  await page.context().addCookies([cookie("valid")]); // stands in for the founder signing in by hand
+  await page.goto(new URL("/app", manifest.target.baseUrl).toString());
+  return { ok: true, landedOnPath: "/app" };
+} });
+ok(attendedCalled && pAttended.probe.every((r) => r.auth.status === AUTH.FOUNDER_VERIFIED) && pAttended.regression.status === "FAIL", "attended mode: one sign-in, probe in the same window, verified for both viewports");
+ok(fs.statSync(path.join(tmpRoot, ".auth", "fixture.json")).mtimeMs === statBefore, "attended mode saves nothing");
+
+const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM_PATH || undefined });
+const vm = await validateMarkersSignedOut(b, manifest, "/", { signedIn: [{ role: "button", name: "Account menu" }, { role: "link", name: "Log in" }], founder: [] });
+await b.close();
+ok(vm.kept.signedIn.length === 1 && vm.rejected.some((r) => r.marker.name === "Log in") && vm.signedOutOnly.some((m) => m.name === "Log in"), "sign-in rejects markers that are also visible when signed out");
+
+const dValid = await diagnose({ manifest, accountId: "fixture" });
+ok(dValid.live.postSignIn.status === AUTH.FOUNDER_VERIFIED && dValid.diagnosis.some((x) => /HARNESS DEFECT CONFIRMED/.test(x)), "auth-diagnose separates a harness cause (root-only check) from the session state");
+ok(!JSON.stringify(dValid).includes("\"valid\"") && JSON.stringify(dValid).includes("fx_session"), "auth-diagnose reports cookie names, never values");
+before = hits();
+const dMissing = await diagnose({ manifest, accountId: "missing" });
+ok(dMissing.preflight.status === AUTH.MISSING && hits() === before, "auth-diagnose on a missing session does not contact the site");
 
 console.log("pop-ups, redirects, stuck pages");
 const runPop = await runScenario({ scenarioId: "P05-cross-module", accountId: "fixture", manifest, decider: scripted([{ action: { type: "click", role: "button", name: "Open partner window" } }, { action: { type: "done" } }]) });
@@ -172,13 +265,14 @@ ok(usageUsd({ input_tokens: 1e6, output_tokens: 0 }, "claude-unknown-x") === 10 
 
 console.log("Journey I and K");
 const emptyEvidence = structuredClone(manifest); emptyEvidence.evidence.storeDirectory = "evidence-empty";
-const runNoPrior = await runScenario({ scenarioId: "P18-returning-resume", accountId: "fixture", manifest: emptyEvidence, decider: scripted(goNew), relogin: async () => ({ ok: true }) });
+const freshSignIn = async (page) => { await page.context().addCookies([cookie("valid")]); return { ok: true }; };
+const runNoPrior = await runScenario({ scenarioId: "P18-returning-resume", accountId: "fixture", manifest: emptyEvidence, decider: scripted(goNew), relogin: freshSignIn });
 ok(runNoPrior.outcome.status === "BLOCKED" && /Precondition not met/.test(runNoPrior.outcome.reason), "returning-user journey BLOCKED without an earlier test record");
 const runWithRecord = await runScenario({ scenarioId: "P01-doctoral-idea", accountId: "fixture", manifest, decider: scripted([...toAdvisor, { action: { type: "fill", role: "textbox", name: "Describe your research idea", text: "UXTEST-H2-revision" } }, { action: { type: "done" } }]) });
 ok(runWithRecord.createdRecords.some((c) => c.value === "UXTEST-H2-revision"), "typed UXTEST record recorded");
 let reloginCalled = false;
-const runFresh = await runScenario({ scenarioId: "P18-returning-resume", accountId: "fixture", manifest, decider: scripted([{ action: { type: "done" } }]), relogin: async () => { reloginCalled = true; return { ok: true }; } });
-ok(reloginCalled && runFresh.freshLogin?.performed && runFresh.outcome.status === "COMPLETED", "returning-user journey uses a fresh sign-in, not the saved session");
+const runFresh = await runScenario({ scenarioId: "P18-returning-resume", accountId: "fixture", manifest, decider: scripted([{ action: { type: "done" } }]), relogin: async (page) => { reloginCalled = true; return freshSignIn(page); } });
+ok(reloginCalled && runFresh.freshLogin?.performed && runFresh.outcome.status === "COMPLETED" && runFresh.auth.status === AUTH.FOUNDER_VERIFIED, "returning-user journey uses a fresh sign-in, verified by markers");
 const runExpiry = await runScenario({ scenarioId: "K-session-expiry", accountId: "fixture", manifest, configDir: cfgDir, decider: scripted([{ action: { type: "click", role: "link", name: "Settings" } }, { action: { type: "done" } }]) });
 ok(runExpiry.steps.some((s) => s.kind === "hook" && s.hook === "clearSession"), "session-expiry hook clears the session mid-run");
 const runOffline = await runScenario({ scenarioId: "K-offline-submission", accountId: "fixture", manifest, configDir: cfgDir, decider: scripted([...toAdvisor, { action: { type: "fill", role: "textbox", name: "Describe your research idea", text: scen.scenarios.find((s) => s.id === "K-offline-submission").question } }, { action: { type: "click", role: "button", name: "Ask advisor" } }, { action: { type: "done" } }]) });
@@ -212,7 +306,11 @@ console.log("blocked scenario");
 ok((await runScenario({ scenarioId: "P19-funder", accountId: "fixture", manifest, decider: scripted(goNew) })).outcome.status === "BLOCKED", "funder scenario BLOCKED without funder role");
 
 console.log("reports and retention");
+const legacyDir = path.join(tmpRoot, "evidence", "runs", "UXTEST-PLANPROBE-founder-admin-legacy");
+fs.mkdirSync(legacyDir, { recursive: true });
+fs.writeFileSync(path.join(legacyDir, "run.json"), JSON.stringify({ runId: "UXTEST-PLANPROBE-founder-admin-legacy", kind: "probe-plan", startedAt: new Date().toISOString(), account: { id: "founder-admin", actualRole: "founder_admin" }, regression: { status: "PASS", checks: [] }, interpretation: { observations: [], hypotheses: [], questionsForAppifest: [] }, steps: [], findings: [], navigationPath: [], network: { consoleErrors: [], httpErrors: [], offDomainRequests: [] }, outcome: { status: "COMPLETED" } }));
 const rep = buildReports(tmpRoot, ROOT);
+ok(/Regression check: INVALID\*\* — recorded by an older harness that did not verify sign-in \(originally reported PASS\)/.test(fs.readFileSync(path.join(tmpRoot, "reports", "results.md"), "utf8")), "report marks the earlier unverified PASS probes as INVALID (evidence file untouched)");
 const read = (f) => fs.readFileSync(path.join(tmpRoot, "reports", f), "utf8");
 ok(read("navigation-map.md").includes("flowchart LR") && /\/settings\.html/.test(read("navigation-map.md")), "navigation map built from observed runs");
 ok(read("persona-comparison.md").includes("BENCH-CHW-HTN") && /Doctoral trainee \| P01-doctoral-idea/.test(read("persona-comparison.md")), "persona comparison table for the shared benchmark");

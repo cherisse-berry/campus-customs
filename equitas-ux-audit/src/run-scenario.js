@@ -7,8 +7,9 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { loadManifest, getAccount, accountApprovedFor, parseArgs, ROOT, isMain } from "./lib/manifest.js";
 import { makeGuard, STOP, acquireLock } from "./lib/safety.js";
-import { observe, resolve, mainText, signedInCheck } from "./lib/observe.js";
-import { Evidence, openBrowser, runId, readAuthMeta, installNavigationGuard } from "./lib/evidence.js";
+import { observe, resolve, mainText } from "./lib/observe.js";
+import { Evidence, openBrowser, runId, installNavigationGuard } from "./lib/evidence.js";
+import { AUTH, sessionPreflight, verifySession, resolveMarkers, readMeta } from "./lib/auth.js";
 import { personaBrief, createClaudeDecider, usageUsd } from "./lib/agent.js";
 import { evaluateScience } from "./lib/evaluator.js";
 import { buildFingerprint, deploymentChanged, axeScan, priorUseSignals, serverRecordSignals } from "./lib/diagnostics.js";
@@ -39,7 +40,7 @@ function priorRecordsFor(manifest, accountId) {
   return out;
 }
 
-export async function runScenario({ scenarioId, accountId, viewport = "desktop", headed = false, decider, manifest, aiClient, relogin, configDir = path.join(ROOT, "config") }) {
+export async function runScenario({ scenarioId, accountId, viewport = "desktop", headed = false, attended = false, decider, manifest, aiClient, relogin, configDir = path.join(ROOT, "config") }) {
   manifest ??= loadManifest();
   manifest._root ??= ROOT;
   const { scenarios } = JSON.parse(fs.readFileSync(path.join(configDir, "scenarios.json"), "utf8"));
@@ -87,7 +88,21 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
     const onUsage = (u, model) => { const c = usageUsd(u, model); testerUsd += c; guard.recordTesterSpend(c); };
     decider ??= createClaudeDecider(manifest, { onUsage, client: aiClient });
 
-    const fresh = !!scenario.freshLogin;
+    // Sign-in: a fresh sign-in (Journey I, or --attended) or the saved session.
+    // A saved session is checked first WITHOUT contacting EQUITAS: missing,
+    // expired or previously rejected sessions stop here.
+    const fresh = !!scenario.freshLogin || !!attended;
+    let pre = null;
+    if (scenario.authenticated !== false) {
+      if (fresh) {
+        const meta = readMeta(manifest._root, account.id);
+        pre = { status: "READY", meta, markers: resolveMarkers(manifest, account, meta), reasons: [] };
+      } else {
+        pre = sessionPreflight(manifest, account);
+        ev.run.auth = { preflight: pre.status, reasons: pre.reasons };
+        if (pre.status !== "READY") return ev.finish({ status: "BLOCKED", reason: `${pre.status}: ${pre.reasons.join(" ")} EQUITAS was not contacted.` });
+      }
+    }
     const { browser, context, browserInfo } = await openBrowser(manifest, { accountId: account.id, viewport, headed: headed || (fresh && !relogin), useAuth: scenario.authenticated !== false && !fresh });
     ev.run.browser = browserInfo;
     const page = await context.newPage();
@@ -130,23 +145,31 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
         ev.run.freshLogin = { performed: r.ok, note: "Journey I: no saved session was reused; the founder signed in again." };
         if (!r.ok) outcome = { status: "BLOCKED", reason: `FRESH_LOGIN_NOT_COMPLETED: ${r.reason}` };
       }
+      // Verify sign-in ONCE with application-specific markers, on the page
+      // EQUITAS showed after sign-in. Unverified or rejected → BLOCKED.
+      if (!outcome && scenario.authenticated !== false) {
+        const stayOnPage = fresh && !pre.markers.entryPath;
+        const v = await verifySession(page, manifest, account, pre, { navigate: !stayOnPage });
+        ev.run.auth = { ...(ev.run.auth || {}), ...v };
+        const needFounder = (scenario.requiresRole || []).includes("founder_admin");
+        const ok = v.status === AUTH.FOUNDER_VERIFIED || (v.status === AUTH.AUTHENTICATED && !needFounder);
+        if (!ok) {
+          await ev.screenshot(page, "auth-not-established");
+          outcome = { status: "BLOCKED", reason: `${v.status}: ${v.reasons.join(" ")} ${v.status === AUTH.REJECTED ? `The saved session is marked rejected and will not be reused. Run npm run login -- --account ${account.id} again.` : "Nothing was tested."}` };
+        }
+      }
       if (!outcome) {
-        await page.goto(scenario.entryUrl ? new URL(scenario.entryUrl, manifest.target.baseUrl).toString() : manifest.target.baseUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
-        ev.run.entry = { url: redactUrl(page.url()), note: "Agent starts at the site root, as a user typing the address would." };
+        // Signed-in scenarios start where EQUITAS put the user after sign-in
+        // (manifest target.signedInStart: "post-sign-in", default) or at the root.
+        const signedInStart = manifest.target.signedInStart ?? "post-sign-in";
+        const startUrl = scenario.entryUrl ? new URL(scenario.entryUrl, manifest.target.baseUrl).toString()
+          : scenario.authenticated !== false && signedInStart === "post-sign-in" ? null : manifest.target.baseUrl;
+        if (startUrl) await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+        ev.run.entry = { url: redactUrl(page.url()), note: startUrl ? "Agent starts at the site root, as a user typing the address would." : "Agent starts on the page EQUITAS showed after sign-in." };
         ev.run.buildAtStart = await buildFingerprint(page, manifest);
       }
 
-      // Verify the session really is signed in before testing anything signed-in.
       if (!outcome && scenario.authenticated !== false) {
-        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
-        ev.run.authCheck = await signedInCheck(page, readAuthMeta(manifest._root, account.id));
-        if (ev.run.authCheck.status === "signed_out") {
-          await ev.screenshot(page, "not-signed-in");
-          outcome = { status: "BLOCKED", reason: `${STOP.NOT_SIGNED_IN}: ${ev.run.authCheck.reasons.join("; ")}. Run npm run login -- --account ${account.id} again; nothing was tested.` };
-        } else if (ev.run.authCheck.status === "uncertain") {
-          ev.run.validity.warnings.push("sign-in state uncertain");
-          ev.finding({ category: "TEST_VALIDITY_WARNING", severity: null, title: "Sign-in state uncertain", observed: ev.run.authCheck.reasons.join("; "), triage: "check screenshots before trusting this run" });
-        }
         if (account.serverSideNewUser) {
           const signals = await priorUseSignals(page, prefix);
           ev.run.newUserCheck = { signals };
@@ -386,6 +409,6 @@ export function diffMiddle(before, after) {
 if (isMain(import.meta.url)) {
   const args = parseArgs();
   if (!args.scenario || !args.account) { console.error("Usage: npm run scenario -- --scenario <id> --account <id> [--viewport mobile] [--headed]"); process.exit(2); }
-  const run = await runScenario({ scenarioId: args.scenario, accountId: args.account, viewport: args.viewport || "desktop", headed: !!args.headed });
+  const run = await runScenario({ scenarioId: args.scenario, accountId: args.account, viewport: args.viewport || "desktop", headed: !!args.headed, attended: !!args.attended });
   console.log(`${run.scenarioId}: ${run.outcome.status} — ${run.outcome.reason}\nEvidence: evidence/runs/${run.runId}/run.json`);
 }

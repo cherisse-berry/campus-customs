@@ -22,7 +22,9 @@
     "_allowedHostsNote": "Top-level navigation to any other host (for example a payment or SSO page) is stopped and recorded. Add an SSO host only if your login really goes through one.",
     "buildIdentifierHint": "Optional: where a version/build number is shown on the site, e.g. footer text",
     "buildIdentifierRegex": "(?:version|build|v)\\s*[:#]?\\s*(\\d+\\.\\d+(?:\\.\\d+)?[\\w.-]*)",
-    "_buildIdentifierNote": "Regex searched in the page text to record the EQUITAS build/version, if shown. Script asset names are also fingerprinted to detect a deployment during a run."
+    "_buildIdentifierNote": "Regex searched in the page text to record the EQUITAS build/version, if shown. Script asset names are also fingerprinted to detect a deployment during a run.",
+    "signedInStart": "post-sign-in",
+    "_signedInStartNote": "Where signed-in scenarios begin: 'post-sign-in' (the page EQUITAS showed after you signed in) or 'root'."
   },
   "accounts": [
     {
@@ -148,5 +150,14 @@
     "sign out everywhere",
     "log out of all"
   ],
-  "_prohibitedNote": "Each pattern matches at the start of a word in the control's real name/text ('pay' matches 'payment' but not 'display'). A match stops the scenario as CONSEQUENTIAL_ACTION_STOP."
+  "_prohibitedNote": "Each pattern matches at the start of a word in the control's real name/text ('pay' matches 'payment' but not 'display'). A match stops the scenario as CONSEQUENTIAL_ACTION_STOP.",
+  "sessionReuseMaxHours": 12,
+  "authVerification": {
+    "_note": "Optional. Leave the lists empty to use the markers you pick during `npm run login`. A marker is {\"role\":\"button\",\"name\":\"Account menu\"} (exact accessible name) or {\"text\":\"Founder dashboard\"}. Signed-in markers must NOT appear when signed out; login checks this.",
+    "signedInPath": null,
+    "signedInMarkers": [],
+    "founderMarkers": [],
+    "signedOutMarkers": [],
+    "requireFounderMarker": true
+  }
 }

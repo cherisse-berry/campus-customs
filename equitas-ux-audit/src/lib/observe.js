@@ -111,28 +111,9 @@ export async function resolve(page, { role, name, index = 0 }) {
   return { el, count, matchedBy, ...info };
 }
 
-// Is this browser really signed in? Compares the landing page with what was
-// visible right after the founder signed in (saved locally by `npm run login`).
-const LOGIN_PATH = /\/(login|log-in|signin|sign-in|signup|sign-up|auth|sso|account\/login)(\/|$|\?)/i;
-const LOGIN_CTL = /^(sign in|log in|login|sign up|create account|continue with google|continue with microsoft)$/i;
-export async function signedInCheck(page, meta) {
-  const reasons = [];
-  let pathname = "";
-  try { pathname = new URL(page.url()).pathname; } catch {}
-  if (LOGIN_PATH.test(pathname)) reasons.push(`landed on a sign-in path (${pathname})`);
-  const pw = await page.locator("input[type=password]").filter({ visible: true }).count().catch(() => 0);
-  if (pw > 0) reasons.push("a password field is visible");
-  const controls = await visibleControls(page);
-  const loginCtl = controls.filter((c) => LOGIN_CTL.test(c.name)).map((c) => c.name);
-  const fp = meta?.signedInFingerprint || [];
-  const names = new Set(controls.map((c) => c.name));
-  const overlap = fp.length ? fp.filter((n) => names.has(n)).length / fp.length : null;
-  if (loginCtl.length && (overlap === null || overlap < 0.3)) reasons.push(`sign-in controls visible: ${loginCtl.join(", ")}`);
-  if (reasons.length) return { status: "signed_out", reasons, overlap };
-  if (overlap !== null && overlap < 0.3)
-    return { status: "uncertain", reasons: [`only ${Math.round(overlap * 100)}% of the controls seen right after sign-in are visible now`], overlap };
-  return { status: "signed_in", reasons: [], overlap };
-}
+// Sign-in verification lives in auth.js (application-specific markers).
+// The old control-overlap heuristic was removed: it compared different pages
+// and let an unverified public homepage pass as signed in.
 
 // Read-only inventory of visible controls (used by the deterministic plan probe).
 export async function visibleControls(page) {
