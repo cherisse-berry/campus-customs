@@ -2,6 +2,7 @@
 import { loadManifest } from "./lib/manifest.js";
 import { readAuthMeta } from "./lib/evidence.js";
 import { ROOT } from "./lib/manifest.js";
+import { expiredRuns } from "./purge-evidence.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -9,6 +10,10 @@ let m;
 try { m = loadManifest({ allowUnapproved: true }); } catch (e) { console.error(e.message); process.exit(1); }
 const scenarios = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "scenarios.json"), "utf8")).scenarios;
 console.log(m._problems.length ? "NOT READY:\n - " + m._problems.join("\n - ") : "Manifest approved.");
+for (const w of m._warnings || []) console.log("WARNING: " + w);
+m._root = ROOT;
+const old = expiredRuns(m).expired.length;
+if (old) console.log(`WARNING: ${old} evidence run(s) are older than evidence.retainDays — run npm run purge-evidence.`);
 console.log(`\nTarget: ${m.target.baseUrl}  hosts: ${m.target.allowedHosts.join(", ")}`);
 console.log(`Tester AI approved: ${!!m.testerAi?.approved}   Free-plan selection approved: ${!!m.permittedWorkflows.selectFreePlan}\n`);
 for (const a of m.accounts) {

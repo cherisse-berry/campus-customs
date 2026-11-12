@@ -7,7 +7,9 @@
 //   npm run probe-plan -- --public          (signed-out visitor; no account)
 import { loadManifest, getAccount, accountApprovedFor, parseArgs, ROOT, isMain } from "./lib/manifest.js";
 import { observe, visibleControls, signedInCheck } from "./lib/observe.js";
-import { Evidence, openBrowser, runId, readAuthMeta } from "./lib/evidence.js";
+import { Evidence, openBrowser, runId, readAuthMeta, installNavigationGuard } from "./lib/evidence.js";
+import { acquireLock } from "./lib/safety.js";
+import { buildFingerprint, deploymentChanged, axeScan, reflowCheck, priorUseSignals } from "./lib/diagnostics.js";
 import { redactUrl } from "./lib/redact.js";
 
 const MONEY = /(\$|€|£|\/\s?mo\b|per month|per year|annual)/i;
@@ -15,7 +17,7 @@ const PLAN_CTA = /\b(select|choose|start|get started|continue with|activate|subs
 const ESCAPE_CTA = /\b(continue|skip|later|dashboard|go to|enter|home|back|not now|explore|maybe later|close)\b/i;
 const MODULES = /\b(advisor|project|evidence|funding|studio|incident|brief|settings)\b/i;
 
-export async function probePlan({ manifest, accountId, publicVisitor = false, viewports = ["desktop", "mobile"], headed = false }) {
+export async function probePlan({ manifest, accountId, publicVisitor = false, viewports = ["desktop", "mobile", "reflow320"], headed = false }) {
   manifest ??= loadManifest();
   manifest._root ??= ROOT;
   const account = publicVisitor ? { id: "public-visitor", actualRole: "none (signed out)", actualEntitlement: "none", accountState: "signed-out" } : getAccount(manifest, accountId);
@@ -29,17 +31,17 @@ export async function probePlan({ manifest, accountId, publicVisitor = false, vi
     target: manifest.target.baseUrl,
   });
   const results = [];
-
+  const lock = acquireLock(manifest, `probe-plan/${account.id}`);
+  if (!lock.ok) throw new Error(`SESSION_LOCK: ${lock.reason}`);
+  try {
   for (const vp of viewports) {
-    const { browser, context, viewport } = await openBrowser(manifest, { accountId: account.id, viewport: vp, headed, useAuth: !publicVisitor });
-    await context.route("**/*", (route) => {
-      const r = route.request();
-      if (r.isNavigationRequest() && !manifest.target.allowedHosts.includes(new URL(r.url()).hostname)) {
-        ev.step({ kind: "guard", viewport: vp, blockedNavigation: redactUrl(r.url()) });
-        return route.abort("blockedbyclient");
-      }
-      return route.continue();
-    });
+    const { browser, context, viewport, browserInfo } = await openBrowser(manifest, { accountId: account.id, viewport: vp, headed, useAuth: !publicVisitor });
+    ev.run.browser = browserInfo;
+    // Blocks off-domain loads in the main tab and in pop-ups.
+    await installNavigationGuard(context, manifest, (b) => ev.step({ kind: "guard", viewport: vp, blockedNavigation: b.url, popup: b.popup }));
+    // Close real pop-ups (pages opened by a page). Helper pages that tools such
+    // as the accessibility scanner open themselves have no opener and are left alone.
+    context.on("page", async (p) => { if (await p.opener().catch(() => null)) p.close().catch(() => {}); });
     const page = await context.newPage();
     ev.attach(page);
     page.on("dialog", (d) => d.dismiss().catch(() => {}));
@@ -60,6 +62,11 @@ export async function probePlan({ manifest, accountId, publicVisitor = false, vi
       const obs = await observe(page);
       r.landing = { url: obs.url, title: obs.title, headings: obs.headings, onPlanPage: obs.onPlanPage, alerts: obs.alerts };
       r.landingScreenshot = await ev.screenshot(page, `${vp}-landing`);
+      r.landingSnapshot = ev.saveSnapshot(obs.snapshot);
+      r.build = await buildFingerprint(page, manifest);
+      r.accessibility = await axeScan(page);
+      if (vp === "reflow320") r.reflow = await reflowCheck(page);
+      if (account.serverSideNewUser) r.priorUseSignals = await priorUseSignals(page, manifest.syntheticData?.recordPrefix);
       const controls = await visibleControls(page);
       r.controls = controls;
 
@@ -131,10 +138,51 @@ export async function probePlan({ manifest, accountId, publicVisitor = false, vi
     }
     results.push(r);
   }
+  } finally {
+    lock.release();
+  }
   ev.run.probe = results;
+  const builds = results.map((r) => r.build).filter(Boolean);
+  if (builds.length > 1 && builds.some((b) => deploymentChanged(builds[0], b))) {
+    ev.finding({ category: "TEST_VALIDITY_WARNING", severity: null, title: "EQUITAS build changed between viewports", observed: JSON.stringify(builds), triage: "rerun the probe" });
+  }
+  for (const r of results) {
+    for (const v of (r.accessibility?.violations || []).filter((x) => ["serious", "critical"].includes(x.impact)))
+      ev.finding({ category: "ACCESSIBILITY_FINDING", severity: null, title: `axe: ${v.help}`, observed: `${v.id} (${v.impact}, ${v.wcag.join(", ")}) on the landing screen at ${r.viewport}: ${v.nodes} element(s)`, triage: "pending — automated rule; confirm manually" });
+    if (r.reflow?.horizontalOverflowPx > 0)
+      ev.finding({ category: "ACCESSIBILITY_FINDING", severity: null, title: "Content needs horizontal scrolling at 320 px (reflow)", observed: `Page is ${r.reflow.scrollWidth}px wide in a ${r.reflow.viewportWidth}px viewport; widest: ${r.reflow.widestElements.join(", ")}`, triage: "pending — WCAG 1.4.10 proxy; confirm with real zoom" });
+    if (r.priorUseSignals?.length)
+      ev.finding({ category: "TEST_VALIDITY_WARNING", severity: null, title: "Account labelled as new shows signs of prior use", observed: r.priorUseSignals.join("; "), triage: "confirm server-side state" });
+  }
+  ev.run.regression = regressionVerdict(results, account, publicVisitor);
   ev.run.interpretation = interpret(results, account, manifest);
   for (const f of ev.run.interpretation.draftFindings) ev.finding(f);
   return ev.finish({ status: "COMPLETED", reason: "Probe finished; see interpretation (observations vs. hypotheses are separated)." });
+}
+
+// Section 26 — pass/fail regression check for the plan defect. The account's
+// `expectPlanScreen` (manifest) says what correct behaviour is:
+//   false → the account lands in the product, or the plan screen offers a
+//           visible non-plan "Continue"-type exit. Settings-only access fails.
+//   true  → the plan screen is shown with at least one enabled plan control.
+export function regressionVerdict(results, account, publicVisitor) {
+  if (publicVisitor || account.expectPlanScreen === undefined) return { status: "NOT_APPLICABLE", reason: "No expectPlanScreen set for this account." };
+  const checks = results.map((r) => {
+    if (r.error) return { viewport: r.viewport, pass: null, reason: r.error };
+    if (account.expectPlanScreen === false) {
+      if (!r.landing.onPlanPage) return { viewport: r.viewport, pass: true, reason: "Landed outside the plan screen." };
+      const exits = r.classification.escapeCtas.filter((c) => !c.disabled);
+      return exits.length
+        ? { viewport: r.viewport, pass: true, reason: `Plan screen shown but offers: ${exits.map((c) => `"${c.name}"`).join(", ")}.` }
+        : { viewport: r.viewport, pass: false, reason: "Plan screen shown with no visible non-plan way forward." };
+    }
+    const enabled = (r.classification?.planCtas || []).filter((c) => !c.disabled);
+    return r.landing.onPlanPage && enabled.length
+      ? { viewport: r.viewport, pass: true, reason: "Plan screen shown with an enabled plan control." }
+      : { viewport: r.viewport, pass: false, reason: r.landing.onPlanPage ? "All plan controls disabled." : "Expected a plan screen; none shown." };
+  });
+  const status = checks.some((c) => c.pass === null) ? "INCONCLUSIVE" : checks.every((c) => c.pass) ? "PASS" : "FAIL";
+  return { status, expectPlanScreen: account.expectPlanScreen, checks };
 }
 
 function chain(req) {
@@ -194,8 +242,11 @@ function interpret(results, account, manifest) {
 
 if (isMain(import.meta.url)) {
   const args = parseArgs();
-  const run = await probePlan({ accountId: args.account, publicVisitor: !!args.public, viewports: (args.viewports || "desktop,mobile").split(","), headed: !!args.headed });
+  const run = await probePlan({ accountId: args.account, publicVisitor: !!args.public, viewports: (args.viewports || "desktop,mobile,reflow320").split(","), headed: !!args.headed });
   console.log(run.interpretation.observations.join("\n"));
   console.log("\nHypotheses:\n" + (run.interpretation.hypotheses.join("\n") || "(none)"));
+  console.log(`\nRegression check: ${run.regression.status}${run.regression.checks ? "\n" + run.regression.checks.map((c) => `  [${c.viewport}] ${c.pass === true ? "pass" : c.pass === false ? "FAIL" : "?"} — ${c.reason}`).join("\n") : ""}`);
   console.log(`\nEvidence: evidence/runs/${run.runId}/run.json`);
+  // --assert: exit code 1 on FAIL, 2 on INCONCLUSIVE (for scripted retests).
+  if (args.assert) process.exit(run.regression.status === "PASS" ? 0 : run.regression.status === "FAIL" ? 1 : 2);
 }

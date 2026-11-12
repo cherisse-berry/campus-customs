@@ -27,10 +27,15 @@ const SUBMIT_LIKE = /\b(send|submit|ask|analy[sz]e|assess|evaluate|generate|run|
 
 export function makeGuard(manifest, { scenarioId, now = () => Date.now() } = {}) {
   const lim = manifest.limits;
-  const prohibited = (manifest.prohibitedActionPatterns || []).map((p) => p.toLowerCase());
+  // Patterns match at the START of a word ("pay" matches "payment" but not
+  // "display"; "publish" does not match "publications").
+  const prohibited = (manifest.prohibitedActionPatterns || []).map((p) => ({
+    word: p,
+    re: new RegExp("(^|[^a-z0-9])" + p.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"), "i"),
+  }));
   const allowedHosts = new Set(manifest.target.allowedHosts.map((h) => h.toLowerCase()));
   const started = now();
-  const state = { actions: 0, aiSubmissions: 0, redirects: 0, lastActionAt: 0 };
+  const state = { actions: 0, aiSubmissions: 0, redirects: 0, lastActionAt: 0, testerUsd: 0 };
   const ledgerPath = path.join(manifest._root || ".", manifest.evidence?.storeDirectory || "evidence", "ledger.json");
 
   function ledger() {
@@ -65,7 +70,15 @@ export function makeGuard(manifest, { scenarioId, now = () => Date.now() } = {})
       bumpLedger("scenarios");
       return { ok: true };
     },
-    recordTesterSpend(usd) { bumpLedger("testerUsd", usd); },
+    recordTesterSpend(usd) { state.testerUsd += usd; bumpLedger("testerUsd", usd); },
+    // Checked before every tester-AI call, not only at scenario start.
+    testerBudgetLeft() {
+      const perScenario = manifest.testerAi?.maxTesterSpendUsdPerScenario ?? 3;
+      const perDay = manifest.testerAi?.maxTesterSpendUsdPerDay ?? 15;
+      if (state.testerUsd >= perScenario) return { ok: false, stop: "TESTER_SPEND_LIMIT_SCENARIO", reason: `Tester AI spend for this scenario reached US$${perScenario}.` };
+      if (((ledger()[today()] || {}).testerUsd || 0) >= perDay) return { ok: false, stop: "DAILY_TESTER_SPEND_LIMIT", reason: `Daily tester AI spend reached US$${perDay}.` };
+      return { ok: true };
+    },
     testerSpendToday() { return (ledger()[today()] || {}).testerUsd || 0; },
 
     // Called before every action. The checks use the element's REAL name and
@@ -87,8 +100,8 @@ export function makeGuard(manifest, { scenarioId, now = () => Date.now() } = {})
       }
 
       if (action.type === "click" || action.type === "press_enter") {
-        const hit = prohibited.find((p) => lower.includes(p));
-        if (hit) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${shown}" matches prohibited pattern "${hit}".` };
+        const hit = prohibited.find((p) => p.re.test(lower));
+        if (hit) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${shown}" matches prohibited pattern "${hit.word}".` };
         if (MONEY.test(allText)) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${shown}" mentions a price.` };
         if (ctx.href && !isAllowedHost(ctx.href)) return { ok: false, stop: STOP.OFF_DOMAIN, reason: `Link leads off the approved domain.` };
         if (ctx.onPlanPage && PLAN_CTA.test(allText) && (action.role === "button" || action.role === "link")) {
@@ -136,4 +149,26 @@ export function makeGuard(manifest, { scenarioId, now = () => Date.now() } = {})
     countAiSubmission() { state.aiSubmissions++; bumpLedger("aiSubmissions"); },
     countRedirect() { state.redirects++; return state.redirects <= lim.maxUnexpectedRedirects; },
   };
+}
+
+// One test session at a time on this computer (manifest limits.concurrentSessions).
+// A lock older than the scenario time limit + 10 min is treated as stale.
+export function acquireLock(manifest, label) {
+  const dir = path.join(manifest._root || ".", manifest.evidence?.storeDirectory || "evidence");
+  fs.mkdirSync(dir, { recursive: true });
+  const max = Math.max(1, manifest.limits?.concurrentSessions ?? 1);
+  const staleMs = ((manifest.limits?.maxMinutesPerScenario ?? 20) + 10) * 60_000;
+  for (let i = 0; i < max; i++) {
+    const p = path.join(dir, `session-${i}.lock`);
+    try {
+      const st = fs.statSync(p);
+      if (Date.now() - st.mtimeMs < staleMs) continue;
+      fs.unlinkSync(p);
+    } catch {}
+    try {
+      fs.writeFileSync(p, JSON.stringify({ label, pid: process.pid, at: new Date().toISOString() }), { flag: "wx" });
+      return { ok: true, release: () => { try { fs.unlinkSync(p); } catch {} } };
+    } catch {}
+  }
+  return { ok: false, reason: `Another test session is running (limit ${max}). If none is, delete the session-*.lock files in ${dir}.` };
 }

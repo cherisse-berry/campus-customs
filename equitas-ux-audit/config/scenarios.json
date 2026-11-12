@@ -18,7 +18,7 @@
         "I'm thinking of adults with uncontrolled hypertension in urban clinics.",
         "I'm not sure about study design yet."
       ],
-      "question": "I'm interested in whether community health workers could help people with high blood pressure. I don't know how to turn this into a research question yet. Can you help me?",
+      "question": "UXTEST synthetic: I'm interested in whether community health workers could help people with high blood pressure. I don't know how to turn this into a research question yet. Can you help me?",
       "followUps": [
         "I'm thinking of adults with uncontrolled hypertension in urban clinics, and I could work with a county health department."
       ],
@@ -110,10 +110,13 @@
       "goal": "Find the project you saved last week (its name starts with UXTEST), open it, and see what EQUITAS recommended last time and what to do next.",
       "syntheticFacts": [],
       "successCondition": "The UXTEST project is found and opened, prior recommendations are visible, and a next action is clear.",
-      "precondition": "A UXTEST project must already exist for this account (create it in a P03 or P06 run with createSyntheticProjects=true, then log out and in again).",
+      "precondition": "Run H2-saved-project-revision or P03-junior-program first with createSyntheticProjects=true, so a UXTEST project exists for this account.",
       "expectedNextAction": "Continue from last recommendation.",
       "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
-      "authenticated": true
+      "authenticated": true,
+      "freshLogin": true,
+      "requiresPriorRecord": true,
+      "note": "Journey I: the harness opens a browser WITHOUT the saved login; the founder signs in again (real sign-out and return), then the blinded agent looks for the project."
     },
     {
       "id": "P02-postdoc-independence",
@@ -406,6 +409,96 @@
       "successCondition": "A clear, accessible validation or clarification message appears.",
       "allowComposedAnswers": false,
       "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, captured EQUITAS response text, network/console errors, guard decisions.",
+      "authenticated": true
+    },
+    {
+      "id": "K-session-expiry",
+      "persona": "P03",
+      "journey": [
+        "K"
+      ],
+      "phase": 6,
+      "title": "Session expires mid-task",
+      "goal": "Find where to start a research idea and begin describing it. If the site asks you to sign in again, report what it says and whether your work is kept; do not enter credentials.",
+      "syntheticFacts": [
+        "UXTEST synthetic: I study avoidable hospitalizations in Medicaid populations."
+      ],
+      "hooks": [
+        {
+          "type": "clearSession",
+          "afterStep": 3
+        }
+      ],
+      "successCondition": "After the session is cleared, the site clearly explains that the user must sign in again and indicates whether in-progress work is preserved.",
+      "allowComposedAnswers": false,
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, guard decisions, hook events.",
+      "authenticated": true,
+      "note": "Client-side only: cookies and local/session storage are cleared in the test browser. Nothing is changed on EQUITAS servers."
+    },
+    {
+      "id": "K-offline-submission",
+      "persona": "P01",
+      "journey": [
+        "K"
+      ],
+      "phase": 6,
+      "title": "Network failure while sending a question",
+      "goal": "Find where to ask EQUITAS a research question and send it. Report what the site shows if it cannot be sent.",
+      "syntheticFacts": [],
+      "question": "UXTEST synthetic: Is there evidence that text-message reminders improve blood pressure control in adults with hypertension?",
+      "hooks": [
+        {
+          "type": "offlineBeforeSubmission",
+          "durationSec": 20
+        }
+      ],
+      "successCondition": "The site shows a clear, accessible error and a way to retry without losing the typed question.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, guard decisions, hook events.",
+      "authenticated": true,
+      "note": "The test browser goes offline before sending, so the request never reaches EQUITAS. It simulates a network failure, not an EQUITAS AI-service outage, which cannot be tested safely on production."
+    },
+    {
+      "id": "K-permission-boundary",
+      "persona": "P02",
+      "journey": [
+        "K"
+      ],
+      "phase": 6,
+      "title": "Non-admin user and admin-only areas",
+      "requiresRole": [
+        "investigator",
+        "subscriber",
+        "institutional_member"
+      ],
+      "goal": "Look around the site for any area meant only for administrators (user management, platform settings, analytics). Report whether such areas are visible and what happens if you open them. Do not change anything.",
+      "syntheticFacts": [],
+      "successCondition": "Admin areas are not shown, or opening one gives a clear, non-revealing permission message.",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, guard decisions, hook events.",
+      "authenticated": true,
+      "note": "Needs a non-admin investigator account; BLOCKED with the founder login."
+    },
+    {
+      "id": "H2-saved-project-revision",
+      "persona": "P03",
+      "journey": [
+        "H",
+        "I"
+      ],
+      "phase": 5,
+      "title": "Revision of a confirmed question inside a saved project",
+      "needsProjectCreation": true,
+      "goal": "Create a project named UXTEST-H2-revision, enter the research question, and confirm it. Then change the project's research question to the revised one and see whether EQUITAS flags the conflict with earlier answers and fields.",
+      "syntheticFacts": [
+        "UXTEST-H2-revision"
+      ],
+      "question": "UXTEST synthetic: Does a community health worker-led home blood pressure monitoring program improve blood pressure control in adults with uncontrolled hypertension in urban primary care?",
+      "followUps": [
+        "UXTEST synthetic revision: my question is now about medication adherence (proportion of days covered for metformin) in adults with type 2 diabetes, not blood pressure."
+      ],
+      "successCondition": "EQUITAS recognises that the saved question changed, identifies project fields or recommendations that no longer apply, and asks for clarification or updates them.",
+      "scienceExpectationId": "REVISION-HTN-TO-T2D",
+      "personaLevel": "advanced",
+      "evidenceRequired": "Step screenshots, accessibility snapshots, navigation path, guard decisions, hook events. Saved project fields before and after.",
       "authenticated": true
     }
   ]

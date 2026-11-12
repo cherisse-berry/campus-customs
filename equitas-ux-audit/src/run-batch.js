@@ -1,7 +1,7 @@
 // Runs scenarios one at a time (never concurrently), in Section 27 phase order.
 //   npm run batch -- --account founder-admin --phase 4
 //   npm run batch -- --account founder-admin --scenarios P01-doctoral-idea,P06-senior-critique
-//   add --mobile to also run P01 on a phone viewport (Journey L)
+//   add --mobile to also run P01, P06, P13, P18 on a phone, and P01 on tablet and 320 px reflow (Journey L)
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs, ROOT, loadManifest } from "./lib/manifest.js";
@@ -14,7 +14,11 @@ manifest._root = ROOT;
 const { scenarios } = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "scenarios.json"), "utf8"));
 let list = args.scenarios ? args.scenarios.split(",") : scenarios.filter((s) => String(s.phase) === String(args.phase || 4)).map((s) => s.id);
 const jobs = list.map((id) => ({ id, viewport: "desktop" }));
-if (args.mobile) jobs.push({ id: "P01-doctoral-idea", viewport: "mobile" }, { id: "P01-doctoral-idea", viewport: "tablet" });
+// Journey L: responsive coverage across user types, not only the trainee.
+if (args.mobile) {
+  for (const id of ["P01-doctoral-idea", "P06-senior-critique", "P13-intl-constrained", "P18-returning-resume"]) jobs.push({ id, viewport: "mobile" });
+  jobs.push({ id: "P01-doctoral-idea", viewport: "tablet" }, { id: "P01-doctoral-idea", viewport: "reflow320" });
+}
 
 console.log(`Running ${jobs.length} scenario(s) sequentially as ${args.account}.`);
 for (const j of jobs) {

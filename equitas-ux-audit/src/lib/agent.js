@@ -56,8 +56,7 @@ Success looks like: ${scenario.successCondition}
 Stopping rules: ${scenario.stoppingRules || persona.stoppingRules}`;
 }
 
-export function createClaudeDecider(manifest, { onUsage } = {}) {
-  const client = new Anthropic();
+export function createClaudeDecider(manifest, { onUsage, client = new Anthropic() } = {}) {
   const model = manifest.testerAi?.model || "claude-opus-5-5";
   return async function decide({ brief, history, obs }) {
     const historyText = history
@@ -93,10 +92,20 @@ ${obs.snapshot}`;
   };
 }
 
-// Rough cost estimate from usage, using the manifest's model. Prices per MTok.
-const PRICES = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10], "claude-haiku-5-5": [0.1, 0.5], "claude-opus-4-8": [5, 25] };
+// Cost estimate from usage, priced by the model that actually answered (a
+// server-side fallback may answer instead of the requested model). Unknown
+// models are priced at the highest rate listed, so the cap errs on the safe side.
+// Prices per million tokens [input, output]; check current pricing before relying on totals.
+const PRICES = {
+  "claude-fable-5-2": [8, 40], "claude-fable-5-1": [10, 50], "claude-fable-5": [10, 50],
+  "claude-opus-5-5": [4, 20], "claude-opus-5": [5, 25], "claude-opus-4-8": [5, 25], "claude-opus-4-7": [5, 25], "claude-opus-4-6": [5, 25],
+  "claude-sonnet-5-5": [2, 10], "claude-sonnet-5": [2, 10], "claude-sonnet-4-6": [3, 15],
+  "claude-haiku-5-5": [0.1, 0.5], "claude-haiku-4-5": [1, 5],
+};
+const MAX_PRICE = [10, 50];
 export function usageUsd(usage, model) {
-  const [i, o] = PRICES[model] || PRICES["claude-opus-5-5"];
+  const key = Object.keys(PRICES).find((k) => model === k || (model || "").startsWith(k + "-"));
+  const [i, o] = key ? PRICES[key] : MAX_PRICE;
   const input = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0) * 1.25 + (usage.cache_read_input_tokens || 0) * 0.1;
   return (input * i + (usage.output_tokens || 0) * o) / 1e6;
 }

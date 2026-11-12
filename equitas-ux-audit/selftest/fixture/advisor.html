@@ -1,7 +1,7 @@
 <!doctype html><html><head><title>Advisor</title></head><body>
 <nav><a href="/settings.html">Settings</a></nav>
 <main><h1>Research Advisor</h1><label>Describe your research idea <textarea id="q"></textarea></label>
-<button onclick="setTimeout(()=>{const p=document.createElement('p');p.textContent='Clarifying question: which population and primary outcome? Consider a cluster randomized pilot with fidelity monitoring; no guarantee of funding.';document.querySelector('main').append(p)},500)">Ask advisor</button>
+<button onclick="if(!navigator.onLine){const a=document.createElement('div');a.setAttribute('role','alert');a.textContent='You are offline. Your question was not sent.';document.querySelector('main').append(a);return;}setTimeout(()=>{const p=document.createElement('p');p.textContent='Clarifying question: which population and primary outcome? Consider a cluster randomized pilot with fidelity monitoring; no guarantee of funding.';document.querySelector('main').append(p);const q=document.createElement('p');q.textContent='Saved as UXTEST conversation';document.querySelector('nav').append(q);history.pushState({},'','/advisor.html?c=1');history.pushState({},'','/conversation/0123456789abcdef')},500)">Ask advisor</button>
 <button onclick="setTimeout(()=>{const p=document.createElement('p');p.textContent='Thanks. Next step: define the primary outcome and eligibility.';document.querySelector('main').append(p)},500)">Continue</button>
 <button>Save draft</button>
 <button>Save and send invitations</button>

@@ -1,5 +1,5 @@
 {
-  "_note": "Scientific expectation registry (Section 13). ALL entries are PROVISIONAL until reviewed by qualified experts; update expertReviewStatus to 'expert_reviewed' with reviewer role and date only after real review. Keyword terms are crude coverage signals, not correctness checks.",
+  "_note": "Scientific expectation registry (Section 13). ALL entries are PROVISIONAL until reviewed by qualified experts; update expertReviewStatus to 'expert_reviewed' with reviewer role and date only after real review. Keyword terms are crude coverage signals, not correctness checks. Terms match at the start of a word; concepts with generic terms need minHits distinct matches.",
   "expectations": [
     {
       "id": "BENCH-CHW-HTN-EARLY",
@@ -23,7 +23,8 @@
             "bp control",
             "blood pressure control",
             "measurement"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "design",
@@ -35,7 +36,8 @@
             "quasi-experimental",
             "comparison group",
             "control group"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "feasibility",
@@ -253,7 +255,8 @@
             "bp control",
             "blood pressure control",
             "measurement"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "design",
@@ -265,7 +268,8 @@
             "quasi-experimental",
             "comparison group",
             "control group"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "non-us-funders",
@@ -290,7 +294,8 @@
             "non-us",
             "international",
             "eligib"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "context",
@@ -364,7 +369,8 @@
             "bp control",
             "blood pressure control",
             "measurement"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "design",
@@ -376,7 +382,8 @@
             "quasi-experimental",
             "comparison group",
             "control group"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "fidelity",
@@ -386,7 +393,8 @@
             "training",
             "protocol",
             "implementation"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "feasible-measurement",
@@ -397,7 +405,8 @@
             "device",
             "offline",
             "paper"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "local-approvals",
@@ -407,7 +416,8 @@
             "ethics",
             "community engagement",
             "research committee"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "funders",
@@ -419,7 +429,8 @@
             "edctp",
             "gates",
             "eligib"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "rigor-maintained",
@@ -429,7 +440,8 @@
             "stepped",
             "random",
             "comparison"
-          ]
+          ],
+          "minHits": 2
         }
       ],
       "criticalErrors": [
@@ -493,7 +505,8 @@
             "bp control",
             "blood pressure control",
             "measurement"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "design",
@@ -505,7 +518,8 @@
             "quasi-experimental",
             "comparison group",
             "control group"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "confounding",
@@ -534,7 +548,8 @@
             "collaborat",
             "consult",
             "partner"
-          ]
+          ],
+          "minHits": 2
         }
       ],
       "criticalErrors": [
@@ -597,7 +612,8 @@
             "career development",
             "fellowship",
             "eligib"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "design",
@@ -608,7 +624,8 @@
             "psqi",
             "insomnia severity",
             "outcome"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "mentor-agreement",
@@ -783,7 +800,8 @@
             "effort",
             "career development",
             "institute"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "program-officer",
@@ -793,7 +811,8 @@
             "nofo",
             "funding opportunity",
             "institute"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "no-prediction",
@@ -867,7 +886,8 @@
             "revis",
             "instead",
             "replace"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "new-subject",
@@ -1000,7 +1020,8 @@
             "daoh",
             "distribution",
             "death"
-          ]
+          ],
+          "minHits": 2
         }
       ],
       "criticalErrors": [
@@ -1176,7 +1197,8 @@
             "power",
             "blind",
             "random"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "sex",
@@ -1311,7 +1333,8 @@
             "reproducib",
             "code",
             "seed"
-          ]
+          ],
+          "minHits": 2
         },
         {
           "id": "subgroups",

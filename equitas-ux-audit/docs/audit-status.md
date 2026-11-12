@@ -1,26 +1,26 @@
 # Audit status — Section 26 deliverables and Section 28 success criteria
 
-**As of 2026-11-12: the harness is built, the six pre-run safety/validity gaps from the gap analysis are fixed, and it passes its offline self-test. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
+**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-test (72 checks). Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
 
 ## Deliverables (Section 26)
 
 | # | Deliverable | Status | Where |
 |---|---|---|---|
 | 1 | Authorization & scope record | Template built; **awaiting founder sign-off** | `config/authorization-manifest.example.json` |
-| 2 | Browser testing implementation | Built; offline self-test passes (34 checks) | `src/`, `selftest/` |
+| 2 | Browser testing implementation | Built; offline self-test passes (72 checks) | `src/`, `selftest/` |
 | 3 | Test-account & entitlement inventory | **Awaiting founder** (only founder-admin known) | manifest `accounts`; `npm run check-manifest` |
 | 4–5 | 20-persona registry & behavioural specs | Built | `config/personas.json` |
 | 6 | Coverage matrix | Built | `docs/coverage-matrix.md` |
 | 7 | Choose Your Plan investigation | Probe built; **not run** | `npm run probe-plan` |
 | 8–17 | Journey findings (onboarding, research-first, funding-first, senior PI, early-stage, international, under-resourced, returning, cross-module, revision) | Scenarios built; **not run** | `config/scenarios.json` → `reports/results.md` |
-| 18 | Accessibility results & limitations | Partial automation built (tab order, viewports, ARIA tree); manual tests listed below are **NOT TESTED** | below |
-| 19 | Current navigation map | Generated from run `navigationPath` once runs exist | `reports/results.md` |
+| 18 | Accessibility results & limitations | axe-core scans per page and viewport, 320 px reflow, tab order, accessible names; manual tests **NOT TESTED** | `reports/accessibility.md` |
+| 19 | Current navigation map | Generated from observed runs (pages, controls used, redirects) | `reports/navigation-map.md` |
 | 20–21 | IA/cognitive-friction review; proposed integrated journey | **Requires run evidence.** Framework below to be filled in from evidence | below |
 | 22 | Founder-access observations | Scenario P20 built; **not run** | |
-| 23 | Evidence-backed defect register | Draft generator built; human triage template | `reports/defect-register-draft.*`, `docs/defect-register-template.md` |
+| 23 | Evidence-backed defect register | Draft generator with reproduction steps, browser and build; human triage template | `reports/defect-register-draft.*`, `docs/defect-register-template.md` |
 | 24 | SOW-linked mapping | **Blocked: needs the verified SOW text** | template column |
-| 25 | Persona comparison | Generated per run; shared benchmark task BENCH-CHW-HTN across P01, P06, P11, P12, P13 | `reports/results.md` |
-| 26 | Reusable regression tests | `probe-plan` doubles as the regression check for the plan defect; scenarios are rerunnable | |
+| 25 | Persona comparison | Side-by-side table for the shared benchmark task BENCH-CHW-HTN (P01, P06, P11, P12, P13) | `reports/persona-comparison.md` |
+| 26 | Reusable regression tests | `probe-plan --assert` gives PASS/FAIL/inconclusive exit codes for the plan defect; scenarios are rerunnable | |
 | 27 | Beta-readiness assessment | **Requires run evidence**; rubric below | |
 | 28 | Real-user validation protocol | Built | `docs/real-user-validation-protocol.md` |
 | 29 | Evidence index | Generated | `reports/evidence-index.md` |
@@ -44,9 +44,26 @@
 | 14 | No sensitive content exposed | Synthetic-only inputs; redaction; local evidence |
 | 15–18 | User-specific barriers, defect register, navigation framework, real-user plan | Only the real-user plan is complete; the rest depend on runs |
 
+## What still cannot be closed in code
+
+These need people, accounts or documents. The harness marks them BLOCKED, NOT TESTED or PROVISIONAL rather than guessing:
+- **Accounts:** role-specific test accounts (new server-side user, free, paid, institutional, expired, non-admin, funder).
+- **Contract:** the verified SOW text, for contract mapping.
+- **Expert review:** independent review of `config/scientific-expectations.json` (all PROVISIONAL).
+- **Real investigators:** sessions per `docs/real-user-validation-protocol.md`.
+- **Manual accessibility:** screen readers, real zoom, cognitive load.
+- **EQUITAS AI outage:** can't be tested safely on production. Only a client-side network failure is simulated.
+- **Source-side questions:** root causes, hosting and infrastructure ownership need Appifest or separate evidence.
+
 ## Accessibility: automated vs. NOT TESTED
 
-Automated: keyboard tab order and visible-focus heuristic on the landing screen; desktop/tablet/mobile viewports; accessible-name availability (failed lookups); alerts and status messages exposed via ARIA.
+Automated:
+- axe-core WCAG 2.x A/AA rules on each new page, in scenarios and the probe.
+- 320 px reflow.
+- Keyboard tab order and a visible-focus heuristic on the landing screen.
+- Desktop, tablet and mobile viewports.
+- Accessible-name availability (failed lookups, refused unnamed controls).
+- Alerts and status messages shown during the offline test.
 
 **NOT TESTED (needs manual or assistive-technology testing):** screen readers (NVDA/JAWS/VoiceOver), 200%/400% zoom and reflow, colour contrast, motion and timing, cognitive load with real users, voice control, form-error announcement timing, focus management after AI responses load.
 

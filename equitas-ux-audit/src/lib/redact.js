@@ -9,9 +9,22 @@ const PATTERNS = [
   [/([?&](?:token|code|state|session|sid|auth|key|access_token|id_token)=)[^&#\s]+/gi, "$1[REDACTED]"],
 ];
 
+// Words the founder lists locally in the manifest (evidence.redactTerms), such
+// as their own name, institution or account names that appear on screen.
+// They are removed from everything stored and from everything sent to the
+// tester AI. The list itself never leaves the computer.
+let TERMS = [];
+export function setRedactTerms(terms = []) {
+  TERMS = terms
+    .filter((t) => typeof t === "string" && t.trim().length >= 2)
+    .sort((a, b) => b.length - a.length)
+    .map((t) => new RegExp(t.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"), "gi"));
+}
+
 export function redact(text) {
   if (text == null) return text;
   let t = String(text);
+  for (const re of TERMS) t = t.replace(re, "[REDACTED_NAME]");
   for (const [re, rep] of PATTERNS) t = t.replace(re, rep);
   return t;
 }

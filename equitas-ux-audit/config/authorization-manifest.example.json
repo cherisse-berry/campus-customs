@@ -20,7 +20,9 @@
       "equitasintelligence.com"
     ],
     "_allowedHostsNote": "Top-level navigation to any other host (for example a payment or SSO page) is stopped and recorded. Add an SSO host only if your login really goes through one.",
-    "buildIdentifierHint": "Optional: where a version/build number is shown on the site, e.g. footer text"
+    "buildIdentifierHint": "Optional: where a version/build number is shown on the site, e.g. footer text",
+    "buildIdentifierRegex": "(?:version|build|v)\\s*[:#]?\\s*(\\d+\\.\\d+(?:\\.\\d+)?[\\w.-]*)",
+    "_buildIdentifierNote": "Regex searched in the page text to record the EQUITAS build/version, if shown. Script asset names are also fingerprinted to detect a deployment during a run."
   },
   "accounts": [
     {
@@ -52,10 +54,15 @@
         "P14-rd-admin",
         "P15-dean",
         "P16-it-privacy",
-        "P20-founder-oversight"
+        "P20-founder-oversight",
+        "K-session-expiry",
+        "K-offline-submission",
+        "H2-saved-project-revision"
       ],
       "notes": "Using the founder account for investigator personas does NOT show how other entitlements behave. Results are labelled with this account's real role.",
-      "_approvedForNote": "Remove any scenario you do not approve. Not listed on purpose: P17-subscriber (needs a server-side NEW account) and P19-funder (needs a funder-role account). Every run under this account is labelled founder_admin; it does not show how other entitlements behave. npm run check-manifest rejects IDs that do not exist in config/scenarios.json."
+      "_approvedForNote": "Remove any scenario you do not approve. Not listed on purpose: P17-subscriber (needs a server-side NEW account) P19-funder (needs a funder-role account) and K-permission-boundary (needs a non-admin account). Every run under this account is labelled founder_admin; it does not show how other entitlements behave. npm run check-manifest rejects IDs that do not exist in config/scenarios.json.",
+      "expectPlanScreen": false,
+      "_expectPlanScreenNote": "Regression check for the plan defect: false means this account should go straight into the product (or see a clear Continue). probe-plan --assert fails otherwise."
     }
   ],
   "permittedWorkflows": {
@@ -79,13 +86,15 @@
     "maxUnexpectedRedirects": 3,
     "maxConsecutiveNoProgress": 6,
     "maxScenariosPerDay": 12,
-    "concurrentSessions": 1
+    "concurrentSessions": 1,
+    "maxAxeScansPerScenario": 5
   },
   "testerAi": {
     "_note": "The blinded user agent and the provisional scientific judge call the Anthropic API from YOUR computer. Redacted page text (no screenshots) is sent. Set approved to false to run only deterministic probes.",
     "approved": false,
     "model": "claude-opus-5-5",
-    "maxTesterSpendUsdPerDay": 15
+    "maxTesterSpendUsdPerDay": 15,
+    "maxTesterSpendUsdPerScenario": 3
   },
   "evidence": {
     "storeDirectory": "evidence",
@@ -96,7 +105,9 @@
       "[data-testid*=email]"
     ],
     "retainDays": 30,
-    "neverUploadRawTraces": true
+    "neverUploadRawTraces": true,
+    "redactTerms": [],
+    "_redactTermsNote": "List words to remove from all evidence and tester-AI input: your name, institution, account display names. Kept only in this Git-ignored file."
   },
   "prohibitedActionPatterns": [
     "subscribe",
@@ -132,7 +143,10 @@
     "publish",
     "deploy",
     "export all",
-    "download all"
+    "download all",
+    "invitation",
+    "sign out everywhere",
+    "log out of all"
   ],
-  "_prohibitedNote": "Clicks on controls whose visible name matches these words stop the action and are recorded as CONSEQUENTIAL_ACTION_STOP. 'email' blocks sending, but also blocks visiting an 'Email settings' link, which is intentional."
+  "_prohibitedNote": "Each pattern matches at the start of a word in the control's real name/text ('pay' matches 'payment' but not 'display'). A match stops the scenario as CONSEQUENTIAL_ACTION_STOP."
 }

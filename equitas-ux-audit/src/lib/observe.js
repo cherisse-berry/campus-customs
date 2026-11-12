@@ -1,10 +1,16 @@
 // What the blinded agent is allowed to see: the rendered page as exposed by
 // accessibility semantics (roles + visible/accessible names). No hidden DOM
 // attributes, test IDs, source code, or route lists are given to the agent.
+import crypto from "node:crypto";
 import { redact, redactUrl } from "./redact.js";
 
 const PLAN_PAGE = /(choose|select|pick)\s+(your|a)\s+plan|pricing|subscription plans?/i;
-const MAX_SNAPSHOT_CHARS = 14000;
+// Long pages: the agent gets the start and end of the tree in full, plus a
+// complete list of every visible control, so a button low on the page is never
+// hidden by truncation. `truncated` is recorded so failures can be attributed.
+const MAX_SNAPSHOT_CHARS = 30000;
+const HEAD_CHARS = 18000;
+const TAIL_CHARS = 6000;
 
 export async function observe(page) {
   await page.waitForLoadState("domcontentloaded").catch(() => {});
@@ -16,8 +22,16 @@ export async function observe(page) {
     snapshot = `[ariaSnapshot failed: ${e.message.split("\n")[0]}]`;
   }
   snapshot = redact(snapshot);
-  const truncated = snapshot.length > MAX_SNAPSHOT_CHARS;
-  if (truncated) snapshot = snapshot.slice(0, MAX_SNAPSHOT_CHARS) + "\n…[truncated]";
+  const fullLength = snapshot.length;
+  // Hash of the full tree: identical hashes on consecutive steps mean the
+  // page did not change (objective "no progress" signal).
+  const hash = crypto.createHash("sha1").update(snapshot).digest("hex").slice(0, 12);
+  const truncated = fullLength > MAX_SNAPSHOT_CHARS;
+  if (truncated) {
+    const controls = await visibleControls(page).catch(() => []);
+    const list = [...new Map(controls.filter((c) => c.name).map((c) => [`${c.role}|${c.name}`, `- ${c.role} "${c.name}"${c.disabled ? " [disabled]" : ""}`])).values()].join("\n");
+    snapshot = `${snapshot.slice(0, HEAD_CHARS)}\n…[middle of page omitted: ${fullLength - HEAD_CHARS - TAIL_CHARS} chars]…\n${snapshot.slice(-TAIL_CHARS)}\n\nALL VISIBLE CONTROLS ON THIS PAGE (complete list):\n${list}`;
+  }
   const headings = await page
     .getByRole("heading")
     .allInnerTexts()
@@ -33,6 +47,8 @@ export async function observe(page) {
     onPlanPage,
     snapshot,
     truncated,
+    fullLength,
+    hash,
   };
 }
 

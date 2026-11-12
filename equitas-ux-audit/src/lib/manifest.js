@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { setRedactTerms } from "./redact.js";
 
 // fileURLToPath handles Windows drive letters and percent-encoded spaces.
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -43,6 +44,9 @@ export function loadManifest({ allowUnapproved = false, manifestPath = MANIFEST 
   } else if (!m._selftest) {
     problems.push("authorization.testingWindow is not filled in");
   }
+  problems.push(...scenarioProblems(m));
+  setRedactTerms(m.evidence?.redactTerms || []);
+  if (!m.evidence?.redactTerms?.length && !m._selftest) m._warnings = ["evidence.redactTerms is empty: add your name and institution so they are removed from evidence and tester-AI input."];
   if (problems.length && !allowUnapproved) {
     throw new AuthorizationError("Manifest not ready:\n - " + problems.join("\n - "));
   }
@@ -66,6 +70,15 @@ export function approvalProblems(m, scenariosPath = path.join(ROOT, "config", "s
     }
   }
   return out;
+}
+
+// Every text the harness types into EQUITAS must carry the synthetic marker,
+// so test records can be found and cleaned up on the server (Section 5).
+export function scenarioProblems(m, scenariosPath = path.join(ROOT, "config", "scenarios.json")) {
+  const prefix = m.syntheticData?.recordPrefix || "UXTEST";
+  let scenarios = [];
+  try { scenarios = JSON.parse(fs.readFileSync(scenariosPath, "utf8")).scenarios; } catch { return []; }
+  return scenarios.filter((s) => s.question && !s.question.includes(prefix)).map((s) => `scenario ${s.id}: question lacks the "${prefix}" marker`);
 }
 
 export function getAccount(manifest, accountId) {

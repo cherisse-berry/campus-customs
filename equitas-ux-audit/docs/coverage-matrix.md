@@ -4,9 +4,9 @@ Generated from config/. ● = scenario defined. Journey L (responsive) runs P01 
 
 | Persona | A | B | C | D | E | F | G | H | I | J | K | L | Scenarios (phase) | Risk notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| P01 Doctoral trainee | ● | ● |  |  |  |  |  |  |  |  | ● | ● | P01-doctoral-idea (4), K-incomplete-input (6) | shared benchmark task |
-| P02 Postdoctoral fellow |  |  |  | ● |  |  |  |  |  |  |  |  | P02-postdoc-independence (5) |  |
-| P03 Junior faculty investigator |  |  |  | ● |  |  |  | ● |  |  |  |  | P03-junior-program (5), H-question-revision (5) | boundary case |
+| P01 Doctoral trainee | ● | ● |  |  |  |  |  |  |  |  | ● | ● | P01-doctoral-idea (4), K-incomplete-input (6), K-offline-submission (6) | shared benchmark task |
+| P02 Postdoctoral fellow |  |  |  | ● |  |  |  |  |  |  | ● |  | P02-postdoc-independence (5), K-permission-boundary (6) | needs role-specific account |
+| P03 Junior faculty investigator |  |  |  | ● |  |  |  | ● | ● |  | ● |  | P03-junior-program (5), H-question-revision (5), K-session-expiry (6), H2-saved-project-revision (5) | boundary case |
 | P04 Early-stage NIH investigator |  |  |  |  | ● |  |  |  |  |  |  |  | P04-esi-mechanism (5) |  |
 | P05 Mid-career investigator |  |  |  |  |  |  |  |  |  | ● |  |  | P05-cross-module (5) |  |
 | P06 Senior PI |  |  | ● | ● |  |  |  |  |  |  |  |  | P06-senior-critique (4) | shared benchmark task |
