@@ -48,22 +48,42 @@ export async function mainText(page) {
 }
 
 // Resolve an element exactly the way a sighted/AT user would describe it.
+// Safety rules:
+//  - A name is required: an unnamed control can't be judged, so it is never acted on.
+//  - Exact name match first. A partial match is accepted only when it is the
+//    single visible candidate, and the guard then checks the element's REAL
+//    name, never the name the agent typed.
 export async function resolve(page, { role, name, index = 0 }) {
   if (!role) return { error: "no role given" };
-  const loc = page.getByRole(role, name ? { name, exact: true } : {});
-  let count = await loc.count().catch(() => 0);
-  let target = loc;
-  if (count === 0 && name) {
+  if (!name || !name.trim()) return { error: `refused: no accessible name given for ${role}; unnamed controls are never clicked`, unnamed: true };
+  let target = page.getByRole(role, { name, exact: true });
+  let count = await target.count().catch(() => 0);
+  let matchedBy = "exact";
+  if (count === 0) {
     target = page.getByRole(role, { name, exact: false });
     count = await target.count().catch(() => 0);
+    matchedBy = "partial";
+    if (count > 1) return { error: `refused: "${name}" only partly matches ${count} different ${role}s; name the control exactly`, ambiguous: true };
   }
   if (count === 0) return { error: `No visible ${role} named "${name}"` };
   const el = target.nth(Math.min(index, count - 1));
   if (!(await el.isVisible().catch(() => false))) return { error: `${role} "${name}" exists but is not visible` };
   const info = await el
     .evaluate((node) => {
+      const text = (s) => (s || "").replace(/\s+/g, " ").trim();
+      const byId = (id) => text(document.getElementById(id)?.innerText);
+      const lb = node.getAttribute("aria-labelledby");
+      const actualName = text(
+        node.getAttribute("aria-label") ||
+          (lb ? lb.split(/\s+/).map(byId).join(" ") : "") ||
+          (node.labels && node.labels[0] ? node.labels[0].innerText : "") ||
+          node.innerText || node.value || node.getAttribute("title") || node.getAttribute("alt") || node.getAttribute("placeholder")
+      );
       const card = node.closest("article, section, li, [class*=card], [class*=plan], [class*=tier]");
       return {
+        actualName: actualName.slice(0, 200),
+        // Visible text plus tooltip/labels, so an icon button labelled "Delete" is still caught.
+        actualText: text([node.innerText, node.getAttribute("aria-label"), node.getAttribute("title"), node.getAttribute("aria-description"), node.value].filter(Boolean).join(" ")).slice(0, 300),
         href: node.closest("a")?.href || null,
         inputType: node.getAttribute("type") || null,
         autocomplete: node.getAttribute("autocomplete") || null,
@@ -71,8 +91,31 @@ export async function resolve(page, { role, name, index = 0 }) {
         containerText: card ? card.innerText.slice(0, 600) : "",
       };
     })
-    .catch(() => ({}));
-  return { el, count, ...info };
+    .catch(() => ({ actualName: "", actualText: "" }));
+  return { el, count, matchedBy, ...info };
+}
+
+// Is this browser really signed in? Compares the landing page with what was
+// visible right after the founder signed in (saved locally by `npm run login`).
+const LOGIN_PATH = /\/(login|log-in|signin|sign-in|signup|sign-up|auth|sso|account\/login)(\/|$|\?)/i;
+const LOGIN_CTL = /^(sign in|log in|login|sign up|create account|continue with google|continue with microsoft)$/i;
+export async function signedInCheck(page, meta) {
+  const reasons = [];
+  let pathname = "";
+  try { pathname = new URL(page.url()).pathname; } catch {}
+  if (LOGIN_PATH.test(pathname)) reasons.push(`landed on a sign-in path (${pathname})`);
+  const pw = await page.locator("input[type=password]").filter({ visible: true }).count().catch(() => 0);
+  if (pw > 0) reasons.push("a password field is visible");
+  const controls = await visibleControls(page);
+  const loginCtl = controls.filter((c) => LOGIN_CTL.test(c.name)).map((c) => c.name);
+  const fp = meta?.signedInFingerprint || [];
+  const names = new Set(controls.map((c) => c.name));
+  const overlap = fp.length ? fp.filter((n) => names.has(n)).length / fp.length : null;
+  if (loginCtl.length && (overlap === null || overlap < 0.3)) reasons.push(`sign-in controls visible: ${loginCtl.join(", ")}`);
+  if (reasons.length) return { status: "signed_out", reasons, overlap };
+  if (overlap !== null && overlap < 0.3)
+    return { status: "uncertain", reasons: [`only ${Math.round(overlap * 100)}% of the controls seen right after sign-in are visible now`], overlap };
+  return { status: "signed_in", reasons: [], overlap };
 }
 
 // Read-only inventory of visible controls (used by the deterministic plan probe).

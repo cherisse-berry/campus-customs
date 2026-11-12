@@ -28,7 +28,7 @@ cd campus-customs && git checkout claude/youthful-einstein-sxzqvz
 cd equitas-ux-audit
 npm install
 npx playwright install chromium
-npm run selftest                 # 18 offline checks against a local fake site
+npm run selftest                 # 34 offline checks against a local fake site
 cp config/authorization-manifest.example.json config/authorization-manifest.json
 ```
 
@@ -37,7 +37,8 @@ Then edit `config/authorization-manifest.json` (Git-ignored):
 1. Fill in `authorization` (approver, date, testing window, Appifest contact, environment type) and set `approved: true`.
 2. List each test account under `accounts` with its **actual** role and entitlement as shown on the site. Use an `id` label only. Never write a password.
 3. Decide `testerAi.approved` (see "What leaves your computer"). If it's `false`, only the deterministic plan probe runs.
-4. Leave `selectFreePlan` and `createSyntheticProjects` set to `false` unless you approve them for a dedicated test account.
+4. Leave `selectFreePlan` and `createSyntheticProjects` set to `false` unless you approve them for a dedicated test account. With `createSyntheticProjects: false`, any control like "New project", "Save" or "Create…" stops the scenario as `PROJECT_CREATION_NOT_AUTHORIZED`. If EQUITAS needs a project before you can ask a question, the research journeys will stop there until you approve project creation. P18 (returning investigator) needs it too.
+5. Remove from `approvedFor` any scenario you don't approve. `check-manifest` rejects scenario IDs that don't exist.
 
 Check it:
 
@@ -73,8 +74,12 @@ Scenarios that need an account you haven't approved (funder, server-side new use
 ## Safety behaviour (Section 4)
 
 - Top-level navigation off `allowedHosts` is aborted and recorded.
-- Before any click, the visible control name is checked against `prohibitedActionPatterns` (purchase, delete, invite, password, permissions…) and prices. A match stops the scenario: `STOPPED_SAFETY`.
+- Every click, typed entry and Enter key needs a control the page itself names. Controls with no accessible name are never clicked. A loose name that partly matches several controls is refused. Checks use the control's **real** name and text from the page, not the name the tester AI typed.
+- Before any click, the control's name is checked against `prohibitedActionPatterns` (purchase, delete, invite, password, permissions…) and prices. A match stops the scenario: `STOPPED_SAFETY`.
 - On a plan page, plan-selection controls are blocked unless the manifest allows free-plan selection **and** the plan looks free.
+- Once text has been typed, the **next click or Enter of any kind** counts as an EQUITAS AI submission, whatever the button is called. This can over-count but never under-counts.
+- `navigatePublicPages`, `navigateAuthenticatedPages`, `submitSyntheticResearchQuestions`, `createSyntheticProjects` and `selectFreePlan` are all enforced.
+- Before any signed-in test, the harness checks that the saved login still works. That means no sign-in page or password field, and the controls seen right after your sign-in are present. If the check fails, the run is `BLOCKED: SAVED_LOGIN_NOT_ACCEPTED` and nothing is clicked. The plan probe likewise refuses to describe a signed-out page.
 - The agent never types into password, MFA, email or payment fields. It types only the scenario's synthetic text, which carries a `UXTEST` marker.
 - Limits per scenario and per day: actions, minutes, EQUITAS AI submissions, redirects, tester spend. Scenarios run one at a time, at least 2.5 s apart.
 - Pop-ups are closed, browser dialogs are dismissed (cancel), and downloads are disabled.
@@ -98,5 +103,6 @@ Scenarios that need an account you haven't approved (funder, server-side new use
 - Black-box only: root causes are hypotheses for Appifest to confirm.
 - The founder account can't show how other entitlements behave. Each role needs its own approved account.
 - Automated accessibility signals (keyboard tab order on the plan screen, viewport layout, ARIA tree) are **not** WCAG conformance. Screen-reader, zoom, contrast and cognitive testing are listed as NOT TESTED in `docs/audit-status.md`.
+- The saved login includes cookies, local storage and IndexedDB. Playwright can't save sessionStorage. If EQUITAS keeps its login only there, every run will say `SAVED_LOGIN_NOT_ACCEPTED`. It won't silently test a signed-out page.
 - The tester's request format was checked only up to API authentication in the build environment. Check your first live run's log.
 - Element lookup uses accessible names. If EQUITAS has unlabeled controls, the agent can't use them. That's recorded as a failed lookup, which is itself an accessibility signal.

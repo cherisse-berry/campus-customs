@@ -2,8 +2,20 @@
 // The harness refuses to run without an approved, in-window manifest.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+// fileURLToPath handles Windows drive letters and percent-encoded spaces.
+export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+// True when the module is the script node was started with (works on Windows
+// and in folders whose names contain spaces).
+export function isMain(moduleUrl) {
+  if (!process.argv[1]) return false;
+  try {
+    return path.resolve(fileURLToPath(moduleUrl)).toLowerCase() === path.resolve(process.argv[1]).toLowerCase() ||
+      moduleUrl === pathToFileURL(path.resolve(process.argv[1])).href;
+  } catch { return false; }
+}
 const MANIFEST = path.join(ROOT, "config", "authorization-manifest.json");
 
 export class AuthorizationError extends Error {}
@@ -23,6 +35,7 @@ export function loadManifest({ allowUnapproved = false, manifestPath = MANIFEST 
   if (base && base.protocol !== "https:" && !m._selftest) problems.push("target.baseUrl must be https");
   if (base && !m.target.allowedHosts?.includes(base.hostname)) problems.push("target.baseUrl host is not in target.allowedHosts");
   if (!Array.isArray(m.accounts) || m.accounts.length === 0) problems.push("no accounts listed");
+  problems.push(...approvalProblems(m));
   const w = m.authorization?.testingWindow;
   if (w?.start && w?.end && !w.start.startsWith("YYYY")) {
     const now = new Date();
@@ -35,6 +48,24 @@ export function loadManifest({ allowUnapproved = false, manifestPath = MANIFEST 
   }
   m._problems = problems;
   return m;
+}
+
+// Every approvedFor entry must name a real scenario, "probe-plan", or "*".
+// A typo would otherwise silently BLOCK the scenario the founder meant to approve.
+export function approvalProblems(m, scenariosPath = path.join(ROOT, "config", "scenarios.json")) {
+  let ids = [];
+  try { ids = JSON.parse(fs.readFileSync(scenariosPath, "utf8")).scenarios.map((s) => s.id); } catch { return ["config/scenarios.json could not be read"]; }
+  const valid = new Set([...ids, "probe-plan", "*"]);
+  const out = [];
+  for (const a of m.accounts || []) {
+    for (const x of a.approvedFor || []) {
+      if (!valid.has(x)) {
+        const near = ids.find((id) => id.toLowerCase().includes(String(x).split("-").slice(1).join("-").toLowerCase()) && String(x).includes("-"));
+        out.push(`account "${a.id}" approves unknown scenario "${x}"${near ? ` (did you mean "${near}"?)` : ""}`);
+      }
+    }
+  }
+  return out;
 }
 
 export function getAccount(manifest, accountId) {

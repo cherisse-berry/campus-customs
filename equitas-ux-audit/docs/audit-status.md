@@ -1,13 +1,13 @@
 # Audit status — Section 26 deliverables and Section 28 success criteria
 
-**As of build (2026-11-10): the harness is built and has passed its offline self-test. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
+**As of 2026-11-12: the harness is built, the six pre-run safety/validity gaps from the gap analysis are fixed, and it passes its offline self-test. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
 
 ## Deliverables (Section 26)
 
 | # | Deliverable | Status | Where |
 |---|---|---|---|
 | 1 | Authorization & scope record | Template built; **awaiting founder sign-off** | `config/authorization-manifest.example.json` |
-| 2 | Browser testing implementation | Built; offline self-test passes (18 checks) | `src/`, `selftest/` |
+| 2 | Browser testing implementation | Built; offline self-test passes (34 checks) | `src/`, `selftest/` |
 | 3 | Test-account & entitlement inventory | **Awaiting founder** (only founder-admin known) | manifest `accounts`; `npm run check-manifest` |
 | 4–5 | 20-persona registry & behavioural specs | Built | `config/personas.json` |
 | 6 | Coverage matrix | Built | `docs/coverage-matrix.md` |

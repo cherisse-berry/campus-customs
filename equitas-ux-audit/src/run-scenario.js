@@ -4,10 +4,10 @@
 //   options: --viewport desktop|tablet|mobile  --headed
 import fs from "node:fs";
 import path from "node:path";
-import { loadManifest, getAccount, accountApprovedFor, parseArgs, ROOT } from "./lib/manifest.js";
+import { loadManifest, getAccount, accountApprovedFor, parseArgs, ROOT, isMain } from "./lib/manifest.js";
 import { makeGuard, STOP } from "./lib/safety.js";
-import { observe, resolve, mainText } from "./lib/observe.js";
-import { Evidence, openBrowser, runId } from "./lib/evidence.js";
+import { observe, resolve, mainText, signedInCheck } from "./lib/observe.js";
+import { Evidence, openBrowser, runId, readAuthMeta } from "./lib/evidence.js";
 import { personaBrief, createClaudeDecider, usageUsd } from "./lib/agent.js";
 import { evaluateScience } from "./lib/evaluator.js";
 import { redact, redactUrl } from "./lib/redact.js";
@@ -33,7 +33,11 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
   if (scenario.requiresRole && !scenario.requiresRole.includes(account.actualRole)) blockedReasons.push(`Scenario needs role ${scenario.requiresRole.join("/")}; account is ${account.actualRole}. Not improvising access.`);
   if (scenario.requiresServerSideNewUser && !account.serverSideNewUser) blockedReasons.push("Scenario needs a server-side new account; a fresh browser is not a new user.");
   if (!decider && !manifest.testerAi?.approved) blockedReasons.push("Tester AI is not approved in the manifest (testerAi.approved=false).");
-  if (scenario.question && !manifest.permittedWorkflows.submitSyntheticResearchQuestions) blockedReasons.push("Submitting synthetic research questions is not permitted.");
+  const pw = manifest.permittedWorkflows || {};
+  if (scenario.question && !pw.submitSyntheticResearchQuestions) blockedReasons.push("Submitting synthetic research questions is not permitted.");
+  if (scenario.authenticated !== false && !pw.navigateAuthenticatedPages) blockedReasons.push("Signed-in browsing is not permitted (permittedWorkflows.navigateAuthenticatedPages=false).");
+  if (scenario.authenticated === false && !pw.navigatePublicPages) blockedReasons.push("Public-page browsing is not permitted (permittedWorkflows.navigatePublicPages=false).");
+  if (scenario.needsProjectCreation && !pw.createSyntheticProjects) blockedReasons.push("Scenario needs a saved project but createSyntheticProjects=false.");
   if (blockedReasons.length) {
     ev.finding({ category: "BLOCKED", severity: null, title: `${scenario.id} blocked`, observed: blockedReasons.join(" ") });
     return ev.finish({ status: "BLOCKED", reason: blockedReasons.join(" ") });
@@ -78,6 +82,18 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
     await page.goto(scenario.entryUrl ? new URL(scenario.entryUrl, manifest.target.baseUrl).toString() : manifest.target.baseUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
     ev.run.entry = { url: redactUrl(page.url()), note: "Agent starts at the site root, as a user typing the address would." };
 
+    // Verify the saved login really works before testing anything signed-in.
+    if (scenario.authenticated !== false) {
+      await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+      ev.run.authCheck = await signedInCheck(page, readAuthMeta(manifest._root, account.id));
+      if (ev.run.authCheck.status === "signed_out") {
+        await ev.screenshot(page, "not-signed-in");
+        outcome = { status: "BLOCKED", reason: `${STOP.NOT_SIGNED_IN}: ${ev.run.authCheck.reasons.join("; ")}. Run npm run login -- --account ${account.id} again; nothing was tested.` };
+      } else if (ev.run.authCheck.status === "uncertain") {
+        ev.finding({ category: "TEST_VALIDITY_WARNING", severity: null, title: "Sign-in state uncertain", observed: ev.run.authCheck.reasons.join("; "), triage: "check screenshots before trusting this run" });
+      }
+    }
+
     while (!outcome) {
       const obs = await observe(page);
       const shot = await ev.screenshot(page, `obs-${obs.title || "page"}`);
@@ -107,8 +123,9 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
       // Resolve target and run the safety guard
       let ctx = { onPlanPage: obs.onPlanPage, pendingTextLength: pendingText, textIsSynthetic: a.type === "fill" ? isSynthetic(a.text) : true };
       let target = null;
-      if (["click", "fill", "press_enter"].includes(a.type) && a.role) {
-        target = await resolve(page, a);
+      if (["click", "fill", "press_enter"].includes(a.type)) {
+        // Every click, fill and Enter must name a real, uniquely identifiable control.
+        target = a.role ? await resolve(page, a) : { error: `refused: ${a.type} without a role and name` };
         if (target.error) {
           failedLookups++;
           history.push({ n: history.length + 1, whereAmI: d.whereAmI, action: a, result: `FAILED: ${target.error}` });
@@ -116,9 +133,18 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
           if (failedLookups >= 4) outcome = { status: "ABANDONED", reason: "Stopping rule: 4 failed attempts to find controls." };
           continue;
         }
-        ctx = { ...ctx, href: target.href, inputType: target.inputType, autocomplete: target.autocomplete, containerText: target.containerText };
+        ctx = { ...ctx, actualName: target.actualName, actualText: target.actualText, matchedBy: target.matchedBy, href: target.href, inputType: target.inputType, autocomplete: target.autocomplete, containerText: target.containerText };
+        stepRec.target = { actualName: target.actualName, matchedBy: target.matchedBy, count: target.count };
       }
       const check = await guard.checkAction(a, ctx);
+      if (!check.ok && check.recoverable) {
+        failedLookups++;
+        history.push({ n: history.length + 1, whereAmI: d.whereAmI, action: a, result: `REFUSED: ${check.reason}` });
+        ev.step({ ...stepRec, result: `guard refused: ${check.stop}`, guardReason: check.reason });
+        ev.finding({ category: "ACCESSIBILITY_FINDING", severity: null, title: "Control without an accessible name", observed: `The agent tried to use ${a.role} "${a.name}", which has no accessible name or text.`, url: obs.url, screenshot: shot, triage: "pending" });
+        if (failedLookups >= 4) outcome = { status: "ABANDONED", reason: "Stopping rule: 4 failed attempts to find controls." };
+        continue;
+      }
       if (!check.ok) {
         ev.step({ ...stepRec, result: `GUARD STOP: ${check.stop}`, guardReason: check.reason });
         if (check.stop === STOP.PLAN_SELECTION) {
@@ -141,7 +167,7 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
           pendingText = a.text.length;
           if (a.text.startsWith(manifest.syntheticData.recordPrefix)) ev.run.createdRecords.push({ kind: "possible-record-name", value: a.text, at: new Date().toISOString(), url: obs.url });
         } else if (a.type === "press_enter") {
-          await (target?.el || page.keyboard).press?.("Enter");
+          await target.el.press("Enter", { timeout: 10000 });
         } else if (a.type === "scroll") {
           await page.mouse.wheel(0, 700);
         } else if (a.type === "back") {
@@ -153,11 +179,12 @@ export async function runScenario({ scenarioId, accountId, viewport = "desktop",
         result = `action error: ${e.message.split("\n")[0]}`;
       }
 
+      // Counted even if the action reported an error: it may still have been sent.
+      if (check.countsAsAiSubmission) guard.countAiSubmission();
       if (check.countsAsAiSubmission && !result.startsWith("action error")) {
-        guard.countAiSubmission();
         pendingText = 0;
         const resp = await waitForResponse(page, before, scenario.responseTimeoutSec ?? 120);
-        ev.run.equitasResponses.push({ submittedText: a.type === "press_enter" ? "(Enter key)" : `(clicked "${a.name}")`, lastFilled: history.filter((h) => h.action.type === "fill").at(-1)?.action.text, ...resp, url: redactUrl(page.url()) });
+        ev.run.equitasResponses.push({ submittedText: a.type === "press_enter" ? "(Enter key)" : `(clicked "${target.actualName || a.name}")`, looksLikeSubmit: check.looksLikeSubmit, lastFilled: history.filter((h) => h.action.type === "fill").at(-1)?.action.text, ...resp, url: redactUrl(page.url()) });
         result += ` — response captured (${resp.newText.length} chars${resp.timedOut ? ", TIMED OUT" : ""})`;
       }
       history.push({ n: history.length + 1, whereAmI: d.whereAmI, action: a, result });
@@ -207,7 +234,7 @@ async function waitForResponse(page, before, timeoutSec) {
   return { newText, seconds: Math.round((Date.now() - startT) / 1000), timedOut: Date.now() - startT >= timeoutSec * 1000 };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMain(import.meta.url)) {
   const args = parseArgs();
   if (!args.scenario || !args.account) { console.error("Usage: npm run scenario -- --scenario <id> --account <id> [--viewport mobile] [--headed]"); process.exit(2); }
   const run = await runScenario({ scenarioId: args.scenario, accountId: args.account, viewport: args.viewport || "desktop", headed: !!args.headed });

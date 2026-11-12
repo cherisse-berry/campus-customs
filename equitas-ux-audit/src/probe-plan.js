@@ -5,9 +5,9 @@
 //
 //   npm run probe-plan -- --account founder-admin [--viewports desktop,mobile] [--headed]
 //   npm run probe-plan -- --public          (signed-out visitor; no account)
-import { loadManifest, getAccount, accountApprovedFor, parseArgs, ROOT } from "./lib/manifest.js";
-import { observe, visibleControls } from "./lib/observe.js";
-import { Evidence, openBrowser, runId } from "./lib/evidence.js";
+import { loadManifest, getAccount, accountApprovedFor, parseArgs, ROOT, isMain } from "./lib/manifest.js";
+import { observe, visibleControls, signedInCheck } from "./lib/observe.js";
+import { Evidence, openBrowser, runId, readAuthMeta } from "./lib/evidence.js";
 import { redactUrl } from "./lib/redact.js";
 
 const MONEY = /(\$|€|£|\/\s?mo\b|per month|per year|annual)/i;
@@ -20,6 +20,9 @@ export async function probePlan({ manifest, accountId, publicVisitor = false, vi
   manifest._root ??= ROOT;
   const account = publicVisitor ? { id: "public-visitor", actualRole: "none (signed out)", actualEntitlement: "none", accountState: "signed-out" } : getAccount(manifest, accountId);
   if (!publicVisitor && !accountApprovedFor(account, "probe-plan")) throw new Error(`Account ${account.id} is not approved for probe-plan.`);
+  const pw = manifest.permittedWorkflows || {};
+  if (!publicVisitor && !pw.navigateAuthenticatedPages) throw new Error("Signed-in browsing is not permitted (permittedWorkflows.navigateAuthenticatedPages=false).");
+  if (publicVisitor && !pw.navigatePublicPages) throw new Error("Public-page browsing is not permitted (permittedWorkflows.navigatePublicPages=false).");
   const ev = new Evidence(manifest, runId(`UXTEST-PLANPROBE-${account.id}`), {
     kind: "probe-plan", blinded: false, labelledAs: "DETERMINISTIC_DIAGNOSTIC (not a blinded user test)",
     account: { id: account.id, actualRole: account.actualRole, actualEntitlement: account.actualEntitlement, accountState: account.accountState, serverSideNewUser: !!account.serverSideNewUser },
@@ -45,6 +48,15 @@ export async function probePlan({ manifest, accountId, publicVisitor = false, vi
       // 1. Landing state
       const resp = await page.goto(manifest.target.baseUrl, { waitUntil: "networkidle", timeout: 60000 }).catch(async () => page.goto(manifest.target.baseUrl, { waitUntil: "domcontentloaded" }));
       r.redirectChain = chain(resp?.request());
+      if (!publicVisitor) {
+        // A probe of a signed-out page would be reported as the post-login screen: refuse.
+        await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+        r.authCheck = await signedInCheck(page, readAuthMeta(manifest._root, account.id));
+        if (r.authCheck.status === "signed_out") {
+          r.landingScreenshot = await ev.screenshot(page, `${vp}-not-signed-in`);
+          throw new Error(`SAVED_LOGIN_NOT_ACCEPTED: ${r.authCheck.reasons.join("; ")}. Log in again; this viewport was not probed.`);
+        }
+      }
       const obs = await observe(page);
       r.landing = { url: obs.url, title: obs.title, headings: obs.headings, onPlanPage: obs.onPlanPage, alerts: obs.alerts };
       r.landingScreenshot = await ev.screenshot(page, `${vp}-landing`);
@@ -136,6 +148,7 @@ function interpret(results, account, manifest) {
   const obs = [], hypotheses = [], questions = [], draftFindings = [];
   for (const r of results) {
     if (r.error) { obs.push(`[${r.viewport}] Probe error: ${r.error}`); continue; }
+    if (r.authCheck?.status === "uncertain") obs.push(`[${r.viewport}] WARNING — sign-in state uncertain (${r.authCheck.reasons.join("; ")}). Check the screenshots before using this result.`);
     obs.push(`[${r.viewport}] Landing: ${r.landing.url} — headings: ${r.landing.headings.slice(0, 4).join(" | ") || "(none)"} — plan screen: ${r.landing.onPlanPage}`);
     if (r.redirectChain?.length > 1) obs.push(`[${r.viewport}] Redirect chain: ${r.redirectChain.join(" → ")}`);
     if (!r.landing.onPlanPage) continue;
@@ -179,7 +192,7 @@ function interpret(results, account, manifest) {
   return { observations: obs, hypotheses, questionsForAppifest: questions, draftFindings, note: "Hypotheses are inferences from visible behaviour only; they are not confirmed root causes." };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMain(import.meta.url)) {
   const args = parseArgs();
   const run = await probePlan({ accountId: args.account, publicVisitor: !!args.public, viewports: (args.viewports || "desktop,mobile").split(","), headed: !!args.headed });
   console.log(run.interpretation.observations.join("\n"));

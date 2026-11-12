@@ -1,37 +1,63 @@
 {
   "_instructions": "Copy to config/authorization-manifest.json (Git-ignored), fill in every field, then set authorization.approved to true. The harness refuses to run otherwise. Never put passwords, MFA codes or tokens in this file.",
-
   "authorization": {
     "approved": false,
     "approvedBy": "FOUNDER NAME OR ROLE",
     "approvedOn": "YYYY-MM-DD",
-    "testingWindow": { "start": "YYYY-MM-DDTHH:MM", "end": "YYYY-MM-DDTHH:MM", "timezone": "America/New_York" },
+    "testingWindow": {
+      "start": "YYYY-MM-DDTHH:MM",
+      "end": "YYYY-MM-DDTHH:MM",
+      "timezone": "America/New_York"
+    },
     "escalationContact": "Who to contact at Appifest if testing causes a problem (name/role only)",
     "appifestNotified": false,
-    "environmentType": "production | staging — confirm with Appifest"
+    "environmentType": "production | staging \u2014 confirm with Appifest"
   },
-
   "target": {
     "baseUrl": "https://www.equitasintelligence.com",
-    "allowedHosts": ["www.equitasintelligence.com", "equitasintelligence.com"],
+    "allowedHosts": [
+      "www.equitasintelligence.com",
+      "equitasintelligence.com"
+    ],
     "_allowedHostsNote": "Top-level navigation to any other host (for example a payment or SSO page) is stopped and recorded. Add an SSO host only if your login really goes through one.",
     "buildIdentifierHint": "Optional: where a version/build number is shown on the site, e.g. footer text"
   },
-
   "accounts": [
     {
       "id": "founder-admin",
       "description": "Founder administrative account",
       "actualRole": "founder_admin",
-      "actualEntitlement": "as shown in Settings — fill in",
+      "actualEntitlement": "as shown in Settings \u2014 fill in",
       "accountState": "existing | new-server-side | returning | expired",
       "serverSideNewUser": false,
       "mfa": true,
-      "approvedFor": ["probe-plan", "P20-founder-oversight", "J-cross-module"],
-      "notes": "Using the founder account for investigator personas does NOT show how other entitlements behave. Results are labelled with this account's real role."
+      "approvedFor": [
+        "probe-plan",
+        "P01-doctoral-idea",
+        "P06-senior-critique",
+        "P12-intl-well-resourced",
+        "P13-intl-constrained",
+        "P18-returning-resume",
+        "P02-postdoc-independence",
+        "P03-junior-program",
+        "P04-esi-mechanism",
+        "P05-cross-module",
+        "H-question-revision",
+        "P07-consortium",
+        "P08-clinical",
+        "P09-basic",
+        "P10-computational",
+        "P11-under-resourced",
+        "K-incomplete-input",
+        "P14-rd-admin",
+        "P15-dean",
+        "P16-it-privacy",
+        "P20-founder-oversight"
+      ],
+      "notes": "Using the founder account for investigator personas does NOT show how other entitlements behave. Results are labelled with this account's real role.",
+      "_approvedForNote": "Remove any scenario you do not approve. Not listed on purpose: P17-subscriber (needs a server-side NEW account) and P19-funder (needs a funder-role account). Every run under this account is labelled founder_admin; it does not show how other entitlements behave. npm run check-manifest rejects IDs that do not exist in config/scenarios.json."
     }
   ],
-
   "permittedWorkflows": {
     "navigatePublicPages": true,
     "navigateAuthenticatedPages": true,
@@ -40,12 +66,10 @@
     "selectFreePlan": false,
     "_selectFreePlanNote": "Selecting even a free plan changes account state. Leave false unless you approve it for a specific dedicated test account."
   },
-
   "syntheticData": {
     "recordPrefix": "UXTEST",
     "allowedContentNote": "Only the synthetic tasks in config/scenarios.json. No PHI, unpublished data, confidential grants or review material."
   },
-
   "limits": {
     "maxActionsPerScenario": 30,
     "maxMinutesPerScenario": 20,
@@ -57,28 +81,58 @@
     "maxScenariosPerDay": 12,
     "concurrentSessions": 1
   },
-
   "testerAi": {
     "_note": "The blinded user agent and the provisional scientific judge call the Anthropic API from YOUR computer. Redacted page text (no screenshots) is sent. Set approved to false to run only deterministic probes.",
     "approved": false,
     "model": "claude-opus-5-5",
     "maxTesterSpendUsdPerDay": 15
   },
-
   "evidence": {
     "storeDirectory": "evidence",
-    "maskSelectors": ["input[type=password]", "input[type=email]", "[autocomplete*=one-time-code]", "[data-testid*=email]"],
+    "maskSelectors": [
+      "input[type=password]",
+      "input[type=email]",
+      "[autocomplete*=one-time-code]",
+      "[data-testid*=email]"
+    ],
     "retainDays": 30,
     "neverUploadRawTraces": true
   },
-
   "prohibitedActionPatterns": [
-    "subscribe", "purchase", "buy", "pay", "checkout", "upgrade", "billing", "payment", "card",
-    "delete", "remove", "deactivate", "cancel subscription", "close account",
-    "invite", "send invitation", "share with", "email",
-    "password", "mfa", "two-factor", "2fa", "security", "recovery", "api key", "token",
-    "permission", "role", "grant access", "revoke",
-    "publish", "deploy", "export all", "download all"
+    "subscribe",
+    "purchase",
+    "buy",
+    "pay",
+    "checkout",
+    "upgrade",
+    "billing",
+    "payment",
+    "card",
+    "delete",
+    "remove",
+    "deactivate",
+    "cancel subscription",
+    "close account",
+    "invite",
+    "send invitation",
+    "share with",
+    "email",
+    "password",
+    "mfa",
+    "two-factor",
+    "2fa",
+    "security",
+    "recovery",
+    "api key",
+    "token",
+    "permission",
+    "role",
+    "grant access",
+    "revoke",
+    "publish",
+    "deploy",
+    "export all",
+    "download all"
   ],
   "_prohibitedNote": "Clicks on controls whose visible name matches these words stop the action and are recorded as CONSEQUENTIAL_ACTION_STOP. 'email' blocks sending, but also blocks visiting an 'Email settings' link, which is intentional."
 }

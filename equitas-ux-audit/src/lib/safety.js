@@ -14,10 +14,15 @@ export const STOP = {
   TIME_LIMIT: "TIME_LIMIT_REACHED",
   REDIRECT_LIMIT: "UNEXPECTED_REDIRECT_LIMIT",
   NON_SYNTHETIC_TEXT: "NON_SYNTHETIC_TEXT_STOP",
+  PROJECT_CREATION: "PROJECT_CREATION_NOT_AUTHORIZED",
+  UNNAMED_CONTROL: "UNNAMED_CONTROL_REFUSED",
+  NOT_SIGNED_IN: "SAVED_LOGIN_NOT_ACCEPTED",
+  WORKFLOW_NOT_PERMITTED: "WORKFLOW_NOT_PERMITTED",
 };
 
 const MONEY = /(\$|€|£|usd|\/\s?mo\b|per month|per year|\/\s?yr\b|annual(ly)?)/i;
 const PLAN_CTA = /\b(select|choose|start|get started|continue with|activate|claim|try|trial|free|basic|pro|premium|plan)\b/i;
+const PROJECT_CREATE = /\b(new|create|add|save)\b[^.]{0,30}\b(project|study|workspace|idea|draft|brief)\b|^\s*(save|create)\b/i;
 const SUBMIT_LIKE = /\b(send|submit|ask|analy[sz]e|assess|evaluate|generate|run|review|critique|start analysis|get feedback|go)\b/i;
 
 export function makeGuard(manifest, { scenarioId, now = () => Date.now() } = {}) {
@@ -63,41 +68,61 @@ export function makeGuard(manifest, { scenarioId, now = () => Date.now() } = {})
     recordTesterSpend(usd) { bumpLedger("testerUsd", usd); },
     testerSpendToday() { return (ledger()[today()] || {}).testerUsd || 0; },
 
-    // Called before every action. `ctx` describes the target element as the
-    // agent sees it (role + accessible name) plus page context.
+    // Called before every action. The checks use the element's REAL name and
+    // text from the page (ctx.actualName / ctx.actualText), together with the
+    // name the agent gave, so a loosely named target can't slip past.
+    // `recoverable: true` means the action is refused but the scenario goes on
+    // (the agent is told and picks another step).
     async checkAction(action, ctx) {
       if (state.actions >= lim.maxActionsPerScenario) return { ok: false, stop: STOP.ACTION_LIMIT };
       if (now() - started > lim.maxMinutesPerScenario * 60_000) return { ok: false, stop: STOP.TIME_LIMIT };
-      const name = (action.name || "").toLowerCase();
+      const acts = ["click", "press_enter", "fill"].includes(action.type);
+      const shown = ctx.actualName || action.name || "";
+      const allText = [action.name, ctx.actualName, ctx.actualText].filter(Boolean).join(" ");
+      const lower = allText.toLowerCase();
+      const pw = manifest.permittedWorkflows || {};
+
+      if (acts && !(ctx.actualName || "").trim() && !(ctx.actualText || "").trim()) {
+        return { ok: false, recoverable: true, stop: STOP.UNNAMED_CONTROL, reason: "The control has no accessible name or text, so it can't be checked; it is never clicked." };
+      }
 
       if (action.type === "click" || action.type === "press_enter") {
-        const hit = prohibited.find((p) => name.includes(p));
-        if (hit) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${action.name}" matches prohibited pattern "${hit}".` };
-        if (MONEY.test(action.name || "")) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${action.name}" mentions a price.` };
+        const hit = prohibited.find((p) => lower.includes(p));
+        if (hit) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${shown}" matches prohibited pattern "${hit}".` };
+        if (MONEY.test(allText)) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: `Control "${shown}" mentions a price.` };
         if (ctx.href && !isAllowedHost(ctx.href)) return { ok: false, stop: STOP.OFF_DOMAIN, reason: `Link leads off the approved domain.` };
-        if (ctx.onPlanPage && PLAN_CTA.test(action.name || "") && (action.role === "button" || action.role === "link")) {
-          const free = /\bfree\b/i.test(action.name || "") || /\bfree\b/i.test(ctx.containerText || "");
+        if (ctx.onPlanPage && PLAN_CTA.test(allText) && (action.role === "button" || action.role === "link")) {
+          const free = /\bfree\b/i.test(allText) || /\bfree\b/i.test(ctx.containerText || "");
           const paid = MONEY.test(ctx.containerText || "") && !/\$\s?0\b/.test(ctx.containerText || "");
-          if (!(manifest.permittedWorkflows.selectFreePlan && free && !paid)) {
-            return { ok: false, stop: STOP.PLAN_SELECTION, reason: `Plan-selection control "${action.name}" — not authorized in manifest (selectFreePlan=${manifest.permittedWorkflows.selectFreePlan}, looksFree=${free}, looksPaid=${paid}).` };
+          if (!(pw.selectFreePlan && free && !paid)) {
+            return { ok: false, stop: STOP.PLAN_SELECTION, reason: `Plan-selection control "${shown}" — not authorized in manifest (selectFreePlan=${!!pw.selectFreePlan}, looksFree=${free}, looksPaid=${paid}).` };
           }
         }
-        const submits = SUBMIT_LIKE.test(action.name || "") || action.type === "press_enter";
-        if (submits && ctx.pendingTextLength > 20) {
-          if (!manifest.permittedWorkflows.submitSyntheticResearchQuestions) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: "Submitting research questions is not permitted in the manifest." };
-          if (state.aiSubmissions >= lim.maxEquitasAiSubmissionsPerScenario) return { ok: false, stop: STOP.AI_BUDGET };
+        if (!pw.createSyntheticProjects && PROJECT_CREATE.test(allText)) {
+          return { ok: false, stop: STOP.PROJECT_CREATION, reason: `Control "${shown}" looks like it creates or saves a project; createSyntheticProjects is false in the manifest.` };
+        }
+        // Any click or Enter while typed text is waiting to be sent is treated
+        // as a submission, whatever the button is called ("Continue", an icon…).
+        // This may over-count (e.g. clicking away), never under-count.
+        if (ctx.pendingTextLength > 20) {
+          if (!pw.submitSyntheticResearchQuestions) return { ok: false, stop: STOP.CONSEQUENTIAL_ACTION, reason: "Submitting research questions is not permitted in the manifest." };
+          if (state.aiSubmissions >= lim.maxEquitasAiSubmissionsPerScenario) return { ok: false, stop: STOP.AI_BUDGET, reason: `Scenario limit of ${lim.maxEquitasAiSubmissionsPerScenario} EQUITAS submissions reached.` };
           const d = ledger()[today()] || { aiSubmissions: 0 };
           if (d.aiSubmissions >= lim.maxEquitasAiSubmissionsPerDay) return { ok: false, stop: STOP.AI_BUDGET, reason: "Daily EQUITAS AI submission limit reached." };
-          return { ok: true, countsAsAiSubmission: true };
+          return { ok: true, countsAsAiSubmission: true, looksLikeSubmit: SUBMIT_LIKE.test(allText) || action.type === "press_enter" };
         }
       }
 
       if (action.type === "fill") {
-        if (ctx.inputType === "password" || /password|passcode|one-time|otp|mfa|verification code|card|cvc|cvv/i.test(`${action.name} ${ctx.autocomplete || ""}`))
+        const fieldText = `${allText} ${ctx.autocomplete || ""}`;
+        if (ctx.inputType === "password" || /password|passcode|one-time|otp|mfa|verification code|card|cvc|cvv/i.test(fieldText))
           return { ok: false, stop: STOP.CREDENTIAL_FIELD, reason: "The agent never types into credential, MFA or payment fields." };
-        if (ctx.inputType === "email" || /e-?mail/i.test(action.name || ""))
+        if (ctx.inputType === "email" || /e-?mail/i.test(fieldText))
           return { ok: false, stop: STOP.CREDENTIAL_FIELD, reason: "The agent never enters email addresses." };
         if (!ctx.textIsSynthetic) return { ok: false, stop: STOP.NON_SYNTHETIC_TEXT, reason: "Text is not from the scenario's approved synthetic inputs." };
+        const prefix = manifest.syntheticData?.recordPrefix || "UXTEST";
+        if (!pw.createSyntheticProjects && (action.text || "").startsWith(prefix + "-") && /name|title|project/i.test(fieldText))
+          return { ok: false, stop: STOP.PROJECT_CREATION, reason: "Typing a project name; createSyntheticProjects is false in the manifest." };
       }
       return { ok: true };
     },
