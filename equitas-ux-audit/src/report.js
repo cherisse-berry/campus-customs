@@ -7,6 +7,9 @@ import { ROOT, isMain } from "./lib/manifest.js";
 import { rawFindings, loadInvestigations } from "./lib/collect.js";
 import { consolidate, loadTriage } from "./lib/findings.js";
 import { registerMarkdown, registerCsv, consolidationMarkdown, publicSummaryMarkdown, wcagMarkdown, a11yGroupsMarkdown, publicNavMarkdown, authRecordMarkdown, loadWcag } from "./lib/public-reports.js";
+import { effectiveFindings } from "./lib/historical.js";
+import { analyzeBlocked, blockedMarkdown } from "./lib/blocked.js";
+import { reconcile } from "./reconcile.js";
 
 const STATUS = {
   COMPLETED: "Tested — navigation task completed (science assessed separately)",
@@ -51,6 +54,12 @@ export function reproSteps(run, finding) {
   return out;
 }
 
+// Optional expected totals from the live audit's original reports
+// (config/reconciliation-expect.json: {"observations": 7655, "groups": 420}).
+function readExpect(root) {
+  try { return JSON.parse(fs.readFileSync(path.join(root, "config", "reconciliation-expect.json"), "utf8")); } catch { return {}; }
+}
+
 export function buildReports(root = ROOT, configRoot = ROOT) {
   const outDir = path.join(root, "reports");
   fs.mkdirSync(outDir, { recursive: true });
@@ -61,8 +70,17 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
   for (const r of runs.filter((r) => r.scenarioId).sort((a, b) => a.startedAt.localeCompare(b.startedAt))) latest[`${r.scenarioId}|${r.viewport}`] = r;
   const scenarioRuns = Object.values(latest);
 
-  const raw = rawFindings(runs);
+  // Current reports use the re-assessed view (historical keyboard-v1 trap
+  // warnings classified by evidence sufficiency); reconciliation.md maps it
+  // back to the original observations and groups.
+  const raw = effectiveFindings(rawFindings(runs), runs);
   const groups = consolidate(raw, { ...loadTriage(configRoot), ...loadTriage(root) });
+  const recon = reconcile(root, configRoot, { write: true, expectObservations: readExpect(root).observations, expectGroups: readExpect(root).groups }).summary;
+  const blockedAnalyses = analyzeBlocked(runs);
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, "blocked-requests.md"), blockedMarkdown(blockedAnalyses));
+  let kbdValidation = null;
+  try { kbdValidation = JSON.parse(fs.readFileSync(path.join(outDir, "keyboard-detector-validation.json"), "utf8")); } catch {}
   const investigations = loadInvestigations(root);
   const wcag = loadWcag(configRoot);
 
@@ -194,7 +212,7 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
   fs.writeFileSync(path.join(outDir, "defect-register-draft.md"), registerMarkdown(groups, reproFor));
   fs.writeFileSync(path.join(outDir, "defect-register-draft.csv"), registerCsv(groups, reproFor));
   fs.writeFileSync(path.join(outDir, "consolidation.md"), consolidationMarkdown(groups));
-  fs.writeFileSync(path.join(outDir, "public-audit-summary.md"), publicSummaryMarkdown(runs, groups, investigations, wcag));
+  fs.writeFileSync(path.join(outDir, "public-audit-summary.md"), publicSummaryMarkdown(runs, groups, investigations, wcag, { recon, blockedAnalyses, kbdValidation }));
   const findings = raw;
 
   // ---------- cleanup manifest + evidence index ----------

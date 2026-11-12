@@ -6,6 +6,8 @@ import { ROOT, isMain } from "./lib/manifest.js";
 import { rawFindings, authRecord, loadRuns, loadInvestigations } from "./lib/collect.js";
 import { consolidate, loadTriage } from "./lib/findings.js";
 import { latestPublicAudit } from "./lib/public-reports.js";
+import { effectiveFindings } from "./lib/historical.js";
+import { observationKeys } from "./reconcile.js";
 
 function parseCsv(text) {
   const rows = [];
@@ -27,7 +29,8 @@ export function validateReports(root = ROOT, configRoot = ROOT) {
   const problems = [], checks = [];
   const rep = (f) => { try { return fs.readFileSync(path.join(root, "reports", f), "utf8"); } catch { problems.push(`reports/${f} is missing — run npm run report`); return null; } };
   const runs = loadRuns(root);
-  const raw = rawFindings(runs);
+  const original = rawFindings(runs);
+  const raw = effectiveFindings(original, runs);
   const groups = consolidate(raw, { ...loadTriage(configRoot), ...loadTriage(root) });
   const rawIds = new Set(raw.map((f) => f.originalId || f.id));
 
@@ -68,6 +71,23 @@ export function validateReports(root = ROOT, configRoot = ROOT) {
     if (claimed !== real) problems.push(`results.md claims ${claimed} successful authentication tests; evidence supports ${real}`);
     for (const x of a.filter((y) => y.validity === "INVALID")) if (!new RegExp(`${x.runId}[^\\n]*INVALID`).test(results)) problems.push(`legacy probe ${x.runId} is not marked INVALID in results.md`);
     if (a.some((x) => x.validity === "INVALID" && x.countsAsAuthenticated)) problems.push("an INVALID probe is counted as authenticated");
+  }
+  // Reconciliation: every original observation mapped once; totals agree.
+  const rcsv = rep("reconciliation-observations.csv");
+  const rjson = (() => { try { return JSON.parse(fs.readFileSync(path.join(root, "reports", "reconciliation.json"), "utf8")); } catch { return null; } })();
+  if (rcsv && rjson) {
+    const rows = parseCsv(rcsv);
+    const keys = observationKeys(original);
+    const inCsv = new Map(rows.map((r) => [r.observation, r]));
+    checks.push(`reconciliation rows: ${rows.length} vs original observations: ${original.length}`);
+    if (rows.length !== original.length || inCsv.size !== rows.length) problems.push(`reconciliation maps ${rows.length} rows (${inCsv.size} unique) for ${original.length} original observations`);
+    for (const k of keys) if (!inCsv.has(k)) { problems.push(`observation ${k} missing from reconciliation`); break; }
+    const groupIds = new Set(groups.map((g) => g.groupId));
+    for (const r of rows) if (!groupIds.has(r.afterGroup)) { problems.push(`reconciliation after-group ${r.afterGroup} is not in the current register`); break; }
+    if (rjson.groupsAfter !== groups.length) problems.push(`reconciliation.json says ${rjson.groupsAfter} groups after; evidence gives ${groups.length}`);
+    if (rjson.expectObservations != null && rjson.observations !== Number(rjson.expectObservations)) problems.push(`expected ${rjson.expectObservations} original observations; evidence has ${rjson.observations}`);
+    if (rjson.expectGroups != null && rjson.groupsBefore !== Number(rjson.expectGroups)) problems.push(`expected ${rjson.expectGroups} original groups; evidence has ${rjson.groupsBefore}`);
+    if (rjson.keyboardTrap?.bySufficiency?.SUPPORTED_BY_EXISTING_EVIDENCE > 0) problems.push("a historical keyboard-v1 observation is marked supported, which v1 evidence cannot do");
   }
   const acc = rep("accessibility.md");
   if (acc) for (const i of loadInvestigations(root)) if (!acc.includes(i.investigationId)) problems.push(`investigation ${i.investigationId} missing from accessibility.md`);

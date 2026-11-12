@@ -5,6 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { redact } from "./redact.js";
 import { reflowCheck } from "./diagnostics.js";
 import { isSafeMenuToggle } from "./public-safety.js";
+import { keyboardV2 } from "./keyboard.js";
 
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 
@@ -129,47 +130,11 @@ export async function textSpacing(page) {
   } catch (e) { return { error: e.message.split("\n")[0] }; }
 }
 
-// Keyboard: Tab through the page; record order, visible focus, obscured
-// focus (WCAG 2.4.11) and traps (WCAG 2.1.2).
+// Keyboard: see src/lib/keyboard.js. The public audit uses keyboardV2
+// (validated against selftest/keyboard-reference); keyboardV1 is kept only to
+// measure the detector used before commit b2c5c6a.
 export async function keyboard(page, maxStops = 40) {
-  try {
-    await page.evaluate(() => { document.activeElement?.blur?.(); window.scrollTo(0, 0); });
-    const stops = [];
-    for (let i = 0; i < maxStops; i++) {
-      await page.keyboard.press("Tab");
-      const f = await page.evaluate(() => {
-        const a = document.activeElement;
-        if (!a || a === document.body) return null;
-        a.scrollIntoView?.({ block: "nearest" });
-        const r = a.getBoundingClientRect();
-        const s = getComputedStyle(a);
-        const ring = (s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0) || (s.boxShadow && s.boxShadow !== "none");
-        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const top = document.elementFromPoint(Math.min(Math.max(cx, 0), innerWidth - 1), Math.min(Math.max(cy, 0), innerHeight - 1));
-        return {
-          key: a.outerHTML.slice(0, 120),
-          tag: a.tagName.toLowerCase(),
-          name: (a.getAttribute("aria-label") || a.innerText || a.value || "").replace(/\s+/g, " ").trim().slice(0, 60),
-          visibleFocus: !!ring,
-          obscured: !!top && top !== a && !a.contains(top) && !top.contains(a),
-        };
-      });
-      if (!f) { if (stops.length) break; else continue; }
-      stops.push(f);
-    }
-    const keys = stops.map((s) => s.key);
-    let trap = false;
-    for (let i = 3; i < keys.length; i++) if (keys[i] === keys[i - 1] && keys[i] === keys[i - 2]) trap = true;
-    const uniq = new Set(keys).size;
-    if (!trap && keys.length >= maxStops && uniq <= 3) trap = true;
-    return {
-      stops: stops.map(({ key, ...s }) => ({ ...s, name: redact(s.name) })),
-      reachable: uniq,
-      withoutVisibleFocus: stops.filter((s) => !s.visibleFocus).map((s) => `${s.tag} "${redact(s.name)}"`).slice(0, 15),
-      obscured: stops.filter((s) => s.obscured).map((s) => `${s.tag} "${redact(s.name)}"`).slice(0, 15),
-      trap,
-    };
-  } catch (e) { return { error: e.message.split("\n")[0] }; }
+  return keyboardV2(page, maxStops, { redact });
 }
 
 // Mobile navigation menu: find a safe disclosure toggle, open it, check state

@@ -34,6 +34,18 @@ export function publicAuditAuthorization(manifest, now = new Date()) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Reproduction steps from a keyboard-v2 transcript (consecutive keys grouped).
+export function keyRepro(k) {
+  const steps = [];
+  let cur = null;
+  for (const t of k.transcript || []) {
+    if (cur && cur.key === t.key) { cur.n++; cur.last = t.focusText; continue; }
+    if (cur) steps.push(cur);
+    cur = { key: t.key, n: 1, first: t.focusText, last: t.focusText };
+  }
+  if (cur) steps.push(cur);
+  return steps.map((s) => `Press ${s.key}${s.n > 1 ? ` ${s.n} times` : ""} — focus: ${s.n > 1 ? `${s.first} … ${s.last}` : s.first}.`);
+}
 const pathOf = (u) => { try { const x = new URL(u); return x.pathname + (x.search || ""); } catch { return u; } };
 const GENERIC = /^(learn more|read more|click here|here|more|details|find out more|see more|continue|go)$/i;
 const PROMISES_USE = /\b(start|try|get started|launch|use|begin|sign up|create|build|run)\b/i;
@@ -45,9 +57,9 @@ export async function publicAudit({ manifest, viewports, maxPages, log = () => {
   if (maxPages) cfg.maxPages = maxPages;
   if (viewports) cfg.viewports = viewports;
   const ev = new Evidence(manifest, runId("UXTEST-PUBLIC-AUDIT"), {
-    kind: "public-audit", mode: "public-visitor (signed out)", harnessVersion: "public-audit-1", target: manifest.target.baseUrl,
+    kind: "public-audit", mode: "public-visitor (signed out)", harnessVersion: "public-audit-2", keyboardDetector: "keyboard-v2", target: manifest.target.baseUrl,
     account: { id: "public-visitor", actualRole: "none (signed out)", actualEntitlement: "none" },
-    limits: { ...cfg, expectedPages: cfg.expectedPages.map((e) => e.name) },
+    limits: { ...cfg, expectedPages: cfg.expectedPages.map((e) => e.name), allowedHosts: manifest.target.allowedHosts },
   });
   const auth = publicAuditAuthorization(manifest, now);
   ev.run.authorization = auth;
@@ -64,13 +76,16 @@ export async function publicAudit({ manifest, viewports, maxPages, log = () => {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PW_CHROMIUM_PATH || undefined });
   ev.run.browser = { name: "chromium", version: browser.version(), headless: true };
   const contexts = {};
+  const currentPath = {};
 
   async function contextFor(vp) {
     if (contexts[vp]) return contexts[vp];
     // Public visitor: no storageState is ever passed here.
     const context = await browser.newContext(contextOptions(vp));
-    await installNavigationGuard(context, manifest, (b) => blocked.push({ kind: "off-domain-navigation", url: b.url, viewport: vp }));
-    await installPublicSafety(context, manifest, cfg, (b) => blocked.push({ ...b, url: redactUrl(b.url), viewport: vp }));
+    // Each blocked request records the page that was loading and the time
+    // (public-audit-2), so its effect on that page can be assessed later.
+    await installNavigationGuard(context, manifest, (b) => blocked.push({ kind: "off-domain-navigation", url: b.url, viewport: vp, page: currentPath[vp] || null, at: new Date().toISOString() }));
+    await installPublicSafety(context, manifest, cfg, (b) => blocked.push({ ...b, url: redactUrl(b.url), viewport: vp, page: currentPath[vp] || null, at: new Date().toISOString() }));
     context.on("page", async (p) => { if (await p.opener().catch(() => null)) { blocked.push({ kind: "popup-closed", url: redactUrl(p.url()), viewport: vp }); await p.close().catch(() => {}); } });
     const page = await context.newPage();
     page.on("dialog", (d) => d.dismiss().catch(() => {}));
@@ -84,6 +99,7 @@ export async function publicAudit({ manifest, viewports, maxPages, log = () => {
     if (pageLoads > 0) await sleep(cfg.delayMs);
     pageLoads++;
     const { page } = await contextFor(vp);
+    currentPath[vp] = pathOf(url);
     const obs = { console: [], exceptions: [], failed: [], httpErrors: [] };
     const host = new URL(manifest.target.baseUrl).hostname;
     const onC = (m) => { if (m.type() === "error") obs.console.push(redact(m.text()).slice(0, 300)); };
@@ -202,7 +218,17 @@ export async function publicAudit({ manifest, viewports, maxPages, log = () => {
       if (["mobile", "reflow320", "narrow320"].includes(vp) && d.layout?.tinyTextNodes > 0) raw.push(makeFinding(b(), "tiny-text", { fingerprint: `tiny|${rec.path}`, title: `Text smaller than 12px on ${rec.path}`, observed: `${d.layout.tinyTextNodes} of ${d.layout.textNodes} text blocks are below 12px at ${vp}.` }));
       for (const n of d.keyboard?.withoutVisibleFocus || []) raw.push(makeFinding(b({ repro: [...reproBase(rec.url, vp), "Press Tab until the control is focused."] }), "no-visible-focus", { fingerprint: `focus|${n}`, title: `No visible focus indicator: ${n}`, observed: `Focusing ${n} showed no outline or focus shadow (heuristic: outline/box-shadow only).` }));
       for (const n of d.keyboard?.obscured || []) raw.push(makeFinding(b({ repro: [...reproBase(rec.url, vp), "Press Tab until the control is focused."] }), "focus-obscured", { fingerprint: `obscured|${n}`, title: `Focused control hidden by other content: ${n}`, observed: `When focused, ${n} was covered at its centre.` }));
-      if (d.keyboard?.trap) raw.push(makeFinding(b({ repro: [...reproBase(rec.url, vp), "Press Tab repeatedly."] }), "keyboard-trap", { fingerprint: `trap|${rec.path}`, title: `Possible keyboard trap on ${rec.path}`, observed: `Focus stopped moving after ${d.keyboard.stops.length} Tab presses (${d.keyboard.reachable} distinct stops).` }));
+      if (d.keyboard?.classification === "TRAP") {
+        const k = d.keyboard;
+        raw.push(makeFinding(b({ repro: [...reproBase(rec.url, vp), ...keyRepro(k)] }), "keyboard-trap", {
+          fingerprint: `trap|${(k.containment?.controls || []).join("|")}`,
+          title: `Keyboard trap: focus held in ${k.containment?.controls?.join(", ")}`,
+          observed: `${k.reason} Escape attempts: ${(k.escapeAttempts || []).map((x) => `${x.method}${x.presses ? ` ×${x.presses}` : ""}: ${x.escaped ? "escaped" : "did not escape"}`).join("; ")}. Component state: ${JSON.stringify(k.containment?.state || {})}.`,
+          details: { detector: k.version, containment: k.containment, escapeAttempts: k.escapeAttempts, transcript: k.transcript },
+        }));
+      } else if (d.keyboard?.classification === "INCONCLUSIVE") {
+        raw.push(makeFinding(b(), "keyboard-unobservable", { fingerprint: `kbd-unobservable|${d.keyboard.transcript?.findLast?.((t) => t.focus?.frameTitle)?.focus.frameTitle || rec.path}`, title: `Keyboard behaviour not observable on ${rec.path}`, observed: d.keyboard.reason, details: { detector: d.keyboard.version, transcript: d.keyboard.transcript } }));
+      }
       if (vp === "desktop" && d.structure && !d.structure.skipLink && (d.structure.landmarks?.main ?? 0) === 0) raw.push(makeFinding(b(), "skip-link-missing", { fingerprint: "skip-link|site", title: "No skip link and no main landmark", observed: `${rec.path} has neither a skip link nor a <main> landmark.` }));
       if (vp === "desktop" && d.structure && (d.structure.h1Count !== 1 || d.structure.headingSkips.length)) raw.push(makeFinding(b(), "heading-structure", { fingerprint: `headings|${rec.path}`, title: `Heading structure on ${rec.path}`, observed: `${d.structure.h1Count} h1 element(s)${d.structure.headingSkips.length ? `; skipped levels: ${d.structure.headingSkips.slice(0, 3).join("; ")}` : ""}.` }));
       for (const dl of d.structure?.dialogs || []) if (!dl.name) raw.push(makeFinding(b(), "dialog-no-name", { fingerprint: `dialog|${dl.text.slice(0, 40)}`, title: "Dialog without an accessible name", observed: `A visible dialog ("${dl.text.slice(0, 60)}") has no aria-label/aria-labelledby.` }));

@@ -27,7 +27,7 @@ npm run validate-reports                # check the reports against the evidence
    - axe-core rules for WCAG 2.0/2.1/2.2 A and AA plus best practice. Colour-contrast findings keep the measured colours and ratio.
    - Headings, landmarks, breadcrumbs, skip link, language and title.
    - Touch targets under 24×24 CSS px, controls off-screen or covered, small text, and text clipped when WCAG 1.4.12 spacing is applied.
-   - Keyboard Tab order, visible focus, focus hidden behind other content, and keyboard traps.
+   - Keyboard Tab order, visible focus, focus hidden behind other content, and keyboard traps (keyboard-v2: tries Shift+Tab and Escape before reporting a trap; see `docs/keyboard-detector.md`).
    - At mobile and 320 px, the navigation menu: opened, `aria-expanded` checked, links shown, Escape tested.
    - Dialogs (accessible name), media (for 1.2.x applicability), forms (inspected only), and wording such as "coming soon", "preview" or "waitlist".
 3. **Site-level analysis:**
@@ -88,6 +88,10 @@ If the background is an image or gradient, or an ancestor has opacity or a blend
 - **6 not evaluated:** they would need form submission or sign-in.
 
 `reports/accessibility.md` lists each criterion with its method and any open issues. Automated results never establish conformance.
+
+## Validation and re-assessment
+
+See `docs/keyboard-detector.md` (independent reference set, measured false positives and false negatives) and `docs/evidence-integrity.md` (checksums, historical re-assessment, reconciliation, blocked-request analysis). Product, content, availability and commercial matters are presented for founder review, and the audit recommends no change to them.
 
 ## Limitations
 

@@ -28,7 +28,7 @@ cd campus-customs && git checkout claude/youthful-einstein-sxzqvz
 cd equitas-ux-audit
 npm install
 npx playwright install chromium
-npm run selftest                 # 94 core + 65 public-audit offline checks against local fake sites
+npm run selftest                 # 94 core + 65 public-audit + 49 integrity offline checks (local only)
 cp config/authorization-manifest.example.json config/authorization-manifest.json
 ```
 
@@ -59,6 +59,18 @@ npm run public-audit -- --plan       # scope, limits, authorization status — c
 npm run public-audit                 # live, only inside the approved testing window
 npm run report && npm run validate-reports
 npm run investigate -- --group G-xxxxxxxx      # re-measure one consolidated issue
+```
+
+## Validation, evidence integrity and reconciliation
+
+See `docs/keyboard-detector.md` and `docs/evidence-integrity.md`.
+
+```bash
+npm run validate-keyboard            # both detectors vs. the independent reference set (local only)
+npm run verify-evidence -- --against ../equitas-integrity/evidence-before.sha256
+npm run reconcile -- --expect-observations 7655 --expect-groups 420
+npm run analyze-blocked              # purposes of blocked requests; never replayed
+npm run report && npm run validate-reports
 ```
 
 ## Run order (Section 27)

@@ -1,6 +1,6 @@
 # Audit status — Section 26 deliverables and Section 28 success criteria
 
-**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-tests (94 core + 65 public-audit checks). 12 Nov 2026: the sign-in verification defects found in the founder's first live probe are fixed (docs/auth-incident-2026-11-12.md); the Choose Your Plan problem is NOT yet verified on the authenticated founder pathway. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
+**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-tests (94 core + 65 public-audit + 49 integrity checks). 12 Nov 2026: the sign-in verification defects found in the founder's first live probe are fixed (docs/auth-incident-2026-11-12.md); the Choose Your Plan problem is NOT yet verified on the authenticated founder pathway. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
 
 ## Deliverables (Section 26)
 
@@ -87,3 +87,11 @@ A. Intuitive for intended users? B. What prevents starting? C. What prevents com
 ## Public website audit (added 2026-11-12)
 
 Built and validated offline (`docs/public-audit.md`). **No live public audit has been run with this version.** The 12 Nov public visitor probe's colour-contrast observations are consolidated in `reports/consolidation.md` when `npm run report` runs on the founder's machine; the specific element still needs `npm run investigate` inside an approved window and a person's triage decision.
+
+## Validation and evidence integrity (Section 11)
+
+- keyboard-v1, used in the live audit (commit b2c5c6a), was measured against an independent 19-case reference set: 7 false positives, 1 false negative, 1 overclaim. Its historical keyboard-trap warnings are **not confirmed**. They are re-assessed by evidence sufficiency in `reports/reconciliation.md`, generated on the founder's machine from the original evidence; none can be "supported", because v1 recorded no escape attempts.
+- keyboard-v2 agrees with all 19 reference cases. Statistical performance has not been established.
+- Blocked requests are analysed without replay (`reports/blocked-requests.md`). In the 12 Nov run they were not attributed to pages, which limits validity conclusions.
+- Product, content, availability and commercial matters are listed for founder review, with no recommended change.
+- Self-tests: 94 core + 65 public-audit + 49 integrity.

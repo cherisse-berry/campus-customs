@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { CATEGORY, CATEGORY_LABEL } from "./findings.js";
 import { authRecord } from "./collect.js";
+import { decisionArea, SUFFICIENCY } from "./historical.js";
 
 const esc = (s) => String(s ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
 const list = (a, n = 6) => (a.length > n ? `${a.slice(0, n).join(", ")} … (+${a.length - n})` : a.join(", "));
@@ -23,6 +24,7 @@ export function registerMarkdown(groups, reproFor) {
     for (const g of gs) {
       md += `### ${g.groupId} — ${g.title}\n`;
       md += `- Proposed severity: ${g.proposedSeverity || "n/a"} · Basis: ${g.basis}\n`;
+      if (decisionArea(g.ruleId)) md += `- **Founder decision (${decisionArea(g.ruleId)})** — presented for review; the audit recommends no change to product, content, availability or pricing.\n`;
       md += `- Rule: ${g.ruleId}${g.wcag.length ? ` · WCAG ${g.wcag.join(", ")}` : ""}\n`;
       md += `- Affected pages: ${g.pages.length ? list(g.pages, 10) : "n/a"} · Viewports: ${g.viewports.join(", ") || "n/a"} · Runs: ${g.runs.length} · Occurrences: ${g.occurrences}\n`;
       if (g.selector) md += `- Element: \`${g.selector}\`${g.text ? ` — text "${esc(g.text)}"` : ""}\n`;
@@ -63,7 +65,7 @@ export function consolidationMarkdown(groups) {
 }
 
 // ---------- public website audit summary ----------
-export function publicSummaryMarkdown(runs, groups, investigations, wcag) {
+export function publicSummaryMarkdown(runs, groups, investigations, wcag, { recon = null, blockedAnalyses = [], kbdValidation = null } = {}) {
   const r = latestPublicAudit(runs);
   const auth = authRecord(runs);
   let md = "# EQUITAS public website audit — summary\n\n";
@@ -83,9 +85,18 @@ export function publicSummaryMarkdown(runs, groups, investigations, wcag) {
   }
   const pub = groups.filter((g) => !g.notes.some((n) => /INVALID/.test(n)) || g.ruleId.startsWith("axe:"));
   md += "## Findings by category (consolidated)\n\n| Category | Issues | Observations |\n|---|---|---|\n" + Object.keys(CATEGORY_LABEL).map((c) => { const gs = groups.filter((g) => g.category === c); return `| ${CATEGORY_LABEL[c]} | ${gs.length} | ${gs.reduce((n, g) => n + g.occurrences, 0)} |`; }).join("\n") + "\n\n";
-  const top = groups.filter((g) => [CATEGORY.CONFIRMED, CATEGORY.AWAITING, CATEGORY.USABILITY].includes(g.category)).sort((a, b) => (a.proposedSeverity || "P9").localeCompare(b.proposedSeverity || "P9") || b.pages.length - a.pages.length).slice(0, 12);
-  md += "## Principal findings\n\n" + (top.length ? top.map((g) => `- **${g.proposedSeverity || "—"} · ${g.groupId}** ${g.title} — ${g.category === CATEGORY.CONFIRMED ? "confirmed" : g.category === CATEGORY.AWAITING ? "awaiting human confirmation" : "usability concern"}; ${g.pages.length} page(s), ${g.viewports.length} viewport(s)${g.wcag.length ? `; WCAG ${g.wcag.join(", ")}` : ""}`).join("\n") : "None recorded.") + "\n\n";
-  md += "## Recommended remediation priorities\n\n1. Confirm or reject each P1/P2 item in section 2 of the register (record decisions in `config/triage.json`).\n2. Fix confirmed defects that block access first: load failures, broken links, keyboard traps, reflow at 320 px.\n3. Sitewide components (same element on many pages, e.g. a header badge) — one fix clears every page listed.\n4. Usability concerns — product decisions; review with the founder before raising with Appifest.\n5. Manual WCAG review for the criteria listed as manual below.\n\n";
+  const top = groups.filter((g) => [CATEGORY.CONFIRMED, CATEGORY.AWAITING, CATEGORY.USABILITY].includes(g.category) && !decisionArea(g.ruleId)).sort((a, b) => (a.proposedSeverity || "P9").localeCompare(b.proposedSeverity || "P9") || b.pages.length - a.pages.length).slice(0, 12);
+  md += "## Principal technical findings\n\nTechnical accessibility and reliability findings only; product, content, availability and commercial matters are listed separately under *For founder review*.\n\n" + (top.length ? top.map((g) => `- **${g.proposedSeverity || "—"} · ${g.groupId}** ${g.title} — ${g.category === CATEGORY.CONFIRMED ? "confirmed" : g.category === CATEGORY.AWAITING ? "awaiting human confirmation" : "usability concern"}; ${g.pages.length} page(s), ${g.viewports.length} viewport(s)${g.wcag.length ? `; WCAG ${g.wcag.join(", ")}` : ""}`).join("\n") : "None recorded.") + "\n\n";
+  md += "## Recommended remediation priorities (technical findings only)\n\n1. Confirm or reject each P1/P2 item in section 2 of the register (record decisions in `config/triage.json`).\n2. Fix confirmed defects that block access first: load failures, broken links, confirmed keyboard traps (keyboard-v2 with failed escape attempts), reflow at 320 px.\n3. Sitewide components (same element on many pages, e.g. a header badge) — one fix clears every page listed.\n4. Targeted live retests listed under the keyboard re-assessment, inside an approved testing window.\n5. Manual WCAG review for the criteria listed as manual below.\n\n";
+  if (recon) {
+    const k = recon.keyboardTrap;
+    md += `## Keyboard-trap re-assessment\n\nThe live audit's keyboard-trap warnings came from keyboard-v1. On the independent reference set${kbdValidation ? ` (${kbdValidation.results.length} cases)` : ""} v1 produced ${kbdValidation ? `${kbdValidation.v1["false positive"]} false positive(s), ${kbdValidation.v1["false negative"]} false negative(s) and ${kbdValidation.v1["overclaim (expected inconclusive)"]} overclaim(s); keyboard-v2 produced ${kbdValidation.v2["false positive"]} / ${kbdValidation.v2["false negative"]} / ${kbdValidation.v2["overclaim (expected inconclusive)"]}` : "results not yet generated (run npm run validate-keyboard)"}. ${kbdValidation ? kbdValidation.statisticalNote : ""}\n\n${k.historicalObservations} historical observation(s): ${Object.entries(k.bySufficiency).map(([a, b]) => `${b} ${a}`).join(", ")}. Root causes: ${k.byRootCause.map((c) => `${c.rootCause} (${c.observations} obs., ${c.pages.length} page(s))`).join("; ") || "none"}. See reconciliation.md. **No historical keyboard-trap warning is confirmed; those needing retest require a new authorized window.**\n\n`;
+  }
+  if (blockedAnalyses.length) {
+    md += `## Blocked requests and audit validity\n\n${blockedAnalyses.map((a) => `- ${a.runId}: ${a.writeRequests} write request(s) blocked — ${a.groups.map((g) => `${g.count} ${g.purpose} (${g.effect})`).join(", ") || "none"}.`).join("\n")}\n\n${blockedAnalyses.flatMap((a) => a.limitations).map((l) => `- **Validity limitation:** ${l}`).join("\n") || "- No validity limitation identified."}\n\nDetails: blocked-requests.md. Blocked requests were never sent and are not replayed.\n\n`;
+  }
+  const founder = groups.filter((g) => decisionArea(g.ruleId) && g.category !== CATEGORY.REJECTED);
+  md += `## For founder review (not technical accessibility findings)\n\nProduct design, feature availability, content and commercial matters. The audit reports what it observed and recommends **no** change to scientific guidance, pricing, positioning, feature descriptions or research workflows.\n\n${founder.length ? [...new Set(founder.map((g) => decisionArea(g.ruleId)))].map((area) => `**${area}**\n${founder.filter((g) => decisionArea(g.ruleId) === area).map((g) => `- ${g.groupId} ${g.title} (${g.pages.length} page(s))`).join("\n")}`).join("\n\n") : "None."}\n\n`;
   if (investigations.length) md += "## Targeted investigations\n\n" + investigations.map((i) => `- ${i.investigationId} (\`${i.selector}\`): ${i.conclusion || i.reason}`).join("\n") + "\n\n";
   const counts = {}; for (const c of wcag) counts[c.status] = (counts[c.status] || 0) + 1;
   md += `## WCAG 2.2 AA coverage\n\n${wcag.length} Level A/AA criteria: ${Object.entries(counts).map(([k, v]) => `${v} ${k.toLowerCase().replace(/_/g, " ")}`).join(", ")}. See accessibility.md. **Automated results do not establish conformance.**\n\n`;
