@@ -159,5 +159,26 @@
     "founderMarkers": [],
     "signedOutMarkers": [],
     "requireFounderMarker": true
+  },
+  "publicAudit": {
+    "_note": "Signed-out public website audit. All values optional; these are the defaults. Protected routes (sign-in, app, admin, account, billing, API \u2026) are never requested; every non-GET request is blocked.",
+    "maxPages": 40,
+    "maxDepth": 4,
+    "maxPageLoads": 200,
+    "delayMs": 2000,
+    "navTimeoutMs": 30000,
+    "viewports": [
+      "desktop",
+      "tablet",
+      "mobile",
+      "reflow320"
+    ],
+    "seedPaths": [
+      "/"
+    ],
+    "useSitemap": true,
+    "respectRobots": true,
+    "extraProtectedPathPatterns": [],
+    "extraBlockedHosts": []
   }
 }

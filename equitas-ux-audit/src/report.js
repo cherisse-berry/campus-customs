@@ -4,6 +4,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT, isMain } from "./lib/manifest.js";
+import { rawFindings, loadInvestigations } from "./lib/collect.js";
+import { consolidate, loadTriage } from "./lib/findings.js";
+import { registerMarkdown, registerCsv, consolidationMarkdown, publicSummaryMarkdown, wcagMarkdown, a11yGroupsMarkdown, publicNavMarkdown, authRecordMarkdown, loadWcag } from "./lib/public-reports.js";
 
 const STATUS = {
   COMPLETED: "Tested — navigation task completed (science assessed separately)",
@@ -58,6 +61,11 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
   for (const r of runs.filter((r) => r.scenarioId).sort((a, b) => a.startedAt.localeCompare(b.startedAt))) latest[`${r.scenarioId}|${r.viewport}`] = r;
   const scenarioRuns = Object.values(latest);
 
+  const raw = rawFindings(runs);
+  const groups = consolidate(raw, { ...loadTriage(configRoot), ...loadTriage(root) });
+  const investigations = loadInvestigations(root);
+  const wcag = loadWcag(configRoot);
+
   // ---------- results.md ----------
   let md = `# EQUITAS black-box test results\n\nGenerated ${new Date().toISOString()} from ${runs.length} run(s) in evidence/runs.\n\n> Automated persona runs are simulations. They are not real-user findings. Scientific judgments are PROVISIONAL unless the criteria are marked expert-reviewed. Runs with validity warnings must be checked before use.\n\n## Scenario status\n\n| Scenario | Persona | Viewport | Account (role / entitlement) | Status | Validity | Actions | Failed lookups | Unexpected redirects | AI submissions | Science coverage | Build | Run |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n`;
   for (const s of scenarios) {
@@ -106,6 +114,9 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
     }
     md += "\n";
   }
+  md += authRecordMarkdown(runs);
+  const pubRuns = runs.filter((r) => r.kind === "public-audit");
+  if (pubRuns.length) md += `\n## Public website audits\n\n${pubRuns.map((r) => `- ${r.runId}: **${r.outcome?.status}** — ${esc(r.outcome?.reason)}`).join("\n")}\n\nSee public-audit-summary.md.\n`;
   fs.writeFileSync(path.join(outDir, "results.md"), md);
 
   // ---------- persona-comparison.md (shared benchmark tasks) ----------
@@ -150,6 +161,7 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
   nm += "```\n\n| From | To | Via | Times | Personas |\n|---|---|---|---|---|\n";
   for (const e of [...edges.values()].sort((a, b) => b.count - a.count)) nm += `| ${esc(e.from)} | ${esc(e.to)} | ${esc(e.label)} | ${e.count} | ${[...e.personas].join(", ")} |\n`;
   nm += `\n## Pages\n\n| Page | Titles seen |\n|---|---|\n${[...nodes].map(([n, t]) => `| ${esc(n)} | ${esc([...t].filter(Boolean).join("; "))} |`).join("\n")}\n`;
+  nm += publicNavMarkdown(runs);
   fs.writeFileSync(path.join(outDir, "navigation-map.md"), nm);
 
   // ---------- accessibility.md ----------
@@ -164,32 +176,35 @@ export function buildReports(root = ROOT, configRoot = ROOT) {
   const reflows = scans.filter((s) => s.reflow);
   if (reflows.length) ax += `\n## Reflow at 320 px\n\n${reflows.map((s) => `- ${pageNode(s.url)}: horizontal overflow ${s.reflow.horizontalOverflowPx}px${s.reflow.widestElements?.length ? ` (widest: ${s.reflow.widestElements.join(", ")})` : ""}`).join("\n")}\n`;
   ax += `\n## NOT TESTED (manual / assistive technology required)\nScreen readers (NVDA, JAWS, VoiceOver), real browser zoom at 200%/400%, colour contrast in states axe cannot compute (hover, focus, images of text), motion and timing, voice control, cognitive load, announcement timing of AI responses, focus management after responses load.\n`;
+  ax += a11yGroupsMarkdown(groups) + wcagMarkdown(wcag, groups);
+  if (investigations.length) ax += `\n## Targeted investigations\n\n${investigations.map((i) => `- ${i.investigationId} — \`${i.selector}\`: ${esc(i.conclusion || i.reason)} (evidence/investigations/${i.investigationId}/investigation.md)`).join("\n")}\n`;
   fs.writeFileSync(path.join(outDir, "accessibility.md"), ax);
 
-  // ---------- defect register (drafts, with reproduction steps) ----------
-  const findings = runs.flatMap((r) => r.findings.map((f) => ({ ...f, run: r, runId: r.runId, scenarioId: r.scenarioId || r.kind, account: r.account, viewport: r.viewport || f.viewport || "multiple", at: r.startedAt })));
-  const cols = ["id", "category", "severity", "title", "scenarioId", "accountRole", "entitlement", "viewport", "browser", "build", "observed", "expected", "suspectedCause", "reproSteps", "triage", "evidence", "runId"];
-  const val = (f, c) => ({
-    accountRole: f.account?.actualRole, entitlement: f.account?.actualEntitlement, browser: f.run.browser?.version, build: f.run.buildAtStart?.buildId || f.run.buildAtStart?.assetHash || f.run.probe?.[0]?.build?.buildId,
-    evidence: [f.screenshot, ...(f.evidence || [])].filter(Boolean).join(" "), reproSteps: f.run.steps ? reproSteps(f.run, f).map((x, i) => `${i + 1}. ${x}`).join(" ") : "",
-  }[c] ?? f[c]);
-  fs.writeFileSync(path.join(outDir, "defect-register-draft.csv"), [cols.join(",")].concat(findings.map((f) => cols.map((c) => `"${String(val(f, c) ?? "").replace(/"/g, '""')}"`).join(","))).join("\n"));
-  let dr = `# Defect register — DRAFT (automated observations awaiting human triage)\n\nEach entry needs a person to confirm severity, re-perform the reproduction steps, and add expected behaviour, acceptance criteria and SOW mapping (docs/defect-register-template.md).\n\n`;
-  for (const f of findings) {
-    dr += `## ${f.id} — ${f.title}\n- Category: ${f.category} · Proposed severity: ${f.severity || "untriaged"} · Triage: ${f.triage || "pending"}\n- Scenario: ${f.scenarioId} · Account: ${f.account?.id} (${f.account?.actualRole}/${f.account?.actualEntitlement}) · Viewport: ${f.viewport} · Chromium ${val(f, "browser") || "?"} · Build ${val(f, "build") || "unknown"} · Run: ${f.runId} · ${f.at}\n- Observed: ${f.observed}\n${f.expected ? `- Expected: ${f.expected}\n` : ""}${f.suspectedCause ? `- Suspected cause (unconfirmed): ${f.suspectedCause}\n` : ""}`;
-    if (f.run.steps?.some((s) => s.kind === "agent")) dr += `- Reproduction steps (generated; re-perform before sending):\n${reproSteps(f.run, f).map((x, i) => `  ${i + 1}. ${x}`).join("\n")}\n`;
-    dr += `- Evidence: ${[f.screenshot, ...(f.evidence || [])].filter(Boolean).map((e) => `evidence/runs/${f.runId}/${e}`).join(", ") || `evidence/runs/${f.runId}/run.json`}\n\n`;
-  }
-  fs.writeFileSync(path.join(outDir, "defect-register-draft.md"), dr);
+  // ---------- defect register (consolidated, triaged) ----------
+  // Agent-scenario findings keep their generated reproduction steps.
+  const byRun = new Map(runs.map((r) => [r.runId, r]));
+  const reproFor = (g) => {
+    for (const o of g.observations) {
+      const run = byRun.get(o.runId);
+      const f = run?.findings?.find((x) => x.id === o.id);
+      if (f && run.steps?.some((s) => s.kind === "agent")) return reproSteps(run, f);
+    }
+    return null;
+  };
+  fs.writeFileSync(path.join(outDir, "defect-register-draft.md"), registerMarkdown(groups, reproFor));
+  fs.writeFileSync(path.join(outDir, "defect-register-draft.csv"), registerCsv(groups, reproFor));
+  fs.writeFileSync(path.join(outDir, "consolidation.md"), consolidationMarkdown(groups));
+  fs.writeFileSync(path.join(outDir, "public-audit-summary.md"), publicSummaryMarkdown(runs, groups, investigations, wcag));
+  const findings = raw;
 
   // ---------- cleanup manifest + evidence index ----------
   const created = runs.flatMap((r) => (r.createdRecords || []).map((c) => ({ ...c, runId: r.runId, account: r.account?.id })));
   fs.writeFileSync(path.join(outDir, "cleanup-manifest.md"), `# Test-created records (for authorized manual cleanup — nothing is deleted automatically)\n\n| Value | Kind | Source | Account | Run | When | Page |\n|---|---|---|---|---|---|---|\n${created.map((c) => `| ${esc(c.value)} | ${c.kind} | ${c.source || ""} | ${c.account} | ${c.runId} | ${c.at} | ${c.url} |`).join("\n")}\n\n"new-id-in-url" rows are pages that appeared after a submission and may be records EQUITAS created itself. Also search the site for anything named with UXTEST.\n`);
-  fs.writeFileSync(path.join(outDir, "evidence-index.md"), `# Evidence index\n\n${runs.map((r) => `- ${r.runId} · ${r.scenarioId || r.kind} · ${r.startedAt} → ${r.endedAt} · ${r.outcome?.status} · Chromium ${r.browser?.version || "?"} · evidence/runs/${r.runId}/ (${r.steps.length} steps; console errors ${r.network.consoleErrors.length}; HTTP≥400 ${r.network.httpErrors.length}; off-domain request hosts: ${(r.network.offDomainRequests || []).join(", ") || "none"})${r.validity?.warnings?.length ? " · ⚠ " + r.validity.warnings.join("; ") : ""}`).join("\n")}\n`);
-  return { runs: runs.length, findings: findings.length, outDir };
+  fs.writeFileSync(path.join(outDir, "evidence-index.md"), `# Evidence index\n\n${runs.map((r) => `- ${r.runId} · ${r.scenarioId || r.kind} · ${r.startedAt} → ${r.endedAt} · ${r.outcome?.status} · Chromium ${r.browser?.version || "?"} · evidence/runs/${r.runId}/ (${r.steps.length} steps; console errors ${r.network.consoleErrors.length}; HTTP≥400 ${r.network.httpErrors.length}; off-domain request hosts: ${(r.network.offDomainRequests || []).join(", ") || "none"}${r.kind === "public-audit" ? `; ${(r.pages || []).length} page(s), ${r.pageLoads ?? 0} page load(s), ${(r.blockedRequests || []).filter((b) => b.kind === "write-request").length} write request(s) blocked` : ""})${r.validity?.warnings?.length ? " · ⚠ " + r.validity.warnings.join("; ") : ""}`).join("\n")}\n${investigations.length ? `\n## Investigations\n\n${investigations.map((i) => `- ${i.investigationId} · ${i.at} · \`${i.selector}\` · evidence/investigations/${i.investigationId}/`).join("\n")}\n` : ""}`);
+  return { runs: runs.length, findings: findings.length, groups: groups.length, outDir };
 }
 
 if (isMain(import.meta.url)) {
   const r = buildReports();
-  console.log(`Wrote reports/results.md, persona-comparison.md, navigation-map.md, accessibility.md, defect-register-draft.{md,csv}, cleanup-manifest.md, evidence-index.md (${r.runs} runs, ${r.findings} draft findings).`);
+  console.log(`Wrote reports/results.md, public-audit-summary.md, consolidation.md, persona-comparison.md, navigation-map.md, accessibility.md, defect-register-draft.{md,csv}, cleanup-manifest.md, evidence-index.md (${r.runs} runs, ${r.findings} observations → ${r.groups} issues).`);
 }

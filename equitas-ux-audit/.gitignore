@@ -6,3 +6,4 @@ config/authorization-manifest.json
 node_modules/
 *.zip
 evidence-selftest-*/
+config/triage.json

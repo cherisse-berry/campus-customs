@@ -1,13 +1,13 @@
 # Audit status — Section 26 deliverables and Section 28 success criteria
 
-**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-test (94 checks). 12 Nov 2026: the sign-in verification defects found in the founder's first live probe are fixed (docs/auth-incident-2026-11-12.md); the Choose Your Plan problem is NOT yet verified on the authenticated founder pathway. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
+**As of 2026-11-12: the harness is built, every code gap from the gap analysis is closed, and it passes its offline self-tests (94 core + 65 public-audit checks). 12 Nov 2026: the sign-in verification defects found in the founder's first live probe are fixed (docs/auth-incident-2026-11-12.md); the Choose Your Plan problem is NOT yet verified on the authenticated founder pathway. Nothing has been run against the EQUITAS website.** The cloud build session can't reach the site: its environment deliberately has no live-site hosts ("production protection"). All live runs happen on the founder's computer.
 
 ## Deliverables (Section 26)
 
 | # | Deliverable | Status | Where |
 |---|---|---|---|
 | 1 | Authorization & scope record | Template built; **awaiting founder sign-off** | `config/authorization-manifest.example.json` |
-| 2 | Browser testing implementation | Built; offline self-test passes (94 checks) | `src/`, `selftest/` |
+| 2 | Browser testing implementation | Built; offline self-tests pass (94 core + 65 public-audit) | `src/`, `selftest/` |
 | 3 | Test-account & entitlement inventory | **Awaiting founder** (only founder-admin known) | manifest `accounts`; `npm run check-manifest` |
 | 4–5 | 20-persona registry & behavioural specs | Built | `config/personas.json` |
 | 6 | Coverage matrix | Built | `docs/coverage-matrix.md` |
@@ -83,3 +83,7 @@ For each area, mark Ready / Not ready / Unknown, with the evidence run IDs: core
 ## Executive questions (Section 29) — answer only from evidence
 
 A. Intuitive for intended users? B. What prevents starting? C. What prevents completing research tasks? D. Which users face the greatest barriers? E. Integrated advisor or disconnected features? F. Are limitations and uncertainty clear? G. Which defects need Appifest correction? H. Which are UX/product decisions? I. Which need independent scientific review? J. What must be fixed before a controlled beta? K. What should be tested with real investigators?
+
+## Public website audit (added 2026-11-12)
+
+Built and validated offline (`docs/public-audit.md`). **No live public audit has been run with this version.** The 12 Nov public visitor probe's colour-contrast observations are consolidated in `reports/consolidation.md` when `npm run report` runs on the founder's machine; the specific element still needs `npm run investigate` inside an approved window and a person's triage decision.

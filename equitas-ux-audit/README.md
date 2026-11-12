@@ -28,7 +28,7 @@ cd campus-customs && git checkout claude/youthful-einstein-sxzqvz
 cd equitas-ux-audit
 npm install
 npx playwright install chromium
-npm run selftest                 # 94 offline checks against a local fake site
+npm run selftest                 # 94 core + 65 public-audit offline checks against local fake sites
 cp config/authorization-manifest.example.json config/authorization-manifest.json
 ```
 
@@ -49,6 +49,17 @@ npm run check-manifest
 ```
 
 For the tester AI, set an Anthropic API key in your shell (`export ANTHROPIC_API_KEY=...`) or run `ant auth login`. Do not put the key in any file in this folder.
+
+## Public website audit (signed-out visitor)
+
+See `docs/public-audit.md` for the full description. This track is separate from the investigator and founder tracks: it never loads a session, submits nothing, and never requests protected routes.
+
+```bash
+npm run public-audit -- --plan       # scope, limits, authorization status — contacts nothing
+npm run public-audit                 # live, only inside the approved testing window
+npm run report && npm run validate-reports
+npm run investigate -- --group G-xxxxxxxx      # re-measure one consolidated issue
+```
 
 ## Run order (Section 27)
 

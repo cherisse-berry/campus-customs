@@ -15,9 +15,14 @@
     "batch": "node src/run-batch.js",
     "report": "node src/report.js",
     "matrix": "node src/matrix.js",
-    "selftest": "node selftest/run-selftest.js",
+    "selftest": "node selftest/run-selftest.js && node selftest/public-audit-selftest.js",
     "purge-evidence": "node src/purge-evidence.js",
-    "auth-diagnose": "node src/auth-diagnose.js"
+    "auth-diagnose": "node src/auth-diagnose.js",
+    "public-audit": "node src/public-audit.js",
+    "investigate": "node src/investigate-finding.js",
+    "validate-reports": "node src/validate-reports.js",
+    "selftest:core": "node selftest/run-selftest.js",
+    "selftest:public": "node selftest/public-audit-selftest.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.7.0",

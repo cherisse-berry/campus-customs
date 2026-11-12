@@ -1,0 +1,390 @@
+{
+  "_note": "WCAG 2.2 Level A and AA success criteria (4.1.1 Parsing is obsolete in 2.2). 'AUTOMATED_PARTIAL' means automation catches some failures only; no criterion is fully verified by automation.",
+  "criteria": [
+    {
+      "sc": "1.1.1",
+      "name": "Non-text Content",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe image-alt, input-image-alt, svg-img-alt, role-img-alt; quality of alt text needs a person"
+    },
+    {
+      "sc": "1.2.1",
+      "name": "Audio-only and Video-only (Prerecorded)",
+      "level": "A",
+      "status": "CONDITIONAL_CHECK_APPLICABILITY",
+      "method": "media elements are counted; if any are found, review manually"
+    },
+    {
+      "sc": "1.2.2",
+      "name": "Captions (Prerecorded)",
+      "level": "A",
+      "status": "CONDITIONAL_CHECK_APPLICABILITY",
+      "method": "media detection only; caption quality is manual"
+    },
+    {
+      "sc": "1.2.3",
+      "name": "Audio Description or Media Alternative (Prerecorded)",
+      "level": "A",
+      "status": "CONDITIONAL_CHECK_APPLICABILITY",
+      "method": "media detection only"
+    },
+    {
+      "sc": "1.2.4",
+      "name": "Captions (Live)",
+      "level": "AA",
+      "status": "CONDITIONAL_CHECK_APPLICABILITY",
+      "method": "media detection only"
+    },
+    {
+      "sc": "1.2.5",
+      "name": "Audio Description (Prerecorded)",
+      "level": "AA",
+      "status": "CONDITIONAL_CHECK_APPLICABILITY",
+      "method": "media detection only"
+    },
+    {
+      "sc": "1.3.1",
+      "name": "Info and Relationships",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe structure/ARIA/table/list/label rules; heading levels and landmarks checked by the harness"
+    },
+    {
+      "sc": "1.3.2",
+      "name": "Meaningful Sequence",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "reading order needs a person (screen reader or CSS off)"
+    },
+    {
+      "sc": "1.3.3",
+      "name": "Sensory Characteristics",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "instructions relying on shape/position need a person"
+    },
+    {
+      "sc": "1.3.4",
+      "name": "Orientation",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "portrait and landscape need a manual check on a device"
+    },
+    {
+      "sc": "1.3.5",
+      "name": "Identify Input Purpose",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe autocomplete-valid; forms are inspected, never submitted"
+    },
+    {
+      "sc": "1.4.1",
+      "name": "Use of Color",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe link-in-text-block only; other colour-only meaning is manual"
+    },
+    {
+      "sc": "1.4.2",
+      "name": "Audio Control",
+      "level": "A",
+      "status": "CONDITIONAL_CHECK_APPLICABILITY",
+      "method": "autoplay media counted"
+    },
+    {
+      "sc": "1.4.3",
+      "name": "Contrast (Minimum)",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe color-contrast + independent measurement in `npm run investigate`; text over images/gradients is not reliably measurable"
+    },
+    {
+      "sc": "1.4.4",
+      "name": "Resize Text",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe meta-viewport (zoom not disabled); real 200% zoom is manual"
+    },
+    {
+      "sc": "1.4.5",
+      "name": "Images of Text",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person"
+    },
+    {
+      "sc": "1.4.10",
+      "name": "Reflow",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "320 CSS px viewport: horizontal overflow and off-screen controls"
+    },
+    {
+      "sc": "1.4.11",
+      "name": "Non-text Contrast",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "UI component and graphic contrast is not automated"
+    },
+    {
+      "sc": "1.4.12",
+      "name": "Text Spacing",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "WCAG spacing overrides applied; newly clipped text counted"
+    },
+    {
+      "sc": "1.4.13",
+      "name": "Content on Hover or Focus",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "tooltips/popovers need a person"
+    },
+    {
+      "sc": "2.1.1",
+      "name": "Keyboard",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "Tab traversal reaches focusable elements; operating each control is manual"
+    },
+    {
+      "sc": "2.1.2",
+      "name": "No Keyboard Trap",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "Tab traversal detects focus stuck on one element"
+    },
+    {
+      "sc": "2.1.4",
+      "name": "Character Key Shortcuts",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person"
+    },
+    {
+      "sc": "2.2.1",
+      "name": "Timing Adjustable",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person (no session timeouts on public pages expected)"
+    },
+    {
+      "sc": "2.2.2",
+      "name": "Pause, Stop, Hide",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "moving content/carousels need a person"
+    },
+    {
+      "sc": "2.3.1",
+      "name": "Three Flashes or Below Threshold",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person or a flash-analysis tool"
+    },
+    {
+      "sc": "2.4.1",
+      "name": "Bypass Blocks",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "skip link and main landmark checked; axe bypass/region"
+    },
+    {
+      "sc": "2.4.2",
+      "name": "Page Titled",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe document-title; title quality is manual"
+    },
+    {
+      "sc": "2.4.3",
+      "name": "Focus Order",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "Tab order recorded; whether it is logical needs a person"
+    },
+    {
+      "sc": "2.4.4",
+      "name": "Link Purpose (In Context)",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe link-name; generic link text flagged for judgment"
+    },
+    {
+      "sc": "2.4.5",
+      "name": "Multiple Ways",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "navigation and sitemap observed; judgment needed"
+    },
+    {
+      "sc": "2.4.6",
+      "name": "Headings and Labels",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe empty-heading/label rules; descriptiveness is manual"
+    },
+    {
+      "sc": "2.4.7",
+      "name": "Focus Visible",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "heuristic: outline or box-shadow on focus; other indicator styles need a person"
+    },
+    {
+      "sc": "2.4.11",
+      "name": "Focus Not Obscured (Minimum)",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "focused element's centre checked for overlap (e.g. sticky headers)"
+    },
+    {
+      "sc": "2.5.1",
+      "name": "Pointer Gestures",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person"
+    },
+    {
+      "sc": "2.5.2",
+      "name": "Pointer Cancellation",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person"
+    },
+    {
+      "sc": "2.5.3",
+      "name": "Label in Name",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe label-content-name-mismatch (experimental) where available"
+    },
+    {
+      "sc": "2.5.4",
+      "name": "Motion Actuation",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person on a device"
+    },
+    {
+      "sc": "2.5.7",
+      "name": "Dragging Movements",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person"
+    },
+    {
+      "sc": "2.5.8",
+      "name": "Target Size (Minimum)",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe target-size + harness measurement (24\u00d724 CSS px; inline links excepted)"
+    },
+    {
+      "sc": "3.1.1",
+      "name": "Language of Page",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe html-has-lang / html-lang-valid"
+    },
+    {
+      "sc": "3.1.2",
+      "name": "Language of Parts",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe valid-lang; unmarked foreign phrases are manual"
+    },
+    {
+      "sc": "3.2.1",
+      "name": "On Focus",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "needs a person"
+    },
+    {
+      "sc": "3.2.2",
+      "name": "On Input",
+      "level": "A",
+      "status": "NOT_EVALUATED_PROHIBITED_ACTION",
+      "method": "would require entering data into production forms"
+    },
+    {
+      "sc": "3.2.3",
+      "name": "Consistent Navigation",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "primary navigation compared across all audited pages"
+    },
+    {
+      "sc": "3.2.4",
+      "name": "Consistent Identification",
+      "level": "AA",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "same link text \u2192 different destinations flagged"
+    },
+    {
+      "sc": "3.2.6",
+      "name": "Consistent Help",
+      "level": "A",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "help/contact placement needs a person"
+    },
+    {
+      "sc": "3.3.1",
+      "name": "Error Identification",
+      "level": "A",
+      "status": "NOT_EVALUATED_PROHIBITED_ACTION",
+      "method": "forms are never submitted on production"
+    },
+    {
+      "sc": "3.3.2",
+      "name": "Labels or Instructions",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe label rules on visible form fields"
+    },
+    {
+      "sc": "3.3.3",
+      "name": "Error Suggestion",
+      "level": "AA",
+      "status": "NOT_EVALUATED_PROHIBITED_ACTION",
+      "method": "forms are never submitted on production"
+    },
+    {
+      "sc": "3.3.4",
+      "name": "Error Prevention (Legal, Financial, Data)",
+      "level": "AA",
+      "status": "NOT_EVALUATED_PROHIBITED_ACTION",
+      "method": "no transactions are made"
+    },
+    {
+      "sc": "3.3.7",
+      "name": "Redundant Entry",
+      "level": "A",
+      "status": "NOT_EVALUATED_PROHIBITED_ACTION",
+      "method": "multi-step forms are not completed"
+    },
+    {
+      "sc": "3.3.8",
+      "name": "Accessible Authentication (Minimum)",
+      "level": "AA",
+      "status": "NOT_EVALUATED_PROHIBITED_ACTION",
+      "method": "sign-in is out of scope for the public audit"
+    },
+    {
+      "sc": "4.1.2",
+      "name": "Name, Role, Value",
+      "level": "A",
+      "status": "AUTOMATED_PARTIAL",
+      "method": "axe ARIA/name rules; mobile menu aria-expanded; dialog names"
+    },
+    {
+      "sc": "4.1.3",
+      "name": "Status Messages",
+      "level": "AA",
+      "status": "MANUAL_REVIEW_REQUIRED",
+      "method": "status messages appear after actions that are not performed"
+    }
+  ]
+}

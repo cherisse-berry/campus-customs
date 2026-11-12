@@ -1,0 +1,6 @@
+{
+  "_instructions": "Copy to config/triage.json (kept local). Key = group ID from reports/defect-register-draft.md (e.g. G-1a2b3c4d). decision: confirmed | rejected | intended | harness. Only a person's 'confirmed' turns an automated finding into a confirmed defect.",
+  "decisions": {
+    "G-00000000": { "decision": "confirmed", "by": "founder", "date": "2026-11-20", "note": "Checked manually with a colour picker; badge text 2.9:1.", "severity": "P2" }
+  }
+}

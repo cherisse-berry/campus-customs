@@ -42,6 +42,8 @@ const server = http.createServer((req, res) => {
 const hits = () => requests.length;
 const port = server.address().port;
 const tmpRoot = fs.mkdtempSync(path.join(ROOT, "evidence-selftest-"));
+// Remove the temporary evidence folder even if a check fails.
+process.on("exit", () => { try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {} });
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "config", "authorization-manifest.example.json"), "utf8"));
 Object.assign(manifest, { _selftest: true, _root: tmpRoot });
 manifest.authorization.approved = true;
